@@ -1,0 +1,48 @@
+
+Setup
+==========
+1. Create a Canvas element and get the 2d context
+	<canvas id="canvas"></canvas>
+	var context = document.getElementById("canvas").getContext("2d");
+
+2. Create a timeline	
+	timeline = new Timeline();
+    timeline.init(context, length);
+    
+3. Create the subtitles and add them to the timeline
+	/* The parameters are
+	 *  - Start time in milliseconds
+	 *  - End time in milliseconds
+	 *  - The text of the subtitle
+	 *  - The index */
+	var segs = [
+		new Segment(0, 2000, "This is the first subtitle", 0),
+		new Segment(3000, 4000, "This is the second", 1),
+		new Segment(5000, 6000, "This is the third", 2),
+		new Segment(7000, 8000, "This is the fourth", 3)
+	];
+	/* The parameters are
+	 *  - An array of Segment objects
+	 *  - An external Id (not necessary--it's just somewhere to put one)
+	 *  - Language
+	 *  - Read only */
+    timeline.addSegmentTrack(segs, "track-external-id", "en", false);
+
+4. Define the external functions that you want to use. If you are not going to be using them, then ignore them.
+	// getTextCallback is called whenever a subtitle is selected. The text of the subtitle is given as the first argument
+    timeline.getTextCallback = function(text) {};
+	// unselectCallback is called whenever a subtitle is deselected
+	timeline.unselectCallback = function() {};
+	// jump is called whenever the time is changed (either the user clicked in the time bar or the time marker extended beyond the bounds of the AB repeat area.
+	timeline.jump = function(time) {}
+	// abRepeatEnabled is called whenever the AB repeat functionality is turned on
+	timeline.abRepeatEnabled = function() {}
+	// update is called whenever the contents of the timeline change
+	timeline.update = function() {}
+
+5. Draw the timeline
+    timeline.render();
+    timeline.update();
+
+Note: Whenever you want to update the time in the timeline call
+	timeline.updateTimeMarker(time);
