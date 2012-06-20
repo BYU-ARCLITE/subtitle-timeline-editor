@@ -83,31 +83,31 @@ function Timeline() {
 	
 	// Images
 	this.segmentLeft = null;
-	this.segmentLeftSrc = "images/canvasTimeline/event_left.png";
+	this.segmentLeftSrc = "./images/event_left.png";
 	this.segmentRight = null;
-	this.segmentRightSrc = "images/canvasTimeline/event_right.png";
+	this.segmentRightSrc = "./images/event_right.png";
 	this.segmentMid = null;
-	this.segmentMidSrc = "images/canvasTimeline/event_mid.png";
+	this.segmentMidSrc = "./images/event_mid.png";
 	this.segmentLeftSel = null;
-	this.segmentLeftSelSrc = "images/canvasTimeline/event_left_sel.png";
+	this.segmentLeftSelSrc = "./images/event_left_sel.png";
 	this.segmentRightSel = null;
-	this.segmentRightSelSrc = "images/canvasTimeline/event_right_sel.png";
+	this.segmentRightSelSrc = "./images/event_right_sel.png";
 	this.segmentMidSel = null;
-	this.segmentMidSelSrc = "images/canvasTimeline/event_mid_sel.png";
+	this.segmentMidSelSrc = "./images/event_mid_sel.png";
 	this.segmentLeftDark = null;
-	this.segmentLeftDarkSrc = "images/canvasTimeline/event_left_dark.png";
+	this.segmentLeftDarkSrc = "./images/event_left_dark.png";
 	this.segmentRightDark = null;
-	this.segmentRightDarkSrc = "images/canvasTimeline/event_right_dark.png";
+	this.segmentRightDarkSrc = "./images/event_right_dark.png";
 	this.segmentMidDark = null;
-	this.segmentMidDarkSrc = "images/canvasTimeline/event_mid_dark.png";
+	this.segmentMidDarkSrc = "./images/event_mid_dark.png";
 	this.sliderLeft = null;
-	this.sliderLeftSrc = "images/canvasTimeline/slider_left.png";
+	this.sliderLeftSrc = "./images/slider_left.png";
 	this.sliderRight = null;
-	this.sliderRightSrc = "images/canvasTimeline/slider_right.png";
+	this.sliderRightSrc = "./images/slider_right.png";
 	this.sliderMid = null;
-	this.sliderMidSrc = "images/canvasTimeline/slider_mid.png";
+	this.sliderMidSrc = "./images/slider_mid.png";
         this.trackBg = null;
-        this.trackBgSrc = "images/canvasTimeline/track_bg.png";
+        this.trackBgSrc = "./images/track_bg.png";
   
 	// Canvas
 	this.canvasContext = null;
@@ -235,12 +235,12 @@ function Timeline() {
             var cursor = "";
             // Check the slider
             if(timelineGlobal.slider.containsPoint({x: timelineGlobal.slider.x, y: pos.y})) {
-                cursor = "url(\"images/canvasTimeline/cursors/cursor.png\"), auto";
+                cursor = "url(\"./images/cursors/cursor.png\"), auto";
             }
 
             // Check the key
             if(pos.y < timelineGlobal.keyHeight) {
-                cursor = "url(\"images/canvasTimeline/cursors/skip.png\"), auto";
+                cursor = "url(\"./images/cursors/skip.png\"), auto";
             }
             
             // Are we on a subtitle
@@ -250,25 +250,25 @@ function Timeline() {
                     if(element.containsPoint(pos) && !element.deleted) {
                         var shape = element.getShape();
                         if(buttonController.currentTool == 1) // Select
-                            cursor = "url(\"images/canvasTimeline/cursors/cursor-highlight.png\"), auto";
+                            cursor = "url(\"./images/cursors/cursor-highlight.png\"), auto";
                         
                         if(buttonController.currentTool == 2) // Move
-                            //cursor = "url(\"images/canvasTimeline/cursors/move.png\"), auto";
+                            //cursor = "url(\"./images/cursors/move.png\"), auto";
                             cursor = "move";
                         
                         if(buttonController.currentTool == 3) // Move
-                            cursor = "url(\"images/canvasTimeline/cursors/cursor.png\"), auto";
+                            cursor = "url(\"./images/cursors/cursor.png\"), auto";
                         
                         if(buttonController.currentTool == 4) // delete
-                            //cursor = "url(\"images/canvasTimeline/cursors/delete.png\"), auto";
+                            //cursor = "url(\"./images/cursors/delete.png\"), auto";
                             cursor = "pointer";
                         
                         if(buttonController.currentTool == 5) { // Resize
                             if(pos.x < shape.x + shape.width/2)
-                                //cursor = "url(\"images/canvasTimeline/cursors/resize-left.png\"), auto";
+                                //cursor = "url(\"./images/cursors/resize-left.png\"), auto";
                                 cursor = "w-resize";
                             else
-                                //cursor = "url(\"images/canvasTimeline/cursors/resize-right.png\"), auto";
+                                //cursor = "url(\"./images/cursors/resize-right.png\"), auto";
                                 cursor = "e-resize";
                         }
                         
@@ -278,16 +278,16 @@ function Timeline() {
             }
             
             if(cursor == "" && buttonController.currentTool == 3) // add
-                    cursor = "url(\"images/canvasTimeline/cursors/add.png\"), auto";
+                    cursor = "url(\"./images/cursors/add.png\"), auto";
             if(cursor == "" && buttonController.currentTool == 6) {
                 if(this.repeatA != null && timelineGlobal.abRepeatOn == false)
-                    cursor = "url(\"images/canvasTimeline/cursors/repeat-b.png\"), auto";
+                    cursor = "url(\"./images/cursors/repeat-b.png\"), auto";
                 else
-                    cursor = "url(\"images/canvasTimeline/cursors/repeat-a.png\"), auto";
+                    cursor = "url(\"./images/cursors/repeat-a.png\"), auto";
             }
             
             if(cursor == "")
-                cursor = "url(\"images/canvasTimeline/cursors/cursor.png\"), auto";
+                cursor = "url(\"./images/cursors/cursor.png\"), auto";
             
             $("#canvas").css("cursor", cursor);
         }
@@ -630,9 +630,9 @@ function Timeline() {
                     this.jump(this.repeatA);
                 }
 
-        if(this.timeMarkerPos > timeFunctions.pixelToTime(this.view.width) && player.isPlaying())
+        /*if(this.timeMarkerPos > timeFunctions.pixelToTime(this.view.width))
             this.moveTimeMarkerIntoView(time);
-        else
+        else*/
 		    this.render();
 	}
         
