@@ -2,74 +2,293 @@
 <html>
 <head>
 	<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.2.min.js"></script>
-	<script type="text/javascript" src="timeline.js"></script>
-	<script type="text/javascript" src="segment.js"></script>
-	<script type="text/javascript" src="slider.js"></script>
-	<script type="text/javascript" src="timelineToolbar.js"></script>
-	<script type="text/javascript" src="button.js"></script>
-	<script type="text/javascript" src="timeFunctions.js"></script>
-	<script type="text/javascript" src="segmentPlaceholder.js"></script>
-	<script type="text/javascript" src="timelineEvent.js"></script>
-	<script type="text/javascript" src="timelineTracker.js"></script>
+	<script src="WebVTT.js"></script>
+	<script src="Ayamel.js"></script>
+	<script src="Text.js"></script>
+	<script src="Caption.js"></script>
+	<script src="captionWrapper.js"></script>
+	<script src="timeline.js"></script>
+	<script src="segment.js"></script>
+	<script src="segmentTrack.js"></script>
+	<script src="slider.js"></script>
+	<script src="timelineToolbar.js"></script>
+	<script src="button.js"></script>
+	<script src="segmentPlaceholder.js"></script>
+	<script src="timelineEvent.js"></script>
+	<script src="timelineTracker.js"></script>
+	<script src="timelineView.js"></script>
+	<script src="waveForm.js"></script>
 </head>
 <style type="text/css">
 	body {
 		margin: 0;
 		padding: 0;
 	}
-	audio {
-		margin: 30px;
+	#video {
+		background: grey;
+		position: relative;
+		height: 300px;
+		width: 500px;
 	}
-	input {
-		width: 250px;
-		height: 30px;
-		margin: 30px;
+	#editor, #linediv {
+		display: none;
 	}
-	canvas {
+	#left, #right {
+		margin-top: 20px;
+		float: left;
+		width: 50%;
+		height: 400px;
 	}
 </style>
 <body>
-
-<audio controls="controls">
-  <source src="music.ogg" type="audio/ogg" />
-  <source src="music.mp3" type="audio/mp3" />
-  Your browser does not support the audio tag.
-</audio><br />
-<input type="text" placeholder="Subtitle text will appear here" id="subtitle" />
-<canvas id="canvas"></canvas>
+<div id="left">
+	Add caption track: <input type="file" id="vttfile" /><br/>
+	Add audio track: <input type="file" id="audiofile" /><br/><br/>
+	<center>
+	<div id="editor">
+	<textarea id="cue_text" placeholder="Cue text will appear here."></textarea><br/>
+	<table style="text-align:center;">
+		<tr><td><label for="cue_align">Alignment:</label></td><td><label for="cue_snap">Positioning:</label></td></tr>
+		<tr>
+			<td>
+				<select id="cue_align">
+					<option value="start">Start</option>
+					<option value="middle" selected>Middle</option> 
+					<option value="end">End</option>
+				</select>
+			</td><td>
+				<select id="cue_snap">
+					<option value="auto">Auto</option>
+					<option value="snap">Snap-to-Lines</option>
+					<option value="percent">Percent</option>
+				</select>
+			</td>
+		</tr>
+		<tr id="linediv">
+			<td colspan=2>
+				<label for="cue_line">Line Number</label>
+				<input id="cue_line" type="range" value=0/>
+			</td>
+		</tr>
+		<tr><td><label for="cue_pos">Indentation</label></td><td><label for="cue_size">Caption Size</label></td></tr>
+		<tr><td><input id="cue_pos" type="range" value=50/></td><td><input id="cue_size" type="range" value=100 min=0 max=100 /></td></tr>
+	</table>
+	</center>
+	</div>
+</div>
+<div id="right">
+	<div id="video"></div>
+	<audio id="controls" controls="controls">
+		<source src="music.ogg" type="audio/ogg" />
+		<source src="music.mp3" type="audio/mp3" />
+		Your browser does not support the audio tag.
+	</audio><br />
+</div>
+<div id="tl"></div>
 
 <script type="text/javascript">
+	var timeline;
+	var screen =  document.getElementById("video"),
+		editor = document.getElementById("editor"),
+		controls = document.getElementById("controls");
+
+	var cue = null, grain = 0,
+		text_el = document.getElementById("cue_text"),
+		align_el = document.getElementById("cue_align"),
+		snap_el = document.getElementById("cue_snap"),
+		line_form = document.getElementById("linediv"),
+		line_el = document.getElementById("cue_line"),
+		pos_el = document.getElementById("cue_pos"),
+		size_el = document.getElementById("cue_size");	
+	
+	function text_change(){
+		if(!cue) return;
+		cue.text = this.value;
+		cue.caption.Update(cue);
+		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+	}
+
+	function line_change(){
+		if(!cue) return;
+		cue.rawLine = this.valueAsNumber;
+		cue.caption.Update(cue);
+	}
+	
+	function pos_change(){
+		if(!cue) return;
+		cue.position = this.value+"%";
+		cue.caption.Update(cue);
+		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+	}
+	
+	function size_change(){
+		if(!cue) return;
+		cue.size = this.value+"%";
+		cue.caption.Update(cue);
+		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+	}
+	
+	function align_change(){
+		if(!cue) return;
+		cue.align = this.value;
+		cue.caption.Update(cue);
+	}
+	
+	function snap_change(){
+		if(!cue) return;
+		var cheight, cstyle;
+		if(this.value === "auto"){
+			cue.snapToLines = true;
+			cue.rawLine = "auto";
+			line_form.style.display = "none";	
+		}else{
+			cstyle = getComputedStyle(cue.caption.el);
+			cheight = parseInt(getComputedStyle(video).height,10);
+			switch(this.value){
+				case "percent":
+					cue.snapToLines = false;
+					if(cue.rawLine === 'auto'){
+						cue.rawLine = 0;
+					}else if(cue.rawLine < 0){
+						cue.rawLine = Math.round(100*(1-(parseInt(cstyle.bottom,10)+parseInt(cstyle.height,10))/cheight));
+					}else{
+						cue.rawLine = Math.round(100*parseInt(cstyle.top,10)/cheight);
+					}
+					line_el.type = "range";
+					line_el.max = 100;
+					line_el.min = 0;
+					break;
+				case "snap":
+					cue.snapToLines = true;
+					cue.rawLine = cue.rawLine==='auto'?0:Math.round(parseInt(cstyle.top,10)*cheight/(100*grain));
+					line_el.type = "number"
+					line_el.max = null;
+					line_el.min = null;
+					break;
+			}
+			line_el.value = cue.rawLine;
+			line_form.style.display = "inline";
+		}
+		cue.caption.Update(cue);
+	};
+
+	function updateEditor(){
+		text_el.removeEventListener('change', text_change);
+		text_el.value = cue.text;
+		text_el.addEventListener('change', text_change, false);
+		
+		size_el.removeEventListener('change', size_change);
+		size_el.value = parseInt(cue.size,10);
+		size_el.addEventListener('change', size_change, false);
+		
+		align_el.removeEventListener('change', align_change);
+		align_el.value = cue.align;
+		align_el.addEventListener('change', align_change, false);
+		
+		snap_el.removeEventListener('change', snap_change);
+		snap_el.value = cue.snapToLines?(cue.rawLine==='auto'?'auto':'snap'):'percent';
+		if(snap_el.value === "auto"){
+			line_form.style.display = "none";	
+		}else{
+			switch(snap_el.value){
+				case "percent":
+					line_el.type = "range";
+					line_el.max = 100;
+					line_el.min = 0;
+					break;
+				case "snap":
+					line_el.type = "number"
+					line_el.max = null;
+					line_el.min = null;
+					break;
+			}
+			line_form.style.display = "inline";
+		}
+		snap_el.addEventListener('change', snap_change, false);
+		
+		line_el.removeEventListener('change', line_change);
+		line_el.value = cue.rawLine;
+		line_el.addEventListener('change', line_change, false);
+		
+		pos_el.removeEventListener('change', pos_change);
+		pos_el.value = parseInt(cue.pos,10);
+		pos_el.addEventListener('change', pos_change, false);
+		
+		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+	}
+
+document.getElementById('vttfile').addEventListener('change', function(evt) {
+	var file = evt.target.files[0]; // FileList object
+	var reader = new FileReader();
+	// Closure to capture the file information.
+	reader.onload = function(evt) {
+		var cues = WebVTT.parse(evt.target.result);
+		cues.forEach(function(cue){
+			cue.caption = Ayamel.Caption.FromCue(captionWrapper,null,cue);
+		});
+		timeline.addSegmentTrack(cues, file.name, "en", false);
+		timeline.render();
+	};
+	reader.onerror = function(e){alert(e);};
+	reader.readAsText(file);
+}, false);
+
+document.getElementById('audiofile').addEventListener('change', function(evt) {
+	var file = evt.target.files[0]; // FileList object
+	var reader = new FileReader();
+	// Closure to capture the file information.
+	reader.onload = function(evt) {
+		(new webkitAudioContext).decodeAudioData(evt.target.result, function(buffer) {
+			var i,j,frame,chan,
+				wave = new WaveForm(
+				timeline.view.width,
+				timeline.segmentTrackHeight,
+				1,//buffer.numberOfChannels,
+				buffer.sampleRate);
+			console.log("Decoded");
+			wave.addFrame(buffer.getChannelData(0));
+			console.log("loaded");
+			timeline.addAudioTrack(wave,0);
+		}, console.log.bind(console));
+	};
+	reader.onerror = function(e){alert(e);};
+	reader.readAsArrayBuffer(file);
+}, false);
+
 	$(function() {
 		// Define the canvas context
-		var context = document.getElementById("canvas").getContext("2d");
+		var location = document.getElementById("tl");
 		
 		// Create the timeline
-		timeline = new Timeline();
-		timeline.init(context, 188000);
-		var segs = [
-			new Segment(0, 2000, "This is the first subtitle", 0),
-			new Segment(3000, 4000, "This is the second", 1),
-			new Segment(5000, 6000, "This is the third", 2),
-			new Segment(7000, 8000, "This is the fourth", 3)
-		];
-		timeline.addSegmentTrack(segs, "track-external-id", "en", false);
+		timeline = new Timeline(location, 187000, 5000);
 		timeline.render();
 		
 		// Define the timeline callbacks
-		timeline.getTextCallback = function(text) {
-			$("#subtitle").val(text);
-		};
-		timeline.unselectCallback = function() {
-			$("#subtitle").val("");
-		};
-		timeline.jump = function(time) {
-			document.getElementsByTagName("audio")[0].currentTime = time / 1000;
-		}
+		timeline.on('select',function(seg) {
+			cue = seg.cue;
+			grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+			updateEditor();
+			editor.style.display = "block";
+		});
+		timeline.on('unselect',function() {
+			cue = null;
+			editor.style.display = "none";
+		});
+		timeline.on('jump', function(time) {
+			controls.currentTime = time / 1000;
+		});
+		timeline.on('segments',function(segs){
+			segs.invalid.forEach(function(seg){
+				if(seg.cue.caption){seg.cue.caption.hide();}
+			});
+			segs.valid.forEach(function(seg){
+				if(seg.cue.caption){seg.cue.caption.display(video);}
+			});
+		});
 		
 		// Bind to the audio events
-		$("audio").bind("timeupdate", function() {
-			var time = document.getElementsByTagName("audio")[0].currentTime * 1000;
-			timeline.updateTimeMarker(time);
+		controls.addEventListener("timeupdate", function() {
+			timeline.currentTime = controls.currentTime * 1000;
 		});
 	});
 </script>

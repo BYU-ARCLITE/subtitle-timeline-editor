@@ -1,48 +1,57 @@
-
 Setup
 ==========
-1. Create a Canvas element and get the 2d context
-	<canvas id="canvas"></canvas>
-	var context = document.getElementById("canvas").getContext("2d");
+1. Create a target element on the page
+	<div id="timeline"></div>
+	var target = document.getElementById("timeline");
 
 2. Create a timeline	
-	timeline = new Timeline();
-    timeline.init(context, length);
+	timeline = new Timeline(target, length, viewlength);
     
-3. Create the subtitles and add them to the timeline
+3. Create the cues and add them to the timeline
+	var cues = WebVTT.parse(vttdata)
 	/* The parameters are
-	 *  - Start time in milliseconds
-	 *  - End time in milliseconds
-	 *  - The text of the subtitle
-	 *  - The index */
-	var segs = [
-		new Segment(0, 2000, "This is the first subtitle", 0),
-		new Segment(3000, 4000, "This is the second", 1),
-		new Segment(5000, 6000, "This is the third", 2),
-		new Segment(7000, 8000, "This is the fourth", 3)
-	];
-	/* The parameters are
-	 *  - An array of Segment objects
-	 *  - An external Id (not necessary--it's just somewhere to put one)
+	 *  - An array of Segment or Cue objects (may be heterogenous) or a segmentTrack.
+	 *  - A text id
 	 *  - Language
-	 *  - Read only */
-    timeline.addSegmentTrack(segs, "track-external-id", "en", false);
+	 *  - Karaoke (not implemented) */
+    timeline.addSegmentTrack(cues, "track-external-id", "en", false);
 
-4. Define the external functions that you want to use. If you are not going to be using them, then ignore them.
-	// getTextCallback is called whenever a subtitle is selected. The text of the subtitle is given as the first argument
-    timeline.getTextCallback = function(text) {};
-	// unselectCallback is called whenever a subtitle is deselected
-	timeline.unselectCallback = function() {};
-	// jump is called whenever the time is changed (either the user clicked in the time bar or the time marker extended beyond the bounds of the AB repeat area.
-	timeline.jump = function(time) {}
-	// abRepeatEnabled is called whenever the AB repeat functionality is turned on
-	timeline.abRepeatEnabled = function() {}
-	// update is called whenever the contents of the timeline change
-	timeline.update = function() {}
+4. Add event handlers
+	// select is fired whenever a segment is selected and returns the segment object (which includes the backing cue object)
+	timeline.on('select',function(seg) {
+		var cue = seg.cue;
+		....
+	});
+	
+	// unselect is fired when the selection is terminated
+	timeline.on('unselect',function() {});
+	
+	// jump is fired whenever the timeline alters its current time internally;
+	// e.g., when a repeat point is hit or when the time marker is moved manually.
+	timeline.on('jump', function(time) {
+		controls.currentTime = time/1000;
+	});
+	
+	// timeupdate is fired whenever the timeline's time marker is moved;
+	// e.g., when timeline.currentTime is set by external code
+	timeline.on('timeupdate', function(time) {});
+	
+	// segments is fired whenever the set of segments in an active track overlapping the time marker changes;
+	// it supplies an object containing an array of newly invalidated and currently valid segments
+	timeline.on('segments',function(segs){
+		segs.invalid.forEach(function(seg){
+			//hide captions
+		});
+		segs.valid.forEach(function(seg){
+			//display captions
+		});
+	});
+
+	// abRepeatEnabled is fired whenever the AB repeat functionality is turned on
+	timeline.on('abRepeatEnabled',function() {});
+	
+	//update is fired whenever the contents of the timeline change
+	timeline.on('update', function() {});
 
 5. Draw the timeline
     timeline.render();
-    timeline.update();
-
-Note: Whenever you want to update the time in the timeline call
-	timeline.updateTimeMarker(time);

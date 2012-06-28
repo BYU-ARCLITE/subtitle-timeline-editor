@@ -1,21 +1,17 @@
 var timeFunctions = {
 	getSliderOffset: function() {
-    var offset = timelineGlobal.slider.x / timelineGlobal.view.width;
-    offset = Math.round(timelineGlobal.length * offset);
-    return offset;
-  },
-  pixelToTime: function(pixel) {
-		var time = Math.round(pixel * timelineGlobal.view.zoom);
-		return time + this.getSliderOffset();
+		var offset = timelineGlobal.slider.x / timelineGlobal.view.width;
+		return Math.round(timelineGlobal.length * offset);
+	},
+	pixelToTime: function(pixel) {
+		return Math.round(pixel * timelineGlobal.view.zoom) + this.getSliderOffset();
 	},
 	timeToPixel: function(time) {
 		time -= this.getSliderOffset();
-		var pixel = Math.round(time / timelineGlobal.view.zoom);
-		return pixel;
+		return Math.round(time / timelineGlobal.view.zoom);
 	},
 	computeZoom: function(length, width) {
 		// zoom is ms per pixel
-		var zoom = length / width;
-		return zoom;
+		return length / width;
 	}
-}
+};
