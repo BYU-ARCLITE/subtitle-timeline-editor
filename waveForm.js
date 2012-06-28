@@ -19,7 +19,7 @@ var WaveForm = (function(){
 		this.frames = [];
 		this.max = 0;
 		this.samples = 0;
-		this.split = false;
+		this.worker = null;
 		
 		this.sampleShift = function(x,l){
 			if(x == start){
@@ -78,7 +78,7 @@ var WaveForm = (function(){
 					if(val < 0){val = 0;}
 					else if(val > this.samples){val = this.samples;}
 					if(val != start){
-						if(this.sampleLength > 200000){
+						if(this.sampleLength > 150000){
 							diff = Math.round(width*(val-start)/length);
 							start = val;
 							
@@ -95,7 +95,7 @@ var WaveForm = (function(){
 							return start;
 						}
 						start = val;
-						this.redraw();
+						drawMono.call(this,0,width);
 					}
 					return start;
 				},get: function(){return start;},
@@ -169,13 +169,24 @@ var WaveForm = (function(){
 			width = this.width;
 			if(mchange){this.redraw();}
 			else{this.redrawPart(Math.floor(width*(samples-start)/len),width);}
-			return true;
 		}
-		return false;
 	}
 
-	WaveForm.prototype.redraw = function(){
-		drawMono.call(this,0,this.width);
+	WaveForm.prototype.redraw = function(cb){
+		var channels = this.channels,
+			start = this.sampleStart*channels,
+			end = start+this.sampleLength*channels;
+		if(this.worker){this.worker.terminate();}
+		this.worker = new Worker("waveWorker.js");
+		this.worker.addEventListener('message',drawPath.bind(this,cb));
+		this.worker.postMessage({
+			frame:new Float32Array(this.data.subarray(start, end)),
+			channels:channels,
+			rate:this.rate,
+			width:this.width,
+			height:this.height,
+			max:this.max		
+		});
 		//drawChannels.call(this,0,this.width);
 	};
 
@@ -183,6 +194,23 @@ var WaveForm = (function(){
 		drawMono.call(this,startp,endp);
 		//drawChannels.call(this,startp,endp);
 	};
+	
+	function drawPath(cb,e){
+		var ctx = this.ctx,
+			path = e.data,
+			px = path[0], i;
+		ctx.clearRect(0,0,this.width,this.height);
+		
+		ctx.save();
+		ctx.lineWidth = 1;
+		ctx.strokeStyle = "green";
+		ctx.translate(0,this.height/2);
+		ctx.beginPath(px.x,px.y);
+		for(i=1;px=path[i];i++){ ctx.lineTo(px.x,px.y); }
+		ctx.stroke();
+		ctx.restore();
+		cb&&cb();
+	}
 	
 	function drawMono(startp,endp){
 		"use strict";
@@ -206,6 +234,10 @@ var WaveForm = (function(){
 		ctx.clearRect(startp,0,endp-startp,this.height);
 		if(start >= stop){return;}
 		
+		frame = frame.subarray(start,stop);
+		stop-=start;
+		start = 0;
+		
 		ctx.save();
 		ctx.translate(startp,yscale);
 		endp-=startp;
@@ -213,7 +245,7 @@ var WaveForm = (function(){
 		ctx.lineWidth = 1;
 		ctx.strokeStyle = "green";
 
-		ctx.beginPath(0,Math.round(yscale*frame[start]/max))
+		ctx.beginPath(0,Math.round(yscale*frame[start]/max));
 		
 		if(xscale > 1){ //more than 1 sample per pixel
 			for(j=0;start<stop && j<endp;start=end,j++){
@@ -230,7 +262,7 @@ var WaveForm = (function(){
 				fmax = Math.max.apply(null,f);
 				fmin = Math.min.apply(null,f);
 				ctx.lineTo(j,Math.round(yscale*fmax)/max);
-				ctx.moveTo(j,Math.round(yscale*fmin)/max);
+				ctx.lineTo(j,Math.round(yscale*fmin)/max);
 			}
 		}else{
 			xscale = 1/xscale;

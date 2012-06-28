@@ -328,7 +328,7 @@ var Timeline = (function(){
 	function mouseUp(ev) {
 		var canvasTop = $(this.ctx.canvas).offset().top,
 			pos = {x: ev.pageX, y: ev.pageY-canvasTop},
-			track;
+			track, that=this;
 
 		if(this.sliderActive) {
 			this.slider.mouseUp(pos);
@@ -336,9 +336,10 @@ var Timeline = (function(){
 			if(this.selectedSegment){
 				track = this.tracks[this.selectedSegment.track];
 				if(track.audio){
-					track.audio.redraw();
-					track.render();
-					this.renderTimeMarker();
+					track.audio.redraw(function(){
+						track.render();
+						that.renderTimeMarker();
+					});
 				}
 			}
 		}else if(this.activeElement != null) {
@@ -460,6 +461,7 @@ var Timeline = (function(){
 		track.audio = wave;
 		if(this.selectedSegment && this.tracks[this.selectedSegment.track] === track){
 			track.render();
+			this.renderTimeMarker();
 		}
 	};
 	

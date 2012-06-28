@@ -244,9 +244,15 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 				timeline.view.width,
 				timeline.segmentTrackHeight,
 				1,//buffer.numberOfChannels,
-				buffer.sampleRate);
+				buffer.sampleRate/2);
 			console.log("Decoded");
-			wave.addFrame(buffer.getChannelData(0));
+			chan = buffer.getChannelData(0);
+			frame = new Float32Array(Math.floor(chan.length/2));
+			for(i=0,j=0;i<frame.length;i++,j+=2){
+				frame[i] = (chan[j]+chan[j+1])/2;
+			}
+			console.log("downsampled");
+			wave.addFrame(frame);
 			console.log("loaded");
 			timeline.addAudioTrack(wave,0);
 		}, console.log.bind(console));

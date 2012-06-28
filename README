@@ -9,13 +9,14 @@ Setup
     
 3. Create the cues and add them to the timeline
 	var cues = WebVTT.parse(vttdata)
-	/* The parameters are
+    timeline.addSegmentTrack(cues, "track-external-id", "en", false);
+
+	The parameters are
 	 *  - An array of Segment or Cue objects (may be heterogenous) or a segmentTrack.
 	 *  - A text id
 	 *  - Language
-	 *  - Karaoke (not implemented) */
-    timeline.addSegmentTrack(cues, "track-external-id", "en", false);
-
+	 *  - Karaoke (not implemented)
+	 
 4. Add event handlers
 	// select is fired whenever a segment is selected and returns the segment object (which includes the backing cue object)
 	timeline.on('select',function(seg) {
