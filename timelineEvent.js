@@ -1,7 +1,7 @@
-function TimelineEvent(eventType) {
+function TimelineEvent(eventType, attrs) {
 	this.type = eventType;
-	this.attributes = {};
-	this.time = new Date().getTime();
+	this.attributes = attrs;
+	this.time = +(new Date);
 }
 
 TimelineEvent.prototype.toString = function(prepend) {

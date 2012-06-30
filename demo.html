@@ -11,8 +11,6 @@
 	<script src="segment.js"></script>
 	<script src="segmentTrack.js"></script>
 	<script src="slider.js"></script>
-	<script src="timelineToolbar.js"></script>
-	<script src="button.js"></script>
 	<script src="segmentPlaceholder.js"></script>
 	<script src="timelineEvent.js"></script>
 	<script src="timelineTracker.js"></script>
@@ -84,6 +82,12 @@
 		Your browser does not support the audio tag.
 	</audio><br />
 </div>
+<button id="selb">SELECT</button>
+<button id="movb"> MOVE </button>
+<button id="resb">RESIZE</button>
+<button id="creb">CREATE</button>
+<button id="delb">DELETE</button>
+<button id="repb">REPEAT</button>
 <div id="tl"></div>
 
 <script type="text/javascript">
@@ -103,7 +107,7 @@
 	
 	function text_change(){
 		if(!cue) return;
-		cue.text = this.value;
+		timeline.setText(this.value);
 		cue.caption.Update(cue);
 		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
 	}
@@ -262,7 +266,6 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 }, false);
 
 	$(function() {
-		// Define the canvas context
 		var location = document.getElementById("tl");
 		
 		// Create the timeline
@@ -272,6 +275,10 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 		// Define the timeline callbacks
 		timeline.on('select',function(seg) {
 			cue = seg.cue;
+			if(!cue.caption){
+				cue.caption = Ayamel.Caption.FromCue(captionWrapper,null,cue);
+				cue.caption.display(video);
+			}
 			grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
 			updateEditor();
 			editor.style.display = "block";
@@ -295,6 +302,25 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 		// Bind to the audio events
 		controls.addEventListener("timeupdate", function() {
 			timeline.currentTime = controls.currentTime * 1000;
+		});
+		//Bind the toolbar buttons
+		document.getElementById("selb").addEventListener('click',function(){
+			timeline.currentTool = Timeline.SELECT;
+		});
+		document.getElementById("movb").addEventListener('click',function(){
+			timeline.currentTool = Timeline.MOVE;
+		});
+		document.getElementById("resb").addEventListener('click',function(){
+			timeline.currentTool = Timeline.RESIZE;
+		});
+		document.getElementById("creb").addEventListener('click',function(){
+			timeline.currentTool = Timeline.CREATE;
+		});
+		document.getElementById("delb").addEventListener('click',function(){
+			timeline.currentTool = Timeline.DELETE;
+		});
+		document.getElementById("repb").addEventListener('click',function(){
+			timeline.currentTool = Timeline.REPEAT;		
 		});
 	});
 </script>

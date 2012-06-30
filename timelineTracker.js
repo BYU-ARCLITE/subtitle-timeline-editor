@@ -97,18 +97,13 @@ TimelineTracker.prototype.undo = function() {
 		return;
 
 	var e = t.events.pop();
-	
-	if(e.type == "move")
-		t.undoMove(e);
-	if(e.type == "create")
-		t.undoCreate(e);
-	if(e.type == "delete")
-		t.undoDelete(e);
-	if(e.type == "update")
-		t.undoUpdate(e);
-	if(e.type == "resize")
-		t.undoResize(e);
-	
+	switch(e.type){
+		case "move":	t.undoMove(e);break;
+		case "create":	t.undoCreate(e);break;
+		case "delete":	t.undoDelete(e);break;
+		case "update":	t.undoUpdate(e);break;
+		case "resize":	t.undoResize(e);break;
+	}
 	// Debug
 	t.updateDebug();
 };

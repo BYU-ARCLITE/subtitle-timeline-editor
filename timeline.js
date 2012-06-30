@@ -1,4 +1,3 @@
-var timelineGlobal = null;
 /**
  * Timeline class
  * By: Joshua Monson
@@ -10,8 +9,6 @@ var timelineGlobal = null;
 var Timeline = (function(){
 	function Timeline(location, length, viewlength) {
 		var canvas = document.createElement('canvas');
-			
-		timelineGlobal = this;
 		
 		/**
 		 * Timeline Properties
@@ -33,10 +30,10 @@ var Timeline = (function(){
 		this.tracks = [];
 		this.trackIndices = {};
 		this.kTracks = 0;
-		this.misc = [];
 		
 		this.activeElement = null;
 		this.selectedSegment = null;
+		this.selectedTrack = null;
 		this.currentSegments = [];
 		
 		this.slider = new Slider(this);
@@ -59,6 +56,9 @@ var Timeline = (function(){
 		// Load the images
 		this.loadImages();
 		
+		//cursor & tool selection
+		this.currentTool = Timeline.SELECT;
+		
 		// Canvas
 		this.canvas = canvas;
 		this.ctx = canvas.getContext('2d');		
@@ -72,6 +72,13 @@ var Timeline = (function(){
 		window.addEventListener("resize", windowResize.bind(this), false);
 		location.appendChild(canvas);
 	}
+	
+	Timeline.SELECT = 1;
+	Timeline.MOVE = 2;
+	Timeline.CREATE = 3;
+	Timeline.DELETE = 4;
+	Timeline.RESIZE = 5;
+	Timeline.REPEAT = 6;
 
 	function windowResize() {
 		// Adjust the width
@@ -144,9 +151,7 @@ var Timeline = (function(){
 
 	Timeline.prototype.emit = function(evt, data){
 		var fns = this.events[evt];
-		if(fns){
-			fns.forEach(function(cb){ cb.call(this,data); });
-		}
+		fns && fns.forEach(function(cb){ cb.call(this,data); });
 	};
 
 	Timeline.prototype.on = function(name, cb){
@@ -155,7 +160,7 @@ var Timeline = (function(){
 	};
 
 	Timeline.prototype.updateCursor = function(pos) {
-		if(pos == undefined)
+		if(typeof pos !== 'object')
 			return;
 		var i,j,track,seg,shape,cursor = "";
 		
@@ -166,55 +171,43 @@ var Timeline = (function(){
 			cursor = "url(\"./images/cursors/skip.png\"), auto";
 		}else
 		select_cursor: {
+			switch(this.currentTool){
+				case Timeline.CREATE:
+					cursor = "url(\"./images/cursors/add.png\"), auto";
+					break select_cursor;
+				case Timeline.REPEAT:
+					cursor = this.abRepeatOn?"url(\"./images/cursors/cursor.png\"), auto":
+							this.repeatA == null?"url(\"./images/cursors/repeat-a.png\"), auto":
+							"url(\"./images/cursors/repeat-b.png\"), auto";
+					break select_cursor;
+			}
 			// Are we on a subtitle
 			for(i=0;track=this.tracks[i];i++) {
-				if(track instanceof segmentTrack){
-					for(j=0;seg=track.segments[j];j++) {
-						if(seg.containsPoint(pos) && !seg.deleted) {
-							shape = seg.getShape();
-							switch(buttonController.currentTool){
-								case 1: // Select
-									cursor = "url(\"./images/cursors/cursor-highlight.png\"), auto";
-									break select_cursor;
-								case 2: // Move
-									//cursor = "url(\"./images/cursors/move.png\"), auto";
-									cursor = "move";
-									break select_cursor;
-								case 3: // Move
-									cursor = "url(\"./images/cursors/cursor.png\"), auto";
-									break select_cursor;
-								case  4: // delete
-									//cursor = "url(\"./images/cursors/delete.png\"), auto";
-									cursor = "pointer";
-									break select_cursor;
-								case  5: // Resize
-									if(pos.x < shape.x + shape.width/2){
-										//cursor = "url(\"./images/cursors/resize-left.png\"), auto";
-										cursor = "w-resize";
-									}
-									break select_cursor;
-								default:
-									//cursor = "url(\"./images/cursors/resize-right.png\"), auto";
-									cursor = "e-resize";
-									break select_cursor;
-							}
-						}
+				if(!(track instanceof segmentTrack)){ continue; }
+				//traverse backwards so you get the ones on top
+				for(j=track.visibleSegments.length-1;seg=track.visibleSegments[j];j--) {
+					if(!seg.containsPoint(pos)){ continue; }
+					shape = seg.getShape();
+					switch(this.currentTool){
+						case Timeline.SELECT:
+							cursor = "url(\"./images/cursors/cursor-highlight.png\"), auto";
+							break select_cursor;
+						case Timeline.MOVE:
+							cursor = "url(\"./images/cursors/move.png\"), move";
+							break select_cursor;
+						case Timeline.DELETE:
+							cursor = "url(\"./images/cursors/delete.png\"), pointer";
+							break select_cursor;
+						case Timeline.RESIZE:
+							cursor = (pos.x < shape.x + shape.width/2)?
+									"url(\"./images/cursors/resize-left.png\"), w-resize":
+									"url(\"./images/cursors/resize-right.png\"), e-resize";
+							break select_cursor;
 					}
 				}
 			}
-			
-			switch(buttonController.currentTool){
-				case 3: // add
-					cursor = "url(\"./images/cursors/add.png\"), auto";
-					break;
-				case 6:
-					cursor = (this.repeatA != null && this.abRepeatOn == false)?
-							"url(\"./images/cursors/repeat-b.png\"), auto":
-							"url(\"./images/cursors/repeat-a.png\"), auto";
-					break;
-				default:
-					cursor = "url(\"./images/cursors/cursor.png\"), auto";
-			}
+			//default
+			cursor = "url(\"./images/cursors/cursor.png\"), auto";
 		}
 		
 		this.ctx.canvas.style.cursor = cursor;
@@ -232,49 +225,41 @@ var Timeline = (function(){
 		if(this.selectedSegment != null){
 			this.selectedSegment.selected = false;
 		}
+		if(this.selectedTrack && seg.track != this.selectedTrack.id){
+			this.selectedTrack.active = false;
+			this.selectedTrack = this.tracks[seg.track];
+			this.selectedTrack.active = true;
+			this.updateCurrentSegments();
+		}else{
+			this.selectedTrack = this.tracks[seg.track];
+			this.selectedTrack.active = true;
+			Array.prototype.push.apply(this.currentSegments,this.selectedTrack.searchRange(this.timeMarkerPos,this.timeMarkerPos));
+			this.emit('segments',{
+				valid:this.currentSegments,
+				invalid:[]
+			});
+		}
 		this.selectedSegment = seg;
 		seg.selected = true;
-		this.updateCurrentSegments();
+		this.render();
 		this.emit('select', seg);
 	};
 
 	Timeline.prototype.unselect = function(){
 		this.selectedSegment.selected = false;
 		this.selectedSegment = null;
-		this.updateCurrentSegments();
+		this.render();
 		this.emit('unselect');
 	};
 
 	Timeline.prototype.setText = function(text) {
 		if(this.selectedSegment != null) {
-			// Save the event
-			var e = new TimelineEvent("update");
-			e.attributes.id = this.selectedSegment.id;
-			e.attributes.track = this.selectedSegment.track;
-			e.attributes.initialText = this.selectedSegment.text;
-			e.attributes.finalText = text;
-			this.tracker.addEvent(e);
-		
 			this.selectedSegment.text = text;
-			this.render();
-			
-			this.emit('update');
 		}
 	};
 
-	/**
-	 * Returns the elements ordered by startTime
-	**/
-	Timeline.prototype.getOrderedElements = function(track) {
-		var elements = this.tracks[track].slice(0);
-		elements.sort(this.compareByStartTime);
-		return elements;
-	};
-	Timeline.prototype.compareByStartTime = function(a, b) {
-		return a.startTime - b.startTime;
-	};
-
 	// Helper functions
+
 	Timeline.prototype.getTrackTop = function(track) {
 		if(track in this.trackIndices){ track = this.trackIndices[track]; }
 		return this.keyHeight + this.segmentTrackPadding + (track * (this.segmentTrackHeight + this.segmentTrackPadding));
@@ -302,8 +287,6 @@ var Timeline = (function(){
 	 *
 	 * These listeners include mouseMove, mouseUp, and mouseDown.
 	 * They check the mouse location and active elements and call their mouse listener function.
-	 *
-	 * The callbacks are to be defined by the implementer in order to facilitate insertion.
 	 * 
 	 * Author: Joshua Monson
 	 **/
@@ -313,65 +296,57 @@ var Timeline = (function(){
 
 		this.updateCursor(pos);
 
-		if(this.sliderActive){
+		if(this.currentTool == Timeline.REPEAT
+			&& this.repeatA != null && !this.abRepeatOn){
+			this.updateB(pos);
+		}else if(this.segmentPlaceholder != null){
+			this.segmentPlaceholder.mouseMove(pos);
+		}else if(this.sliderActive){
 			this.slider.mouseMove(pos);
 		}else if(this.activeElement != null){
 			this.activeElement.mouseMove(pos);
-		}else if(this.segmentPlaceholder != null){
-			this.segmentPlaceholder.mouseMove(pos);
-		}else if(buttonController.currentTool == 6
-			&& this.repeatA != null && !this.abRepeatOn){
-			this.updateB(pos);
 		}
 	}
 
 	function mouseUp(ev) {
 		var canvasTop = $(this.ctx.canvas).offset().top,
 			pos = {x: ev.pageX, y: ev.pageY-canvasTop},
-			track, that=this;
+			id, track;
 
-		if(this.sliderActive) {
+		if(this.currentTool == Timeline.REPEAT // Are we creating a repeat?
+			&& !this.abRepeatOn && this.repeatA != this.repeatB) {
+			this.setB(pos);
+			this.updateCursor(pos);
+		}else if(this.segmentPlaceholder != null) { // Are we creating a new segment?
+			this.segmentPlaceholder.mouseUp(pos);
+			this.segmentPlaceholder = null;
+		}else if(this.sliderActive) {
 			this.slider.mouseUp(pos);
 			this.sliderActive = false;
 			if(this.selectedSegment){
 				track = this.tracks[this.selectedSegment.track];
 				if(track.audio){
-					track.audio.redraw(function(){
-						track.render();
-						that.renderTimeMarker();
-					});
+					track.audio.redraw(this.renderTrack.bind(this,track.id));
 				}
 			}
 		}else if(this.activeElement != null) {
 			this.activeElement.mouseUp(pos);
 			this.activeElement = null;
-		}else if(this.segmentPlaceholder != null) {
-			this.segmentPlaceholder.mouseUp(pos);
-			this.segmentPlaceholder = null;
-		}else if(buttonController.currentTool == 6 // Are we creating a repeat?
-			&& !this.abRepeatOn && this.repeatA != this.repeatB) {
-			this.setB(pos);
-			this.updateCursor(pos);
+		}else if(this.currentTool == Timeline.SELECT){ //deactivate a track
+			id = this.getTrack(pos);
+			if(this.tracks[id] === this.selectedTrack && !this.selectedSegment){
+				this.selectedTrack.active = false;
+				this.selectedTrack = null;
+				this.renderTrack(id);
+				this.updateCurrentSegments();
+			}
 		}
 	}
 
 	function mouseDown(ev) {
 		var canvasTop = $(this.ctx.canvas).offset().top,
 			pos = {x: ev.pageX, y: ev.pageY-canvasTop},
-			track,seg,i,j;
-			
-		// Check all the segments
-		for(i=0;track=this.tracks[i];i++) {
-			if(track instanceof segmentTrack){
-				for(j=0;seg = track.segments[j];j++) {
-					if(seg.containsPoint(pos)) {
-						this.activeElement = seg;
-						seg.mouseDown(pos);
-						return;
-					}
-				}
-			}
-		}
+			track,id,seg,i,j;
 
 		if(this.slider.containsPoint(pos)) { // Check the slider
 			this.slider.mouseDown(pos);
@@ -380,19 +355,29 @@ var Timeline = (function(){
 			i = this.pixelToTime(pos.x);
 			this.updateTimeMarker(i);
 			this.emit('jump',i);
-		}else switch(buttonController.currentTool){
-			case 3: // Are we creating a segment?
-				var track = this.getTrack(pos);
-				if(track > -1) { this.createSegment(pos, track); }
+			this.emit('timeupdate',i);
+		}else switch(this.currentTool){
+			case Timeline.CREATE: // Are we creating a segment?
+				id = this.getTrack(pos);
+				if(id > -1) { this.createSegment(pos, id); }
 				break;
-			case 6: // Are we creating a repeat?
-				if(this.abRepeatOn)
-					this.clearRepeat();
-				if(this.repeatA == null)
-					this.setA(pos);
-				else if(!this.abRepeatOn)
-					this.setB(pos);
+			case Timeline.REPEAT: // Are we creating a repeat?
+				if(this.abRepeatOn){ this.clearRepeat(); }
+				else if(this.repeatA == null){ this.setA(pos); }
+				else{ this.setB(pos); }
 				this.updateCursor(pos);
+		}
+		
+		// Check all the segments
+		for(i=0;track=this.tracks[i];i++) {
+			if(!(track instanceof segmentTrack)){ continue; }
+			//search backwards 'cause later segments are on top
+			for(j=track.visibleSegments.length-1;seg = track.visibleSegments[j];j--) {
+				if(!seg.containsPoint(pos)) { continue; }
+				this.activeElement = seg;
+				seg.mouseDown(pos);
+				return;
+			}
 		}
 	}
 	
@@ -437,6 +422,7 @@ var Timeline = (function(){
 
 	Timeline.prototype.addSegmentTrack = function(cues, id, language, karaoke) {
 		var track;
+		if(id in this.tracks){ throw new Error("Track with that id already loaded."); }
 		if(cues instanceof segmentTrack){
 			track = cues;
 			id = track.id;
@@ -459,10 +445,12 @@ var Timeline = (function(){
 			i, seg, track = this.tracks[trackId];
 		if(!track){ return; }
 		track.audio = wave;
-		if(this.selectedSegment && this.tracks[this.selectedSegment.track] === track){
-			track.render();
-			this.renderTimeMarker();
-		}
+		wave.on('redraw',function(){
+			if(that.selectedSegment && that.tracks[that.selectedSegment.track] === track){
+				that.renderTrack(trackId);
+			}
+		});
+		wave.redraw();
 	};
 	
 	Timeline.prototype.removeSegmentTrack = function(id) {
@@ -539,104 +527,67 @@ var Timeline = (function(){
 	};
 
 	Timeline.prototype.renderBackground = function() {
-		var i, grd, top;
+		var ctx = this.ctx,
+			grd = ctx.createLinearGradient(0,0,0,this.height);
+			
 		// Erase everything
-		this.ctx.clearRect(0, 0, this.view.width, this.height);
+//		ctx.clearRect(0, 0, this.view.width, this.height);
 
 		// Draw the backround color
-		grd = this.ctx.createLinearGradient(0,0,0,this.height);
 		grd.addColorStop(0,this.backgroundColorBottom);
 		grd.addColorStop(0.5,this.backgroundColorTop);
 		grd.addColorStop(1,this.backgroundColorBottom);
-		this.ctx.fillStyle = grd;
-		this.ctx.fillRect(0, 0, this.view.width, this.height);
-
-		// Draw the tracks
-		//this.ctx.fillStyle = this.trackColor;
-	//                var grd = this.ctx.createLinearGradient(0,0,0,this.segmentTrackHeight);
-	//                grd.addColorStop(0,this.trackColorTop);
-	//                grd.addColorStop(1,this.trackColorBottom);
-	//                this.ctx.fillStyle = grd;
-	/*	
-		for(i = this.tracks.length-1; i >= 0; i--) {
-			top = this.getTrackTop(i);
-			//this.ctx.fillRect(0, top, this.view.width, this.segmentTrackHeight);
-			this.ctx.drawImage(this.trackBg, 0, top, this.view.width, this.segmentTrackHeight);
-		}
-	*/
+		ctx.save();
+		ctx.fillStyle = grd;
+		ctx.globalCompositeOperation = "source-over";
+		ctx.fillRect(0, 0, this.view.width, this.height);
+		ctx.restore();
 	};
 
 	Timeline.prototype.renderTimeMarker = function() {
-		var markerX = this.timeToPixel(this.timeMarkerPos),
-			height = this.height - this.sliderHeight - this.kTracks * (this.segmentTrackHeight + this.segmentTrackPadding);
-		this.ctx.fillStyle = this.timeMarkerColor;
-		this.ctx.fillRect(markerX, 0, 2, height);
+		var ctx, x = this.timeToPixel(this.timeMarkerPos)-1;
+		if(x < 0 || x > this.view.width){ return; }
+		ctx = this.ctx
+		ctx.save();
+		ctx.fillStyle = this.timeMarkerColor;
+		ctx.fillRect(x, 0, 2, this.height);
+		ctx.restore();
 	};
 		
 	Timeline.prototype.renderABRepeat = function() {
 		if(this.repeatA != null) {
-			var left = this.timeToPixel(this.repeatA);
-			var right = this.timeToPixel(this.repeatB);
-			if(this.abRepeatOn == true)
-				this.ctx.fillStyle = this.abRepeatColor;
-			else
-				this.ctx.fillStyle = this.abRepeatColorLight;
-			this.ctx.fillRect(left, 0, right-left, this.height - this.sliderHeight);
+			var left = this.timeToPixel(this.repeatA),
+				right = this.timeToPixel(this.repeatB),
+				ctx = this.ctx;
+			ctx.save();
+			ctx.fillStyle = this.abRepeatOn?this.abRepeatColor:this.abRepeatColorLight;
+			ctx.fillRect(left, 0, right-left, this.height);
+			ctx.restore();
 		}
 	};
 
 	Timeline.prototype.render = function() {
 		this.renderBackground();
-
-		// For each element list
-		var sx = this.slider.x;
-		var sw = this.slider.width;
-		var i,track;
-		for(i=0;track=this.tracks[i];i++) {
-			// Make some adjustments before rendering if the track is a karaoke one
-			if(this.tracks[i].karaoke) {
-				if(this.selectedSegment == null || this.tracks[this.selectedSegment.track].karaoke)
-					continue;
-				else {
-	
-					//alert(this.tracks[this.selectedSegment.track].karaoke);
-					//alert("Rendering a karaoke tag: " + this.selectedSegment.text);
-
-					var start = this.selectedSegment.startTime/this.length;
-					var end = this.selectedSegment.endTime/this.length;
-					
-					start = Math.round(this.view.width * start);
-					end = Math.round(this.view.width * end) - start;
-					
-					this.slider.x = start - 0.5;
-					this.slider.width = end;
-					//this.view.zoom = timeFunctions.computeZoom(this.selectedSegment.endTime - this.selectedSegment.startTime, this.view.width - this.slider.width);
-
-				}
-			}else{
-				this.slider.x = sx;
-				this.slider.width = sw;
-			}
-			// Draw the elements
-			track.render();
-		}
-		
-		//right now just placeholder segments
-		this.misc.forEach(function(el){el.render();});
-		
-		// Draw the slider
-		this.slider.x = sx;
-		this.slider.width = sw;
-		this.slider.render();
-
-		// Draw the key
+		this.tracks.forEach(function(track){ track.render(); });
 		this.renderKey();
-		
-		// Draw the time marker
 		this.renderTimeMarker();
-		
-		// Draw the AB repeat markers
 		this.renderABRepeat();
+		this.slider.render();
+	};
+	
+	Timeline.prototype.renderTrack = function(id) {
+		var ctx, x = this.timeToPixel(this.timeMarkerPos)-1;
+		
+		this.tracks[id].render();
+		
+		
+		//redo the peice of the timeMarker that we drew over
+		if(x < 0 || x > this.view.width){ return; }
+		ctx = this.ctx;
+		ctx.save();
+		ctx.fillStyle = this.timeMarkerColor;
+		ctx.fillRect(x, this.getTrackTop(id), 2, this.segmentTrackHeight);
+		ctx.restore();
 	};
 
 	//Time functions
@@ -648,7 +599,7 @@ var Timeline = (function(){
 		}
 	});
 	Timeline.prototype.pixelToTime = function(pixel) {
-		return Math.round(pixel * this.view.zoom) + this.sliderOffset;
+		return pixel * this.view.zoom + this.sliderOffset;
 	};
 	Timeline.prototype.timeToPixel = function(time) {
 		return Math.round((time-this.sliderOffset) / this.view.zoom);
@@ -659,7 +610,7 @@ var Timeline = (function(){
 		if(time == this.timeMarkerPos){ return; }
 		
 		// Check the repeat
-		if(this.abRepeatOn == true && time > this.repeatB) {
+		if(this.abRepeatOn && time > this.repeatB) {
 			time = this.repeatA;
 			this.emit('jump',this.repeatA);
 		}
@@ -674,26 +625,21 @@ var Timeline = (function(){
 			this.render();
 	};
 
-	Timeline.prototype.getCurrentSegments = function(track, time) {
-		return this.tracks[track].searchRange(time,time);
-	};
-	
 	Timeline.prototype.updateCurrentSegments = function(){
-		//TODO: Use binary search for beginning and end instead of filter
-		var invalid, valid, track, time;
-		if(this.selectedSegment){
-			time = this.timeMarkerPos;
-			track = this.selectedSegment.track;
-			invalid = this.currentSegments.filter(function(seg){
-				return seg.track !== track || seg.startTime > time || seg.endTime < time;
-			});
-			valid = this.getCurrentSegments(track,time);
-		}else{
-			invalid = this.currentSegments.slice();
-			valid = [];
-		}
-		this.currentSegments = valid;
-		this.emit('segments',{valid:valid,invalid:invalid});
+		var that = this,
+			time = this.timeMarkerPos,
+			oldsegs = this.currentSegments,
+			cursegs = [];
+		this.tracks.forEach(function(track){
+			if(track.active){Array.prototype.push.apply(cursegs,track.searchRange(time,time));}
+		});
+		this.currentSegments = cursegs;
+		this.emit('segments',{
+			valid:cursegs,
+			invalid:oldsegs.filter(function(seg){
+				return !that.tracks[seg.track].active || seg.startTime > time || seg.endTime < time;
+			})
+		});
 	};
 
 	Timeline.prototype.setA = function(pos) {

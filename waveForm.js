@@ -20,6 +20,7 @@ var WaveForm = (function(){
 		this.max = 0;
 		this.samples = 0;
 		this.worker = null;
+		this.events = {};
 		
 		this.sampleShift = function(x,l){
 			if(x == start){
@@ -56,6 +57,7 @@ var WaveForm = (function(){
 				set: function(val){
 					if(val != width){
 						scalebuf.width = buffer.width = width = val;
+						this.redraw();
 					}
 					return width;
 				},
@@ -66,6 +68,7 @@ var WaveForm = (function(){
 				set: function(val){
 					if(val != height){
 						scalebuf.height = buffer.height = height = val;
+						this.redraw();
 					}
 					return width;
 				},
@@ -139,6 +142,16 @@ var WaveForm = (function(){
 		});
 	}
 
+	WaveForm.prototype.emit = function(evt, data){
+		var fns = this.events[evt];
+		fns && fns.forEach(function(cb){ cb.call(this,data); });
+	};
+
+	WaveForm.prototype.on = function(name, cb){
+		if(name in this.events){ this.events[name].push(cb); }
+		else{ this.events[name] = [cb]; }
+	};
+	
 	WaveForm.prototype.shift = function(x, l){
 		this.sampleShift(Math.round(x*this.rate),Math.round(l*this.rate));
 	}
@@ -168,17 +181,20 @@ var WaveForm = (function(){
 		if(samples > start && samples < start+len){
 			width = this.width;
 			if(mchange){this.redraw();}
-			else{this.redrawPart(Math.floor(width*(samples-start)/len),width);}
+			else{
+				this.redrawPart(Math.floor(width*(samples-start)/len),width);
+				this.emit('redraw');
+			}
 		}
 	}
 
-	WaveForm.prototype.redraw = function(cb){
+	WaveForm.prototype.redraw = function(){
 		var channels = this.channels,
 			start = this.sampleStart*channels,
 			end = start+this.sampleLength*channels;
 		if(this.worker){this.worker.terminate();}
 		this.worker = new Worker("waveWorker.js");
-		this.worker.addEventListener('message',drawPath.bind(this,cb));
+		this.worker.addEventListener('message',drawPath.bind(this));
 		this.worker.postMessage({
 			frame:new Float32Array(this.data.subarray(start, end)),
 			channels:channels,
@@ -195,10 +211,14 @@ var WaveForm = (function(){
 		//drawChannels.call(this,startp,endp);
 	};
 	
-	function drawPath(cb,e){
+	function drawPath(e){
 		var ctx = this.ctx,
-			path = e.data,
+			data = e.data,
+			path = data.path,
 			px = path[0], i;
+		
+		//TODO: figure out how to shift & scale this data, given that it may be outdated by now
+		
 		ctx.clearRect(0,0,this.width,this.height);
 		
 		ctx.save();
@@ -209,7 +229,7 @@ var WaveForm = (function(){
 		for(i=1;px=path[i];i++){ ctx.lineTo(px.x,px.y); }
 		ctx.stroke();
 		ctx.restore();
-		cb&&cb();
+		this.emit('redraw');
 	}
 	
 	function drawMono(startp,endp){
@@ -274,6 +294,7 @@ var WaveForm = (function(){
 		}
 		ctx.stroke();
 		ctx.restore();
+		//this.emit('redraw');
 	}
 
 	function drawChannels(startp,endp){

@@ -50,5 +50,11 @@ self.addEventListener('message',function(e){
 			path.push({x:j,y:yscale*f/max});
 		}
 	}
-	self.postMessage(path);
+	self.postMessage({
+		path:path,
+		start:data.start,
+		length:samples,
+		width:width,
+		height:data.height
+	});
 });
