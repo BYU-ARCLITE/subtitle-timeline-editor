@@ -81,24 +81,22 @@ var WaveForm = (function(){
 					if(val < 0){val = 0;}
 					else if(val > this.samples){val = this.samples;}
 					if(val != start){
-						if(this.sampleLength > 150000){
-							diff = Math.round(width*(val-start)/length);
-							start = val;
-							
-							if(Math.abs(diff) < width/1.5){ //there's significant overlap
-								if(diff > 0){ //moving forward
-									ctx.putImageData(ctx.getImageData(diff,0,width-diff,height),0,0);
-									this.redrawPart(width-Math.max(diff,10),width);
-								}else{ //moving backward
-									diff = 0-diff;
-									ctx.putImageData(ctx.getImageData(0,0,width-diff,height),diff,0);
-									this.redrawPart(0,Math.max(diff,10));
-								}
-							}
-							return start;
-						}
+						diff = Math.round(width*(val-start)/length);
 						start = val;
-						drawMono.call(this,0,width);
+						
+						if(Math.abs(diff) < width/1.5){ //there's significant overlap
+							if(diff > 0){ //moving forward
+								ctx.putImageData(ctx.getImageData(diff,0,width-diff,height),0,0);
+								draw.call(this,width-Math.max(diff,10),width);
+							}else{ //moving backward
+								diff = 0-diff;
+								ctx.putImageData(ctx.getImageData(0,0,width-diff,height),diff,0);
+								draw.call(this,0,Math.max(diff,10));
+							}
+							this.emit('redraw');
+						}else{
+							this.redraw();
+						}
 					}
 					return start;
 				},get: function(){return start;},
@@ -113,7 +111,7 @@ var WaveForm = (function(){
 						length = val;
 						if(scale < 1){
 							idata = ctx.getImageData(0,0,width,height);
-							this.redrawPart(Math.floor(width*scale),width);
+							draw.call(this,Math.floor(width*scale),width);
 						}else{
 							idata = ctx.getImageData(0,0,Math.ceil(width/scale),height);
 						}
@@ -122,6 +120,7 @@ var WaveForm = (function(){
 						ctx.scale(scale,1);
 						ctx.drawImage(scalebuf,0,0);
 						ctx.restore();
+						this.emit('redraw');
 					}
 					return length;
 				},get: function(){return length;},
@@ -143,8 +142,8 @@ var WaveForm = (function(){
 	}
 
 	WaveForm.prototype.emit = function(evt, data){
-		var fns = this.events[evt];
-		fns && fns.forEach(function(cb){ cb.call(this,data); });
+		var that = this, fns = this.events[evt];
+		fns && fns.forEach(function(cb){ cb.call(that,data); });
 	};
 
 	WaveForm.prototype.on = function(name, cb){
@@ -182,7 +181,7 @@ var WaveForm = (function(){
 			width = this.width;
 			if(mchange){this.redraw();}
 			else{
-				this.redrawPart(Math.floor(width*(samples-start)/len),width);
+				draw.call(this,Math.floor(width*(samples-start)/len),width);
 				this.emit('redraw');
 			}
 		}
@@ -203,12 +202,6 @@ var WaveForm = (function(){
 			height:this.height,
 			max:this.max		
 		});
-		//drawChannels.call(this,0,this.width);
-	};
-
-	WaveForm.prototype.redrawPart = function(startp,endp){
-		drawMono.call(this,startp,endp);
-		//drawChannels.call(this,startp,endp);
 	};
 	
 	function drawPath(e){
@@ -232,7 +225,7 @@ var WaveForm = (function(){
 		this.emit('redraw');
 	}
 	
-	function drawMono(startp,endp){
+	function draw(startp,endp){
 		"use strict";
 		var i,k,j,l,m=0,
 			f,fmax,fmin,
@@ -293,83 +286,6 @@ var WaveForm = (function(){
 			}
 		}
 		ctx.stroke();
-		ctx.restore();
-		//this.emit('redraw');
-	}
-
-	function drawChannels(startp,endp){
-		"use strict";
-		var e,i,k,j,l,s,m=0,
-			f,fmax,fmin,
-			ctx = this.ctx,
-			max = this.max,
-			frames = this.frames,
-			framesize = this.framesize,
-			channels = this.channels,
-			xscale = (this.sampleLength||1)/this.width,
-			yscale = this.height/(2*channels),
-			step = Math.ceil(xscale),
-			period = step - xscale,
-			start,stop,step,
-			frame,framenum;
-		
-		step = step*channels;
-		k = channels*this.sampleStart;
-		start = k+step*startp;
-		stop = Math.min(k+step*endp,this.samples);
-		endp-=startp;
-		
-		ctx.clearRect(startp,0,endp,this.height);
-		
-		if(start > stop){return;}
-		
-		ctx.save();
-		ctx.translate(startp,yscale);
-		
-		ctx.lineWidth = 1;
-		ctx.strokeStyle = "green";
-		for(k=0;k<channels;k++){
-			l = k+start;
-			i = l%framesize;
-			framenum = Math.floor(l/framesize);
-			frame = frames[framenum];
-			
-			ctx.save()
-			ctx.translate(0,-2*k*yscale);
-			ctx.beginPath(0,Math.round(yscale*frame[i]/max));
-
-			if(xscale > 1){ //more than 1 sample per pixel
-				for(j=0;l<stop && j<endp;l+=step,j++){
-					//iterate over a sampling range to find max amplitude
-					m += period;
-					if(m>1){ //decrease the sampling window length
-						l -= channels;
-						m -= 1;
-					}
-					for(fmax=0,fmin=0,e=l+step;l<e && l<stop;i+=channels,l+=channels){
-						if(i>=framesize){
-							i-=framesize;
-							frame = frames[++framenum];
-						}
-						s = frame[i];
-						if(s > fmax){ fmax = s; }
-						else if(s < fmin){ fmin = s;}
-					}
-					ctx.lineTo(j,Math.round(yscale*(fmax+fmin>0?fmax:fmin)/max));
-				}
-			}else{
-				xscale = 1/xscale;
-				for(j=0;l<stop && j<endp;i+=channels,l+=channels,j+=xscale){
-					if(i>=framesize){
-						i-=framesize;
-						frame = frames[++framenum];
-					}
-					ctx.lineTo(j,yscale*frame[i]/max);
-				}
-			}
-			ctx.stroke();
-			ctx.restore();
-		}
 		ctx.restore();
 	}
 	
