@@ -43,4 +43,6 @@ SegmentPlaceholder.prototype.mouseUp = function(pos) {
 
 	// Add the segment to its track
 	tl.tracks[this.track].add(seg);
+	// Automatically select new segments
+	tl.select(seg);
 };

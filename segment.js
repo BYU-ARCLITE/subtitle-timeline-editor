@@ -1,5 +1,5 @@
 function Segment(tl, start, end, t, i) {
-	var cue = (start instanceof WebVTT.Cue)?start:new WebVTT.Cue(i, start/1000, end/1000, t);
+	var cue = (start instanceof WebVTT.Cue)?start:new WebVTT.Cue(i, start, end, t);
 	
 	this.tl = tl;
 	this.cue = cue;
@@ -23,7 +23,7 @@ function Segment(tl, start, end, t, i) {
 Object.defineProperties(Segment.prototype,{
 	active: {
 		get: function(){
-			var mark = this.tl.timeMarkerPos/1000;
+			var mark = this.tl.timeMarkerPos;
 			return mark > this.cue.startTime && mark < this.cue.endTime;
 		},enumerable: true
 	},
@@ -33,13 +33,13 @@ Object.defineProperties(Segment.prototype,{
 		enumerable: true
 	},
 	startTime: {
-		set: function(t){return this.cue.startTime = t/1000;},
-		get: function(){return this.cue.startTime*1000;},
+		set: function(t){return this.cue.startTime = t;},
+		get: function(){return this.cue.startTime;},
 		enumerable: true
 	},
 	endTime: {
-		set: function(t){return this.cue.endTime = t/1000;},
-		get: function(){return this.cue.endTime*1000;},
+		set: function(t){return this.cue.endTime = t;},
+		get: function(){return this.cue.endTime;},
 		enumerable: true
 	},
 	text: {

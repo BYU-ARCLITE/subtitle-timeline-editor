@@ -12,20 +12,9 @@ var Timeline = (function(){
 			overlay = document.createElement('canvas'),
 			node = document.createElement('div');
 		
-		/**
-		 * Timeline Properties
-		 *
-		 * These properties control everything about the timeline. They are divied into four (4) major sections:
-		 *  1. Functional - These deal with how it functions, the objects it contains, its size, etc.
-		 *  2. Sizing - These deal with the sizes of the elements. Customization can start here.
-		 *  3. Coloring - These deal with the colors of the timeline.
-		 *  4. Images - These are the images used in rendering.
-		 *
-		 * Author: Joshua Monson
-		 **/
-		this.length = length; // In ms
+		this.length = length; // In seconds
 		this.view = new timelineView(this);
-			this.view.length = Math.round(viewlength);
+			this.view.length = viewlength;
 			this.view.width = window.innerWidth;
 			
 		this.events = {};
@@ -35,6 +24,7 @@ var Timeline = (function(){
 		this.kTracks = 0;
 		
 		this.activeElement = null;
+		this.segmentPlaceholder = null;
 		this.selectedSegment = null;
 		this.selectedTrack = null;
 		this.currentSegments = [];
@@ -43,7 +33,6 @@ var Timeline = (function(){
 			this.sliderActive = false;
 		
 		this.toolbar = null;
-		this.segmentPlaceholder = null;
 		
 		this.tracker = new TimelineTracker(this);
 		
@@ -55,9 +44,6 @@ var Timeline = (function(){
 	  
 		// Sizing
 		this.height = this.keyHeight + this.segmentTrackPadding + this.sliderHeight;
-
-		// Load the images
-		this.loadImages();
 		
 		//cursor & tool selection
 		this.currentTool = Timeline.SELECT;
@@ -126,8 +112,8 @@ var Timeline = (function(){
 	Timeline.prototype.trackColor = "rgba(75, 75, 255, 0.1)";
 		Timeline.prototype.trackColorTop = "#292a2d";
 		Timeline.prototype.trackColorBottom = "#55585c";
-	Timeline.prototype.segmentColor = "rgba(98, 129, 194, 0.3)";//"#6281c2";
-		Timeline.prototype.secondarySegmentColor = "rgba(142, 148, 160, 0.3)";//"#6281c2";
+	Timeline.prototype.segmentColor = "rgba(98, 129, 194, 0.3)";
+		Timeline.prototype.secondarySegmentColor = "rgba(142, 148, 160, 0.3)";
 		Timeline.prototype.placeholderColor = "rgba(255, 255, 160, 0.5)";
 		Timeline.prototype.highlightedColor = "#134dc8";
 	Timeline.prototype.segmentTextColor = "#000";
@@ -139,19 +125,35 @@ var Timeline = (function(){
 		Timeline.prototype.abRepeatColorLight = "rgba(255, 0, 0, 0.25)";
 		
 	// Images
-	Timeline.prototype.segmentLeftSrc = "./images/event_left.png";
-	Timeline.prototype.segmentRightSrc = "./images/event_right.png";
-	Timeline.prototype.segmentMidSrc = "./images/event_mid.png";
-	Timeline.prototype.segmentLeftSelSrc = "./images/event_left_sel.png";
-	Timeline.prototype.segmentRightSelSrc = "./images/event_right_sel.png";
-	Timeline.prototype.segmentMidSelSrc = "./images/event_mid_sel.png";
-	Timeline.prototype.segmentLeftDarkSrc = "./images/event_left_dark.png";
-	Timeline.prototype.segmentRightDarkSrc = "./images/event_right_dark.png";
-	Timeline.prototype.segmentMidDarkSrc = "./images/event_mid_dark.png";
-	Timeline.prototype.sliderLeftSrc = "./images/slider_left.png";
-	Timeline.prototype.sliderRightSrc = "./images/slider_right.png";
-	Timeline.prototype.sliderMidSrc = "./images/slider_mid.png";
-	Timeline.prototype.trackBgSrc = "./images/track_bg.png";
+	Timeline.prototype.loadImages = function(srcs) {
+		var imgName, img;
+		for(imgName in srcs){
+			img = new Image;
+			img.src = srcs[imgName];
+			this[imgName] = img;
+		}
+	};
+	
+	Timeline.prototype.loadImages.call(Timeline.prototype,{
+		// normal images
+		segmentLeft: "./images/event_left.png",
+		segmentRight: "./images/event_right.png",
+		segmentMid: "./images/event_mid.png",
+		// selected images
+		segmentLeftSel: "./images/event_left_sel.png",
+		segmentRightSel: "./images/event_right_sel.png",
+		segmentMidSel: "./images/event_mid_sel.png",
+		// dark images
+		segmentLeftDark: "./images/event_left_dark.png",
+		segmentRightDark: "./images/event_right_dark.png",
+		segmentMidDark: "./images/event_mid_dark.png",
+		// slider images
+		sliderLeft: "./images/slider_left.png",
+		sliderRight: "./images/slider_right.png",
+		sliderMid: "./images/slider_mid.png",
+		// track images
+		trackBg: "./images/track_bg.png"
+	});	
 	
 	Object.defineProperties(Timeline.prototype,{
 		currentTime: {
@@ -178,13 +180,13 @@ var Timeline = (function(){
 	Timeline.prototype.updateCursor = function(pos) {
 		if(typeof pos !== 'object')
 			return;
-		var i,j,track,seg,shape,cursor = "";
+		var i,j,track,seg,shape,cursor;
 		
 		// Check the slider
 		if(this.slider.containsPoint({x: this.slider.x, y: pos.y})) {
 			cursor = "url(\"./images/cursors/cursor.png\"), auto";
-		}else if(pos.y < this.keyHeight) { // Check the key
-			cursor = "url(\"./images/cursors/skip.png\"), auto";
+		}else if(pos.y < this.keyHeight+this.segmentTrackPadding) { // Check the key
+			cursor = "url(\"./images/cursors/skip.png\") 0 5, auto";
 		}else
 		select_cursor: {
 			switch(this.currentTool){
@@ -209,15 +211,15 @@ var Timeline = (function(){
 							cursor = "url(\"./images/cursors/cursor-highlight.png\"), auto";
 							break select_cursor;
 						case Timeline.MOVE:
-							cursor = "url(\"./images/cursors/move.png\"), move";
+							cursor = "url(\"./images/cursors/move.png\") 15 15, move";
 							break select_cursor;
 						case Timeline.DELETE:
 							cursor = "url(\"./images/cursors/delete.png\"), pointer";
 							break select_cursor;
 						case Timeline.RESIZE:
 							cursor = (pos.x < shape.x + shape.width/2)?
-									"url(\"./images/cursors/resize-left.png\"), w-resize":
-									"url(\"./images/cursors/resize-right.png\"), e-resize";
+									"url(\"./images/cursors/resize-left.png\") 3 15, w-resize":
+									"url(\"./images/cursors/resize-right.png\") 29 15, e-resize";
 							break select_cursor;
 					}
 				}
@@ -364,7 +366,7 @@ var Timeline = (function(){
 		if(this.slider.containsPoint(pos)) { // Check the slider
 			this.slider.mouseDown(pos);
 			this.sliderActive = true;
-		}else if(pos.y < this.keyHeight) { // Check the key
+		}else if(pos.y < this.keyHeight+this.segmentTrackPadding) { // Check the key
 			i = this.pixelToTime(pos.x);
 			this.updateTimeMarker(i);
 			this.emit('jump',i);
@@ -393,45 +395,6 @@ var Timeline = (function(){
 			}
 		}
 	}
-	
-	// Initiatory functions
-	Timeline.prototype.loadImages = function() {
-		// Load the normal images
-		this.segmentLeft = new Image();
-		this.segmentLeft.src = this.segmentLeftSrc;
-		this.segmentRight = new Image();
-		this.segmentRight.src = this.segmentRightSrc;
-		this.segmentMid = new Image();
-		this.segmentMid.src = this.segmentMidSrc;
-		
-		// Load the selected images
-		this.segmentLeftSel = new Image();
-		this.segmentLeftSel.src = this.segmentLeftSelSrc;
-		this.segmentRightSel = new Image();
-		this.segmentRightSel.src = this.segmentRightSelSrc;
-		this.segmentMidSel = new Image();
-		this.segmentMidSel.src = this.segmentMidSelSrc;
-		
-		// Load the dark images
-		this.segmentLeftDark = new Image();
-		this.segmentLeftDark.src = this.segmentLeftDarkSrc;
-		this.segmentRightDark = new Image();
-		this.segmentRightDark.src = this.segmentRightDarkSrc;
-		this.segmentMidDark = new Image();
-		this.segmentMidDark.src = this.segmentMidDarkSrc;
-		
-		// Load the slider images
-		this.sliderLeft = new Image();
-		this.sliderLeft.src = this.sliderLeftSrc;
-		this.sliderRight = new Image();
-		this.sliderRight.src = this.sliderRightSrc;
-		this.sliderMid = new Image();
-		this.sliderMid.src = this.sliderMidSrc;
-				
-		// Load the track
-		this.trackBg = new Image();
-		this.trackBg.src = this.trackBgSrc;
-	};
 
 	Timeline.prototype.addSegmentTrack = function(cues, id, language, karaoke) {
 		var track;
@@ -496,26 +459,31 @@ var Timeline = (function(){
 	
 	// Drawing functions
 	Timeline.prototype.renderKey = function() {
-		var i, ctx = this.ctx,
+		var ctx = this.ctx,
 			view = this.view,
 			zoom = view.zoom,
-			text, textwidth, power,
-			hours, mins, secs, msecs, pixels,
+			power, d=0,
+			hours, mins, secs, pixels,
 			start, end, position, increment;
 		
+		ctx.save();
 		ctx.font         = 'italic '+this.keyFontSize+' sans-serif';
 		ctx.textBaseline = 'top';
 		ctx.fillStyle    = this.keyTextColor;
 		ctx.strokeStyle    = this.keyTextColor;
 
-		// Adjust the time increment so we don't get numbers on top of numbers
-		power = Math.ceil(Math.log(ctx.measureText(" 0:00:00").width*zoom/1000)/0.6931471805599453);
-		increment = 1000*Math.pow(2,power);
+		// Find the smallest increment in powers of 2 that gives enough room for 1-second precision
+		power = Math.ceil(Math.log(ctx.measureText(" 0:00:00").width*zoom)/0.6931471805599453);
+		increment = Math.pow(2,power);
 		pixels = increment/zoom;
+
+		//if we're below 1-second precision, adjust the increment to provide extra room
 		if(power < 0){
-			if(pixels < ctx.measureText(" 0:00:00."+(power===-1?"0":(power===-2?"00":"000"))).width){
+			d = power<-2?3:-power;
+			if(pixels < ctx.measureText(" 0:00:0"+(0).toFixed(d)).width){
 				increment*=2;
 				pixels*=2;
+				d--;
 			}
 		}
 		
@@ -523,8 +491,7 @@ var Timeline = (function(){
 		start -= start%increment;
 		end = view.endTime;
 		
-		for (msecs = start, position = this.timeToPixel(start); msecs < end; msecs += increment, position += pixels) {
-			secs = Math.round(msecs) / 1000;
+		for (position = this.timeToPixel(start); start < end; start += increment, position += pixels) {
 
 			// Draw the tick
 			ctx.beginPath();
@@ -533,17 +500,18 @@ var Timeline = (function(){
 			ctx.stroke();
 
 			// Now put the number on
-			mins = Math.floor(secs / 60);
-			secs %= 60;
+			secs = start % 60;
+			mins = Math.floor(start / 60);
 			hours = Math.floor(mins / 60);
 			mins %= 60;
 			
 			ctx.fillText(
-				hours + (mins<10?":0":":") + mins + (secs<10?":0":":") + secs,
+				hours + (mins<10?":0":":") + mins + (secs<10?":0":":") + secs.toFixed(d),
 				(this.direction == "ltr") ? position + 2 : position - 2,
 				this.keyTop + 2
 			);
 		}
+		ctx.restore();
 	};
 
 	Timeline.prototype.renderBackground = function() {
@@ -584,8 +552,8 @@ var Timeline = (function(){
 	};
 
 	Timeline.prototype.render = function() {
-		var startTime = this.view.startTime/1000,
-			length = this.view.length/1000;
+		var startTime = this.view.startTime,
+			length = this.view.length;
 		this.renderBackground();
 		this.tracks.forEach(function(track){ track.render(); });
 		if(this.selectedTrack && this.selectedTrack.audio > -1){
@@ -616,7 +584,7 @@ var Timeline = (function(){
 	Object.defineProperties(Timeline.prototype,{
 		sliderOffset: {
 			get: function() {
-				return Math.round(this.length * this.slider.x / this.view.width);
+				return this.length * this.slider.x / this.view.width;
 			}, enumerable: true
 		}
 	});

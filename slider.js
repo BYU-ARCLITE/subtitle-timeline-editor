@@ -29,23 +29,27 @@ Slider.prototype.mouseDown = function(pos) {
 };
 
 Slider.prototype.mouseMove = function(pos) {
+	var p, lim, tl = this.tl;
 	if(this.move) {
-		this.x = this.startingPos.x + pos.x - this.mouseDownPos.x;
-		if(this.x < 0){ this.x = 0; }
-		if(this.x + this.width > this.tl.view.width){
-			this.x = this.tl.view.width - this.width;
+		p = this.startingPos.x + pos.x - this.mouseDownPos.x;
+		if(p < 0){ p = 0; }
+		else{
+			lim = tl.view.width - this.width;
+			if(p > lim){ p = lim; }
 		}
-		this.tl.render();
+		this.x = p;
+		tl.render();
 	}else if(this.resize) {
-		this.width = this.startingWidth + pos.x - this.mouseDownPos.x;
-		if(this.width < this.tl.sliderHandleWidth * 2){
-			this.width = this.tl.sliderHandleWidth * 2;
+		p = this.startingWidth + pos.x - this.mouseDownPos.x;
+		lim = tl.sliderHandleWidth * 2;
+		if(p < lim){ p = lim; }
+		else{
+			lim = tl.view.width;
+			if(p > lim){ p = lim; }
 		}
-		if(this.width > this.tl.view.width){
-			this.width = this.tl.view.width;
-		}
+		this.width = p;
 		this.updateLength();
-		this.tl.render();
+		tl.render();
 	}
 };
 
@@ -55,15 +59,10 @@ Slider.prototype.mouseUp = function(pos) {
 };
 
 Slider.prototype.updateLength = function() {
-	// First check to see if the width is still valid
-	if(this.width > this.tl.view.width)
-		this.width = this.tl.view.width;
-	if(this.width < this.tl.sliderHandleWidth * 2)
-		this.width = this.tl.sliderHandleWidth * 2;
-
-	// Compute the new length
-	this.length = this.width / this.tl.view.width;
-	this.tl.view.length = Math.round(this.length * this.tl.length);
+	var tl = this.tl,
+		length = this.width/tl.view.width;
+	this.length = length;
+	tl.view.length = length * tl.length;
 };
 
 Slider.prototype.containsPoint = function(pos) {
@@ -71,34 +70,16 @@ Slider.prototype.containsPoint = function(pos) {
 	return (pos.x >= this.x && pos.x <= this.x + this.width && pos.y >= y && pos.y <= y + this.height);
 };
 
-Slider.prototype.render2 = function() {
-	var endPos = this.x + this.width;
-	var top = this.tl.height - this.tl.toolbarHeight - this.tl.sliderHeight;
-		
-	// Draw the bar
-	this.tl.ctx.fillStyle = this.tl.sliderColor;
-	this.tl.ctx.fillRect(this.x, top, (endPos - this.x), this.tl.sliderHeight);
-	
-	// Now draw the handles
-	this.tl.ctx.fillStyle = this.tl.sliderHandleColor;
-	this.tl.ctx.fillRect(endPos - this.tl.sliderHandleWidth, top, this.tl.sliderHandleWidth, this.tl.sliderHeight); // Right handle
-};
 Slider.prototype.render = function() {
-	var top = this.tl.height - this.tl.toolbarHeight - this.tl.sliderHeight;
-	var width = this.width - this.tl.sliderLeft.width - this.tl.sliderRight.width;
-		
-	// Draw the bar
-	// this.tl.ctx.fillStyle = this.tl.sliderColor;
-	// this.tl.ctx.fillRect(this.x, top, (endPos - this.x), this.tl.sliderHeight);
-	
-	// Now draw the handles
-	// this.tl.ctx.fillStyle = this.tl.sliderHandleColor;
-	// this.tl.ctx.fillRect(endPos - this.tl.sliderHandleWidth, top, this.tl.sliderHandleWidth, this.tl.sliderHeight); // Right handle
+	var tl = this.tl,
+		ctx = tl.ctx,
+		top = tl.height - tl.toolbarHeight - tl.sliderHeight,
+		width = this.width - tl.sliderLeft.width - tl.sliderRight.width;
 	
 	if(width < 0)
 		width = 0;
 	
-	this.tl.ctx.drawImage(this.tl.sliderLeft, this.x, top);
-	this.tl.ctx.drawImage(this.tl.sliderMid, this.x + this.tl.sliderLeft.width, top, width, this.tl.sliderHeight);
-	this.tl.ctx.drawImage(this.tl.sliderRight, this.x + width + this.tl.sliderLeft.width, top);
+	ctx.drawImage(tl.sliderLeft, this.x, top);
+	ctx.drawImage(tl.sliderMid, this.x + tl.sliderLeft.width, top, width, tl.sliderHeight);
+	ctx.drawImage(tl.sliderRight, this.x + width + tl.sliderLeft.width, top);
 };
