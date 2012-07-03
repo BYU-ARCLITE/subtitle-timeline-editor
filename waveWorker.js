@@ -14,14 +14,13 @@ self.addEventListener('message',function(e){
 		step = Math.ceil(xscale),
 		period = step - xscale,
 		start,stop,step,end,
-		path, y;
+		path;
 		
 	step = step*channels;
 	stop = Math.min(step*width,samples);
 	if(stop==0){self.close();}
 	
-	y = Math.round(yscale*frame[0]/max);
-	path = [{x:0,y:y}];
+	path = [{x:0,y:Math.round(yscale*frame[0]/max)}];
 	
 	if(xscale > 1){ //more than 1 sample per pixel
 		for(j=0,start=0;start<stop && j<width;start=end,j++){

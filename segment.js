@@ -144,7 +144,7 @@ Segment.prototype.mouseUp = function(pos) {
 			this.moveEvent.attributes.finalEnd = this.endTime;
 			tl.tracker.addEvent(this.moveEvent);
 			tl.emit('update');
-			tl.tracks[this.track].segments.sort(Segment.order);
+			tl.tracks[tl.trackIndices[this.track]].segments.sort(Segment.order);
 			break;
 		case Timeline.DELETE:
 			// Delete tool

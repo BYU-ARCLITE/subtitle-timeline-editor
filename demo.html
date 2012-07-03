@@ -16,6 +16,7 @@
 	<script src="timelineTracker.js"></script>
 	<script src="timelineView.js"></script>
 	<script src="waveForm.js"></script>
+	<script src="audioTrack.js"></script>
 </head>
 <style type="text/css">
 	body {
@@ -91,8 +92,8 @@
 <div id="tl"></div>
 
 <script type="text/javascript">
-	var timeline;
-	var screen =  document.getElementById("video"),
+	var timeline, t_count = 0,
+		screen =  document.getElementById("video"),
 		editor = document.getElementById("editor"),
 		controls = document.getElementById("controls");
 
@@ -258,76 +259,79 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 			console.log("downsampled");
 			wave.addFrame(frame);
 			console.log("loaded");
-			timeline.addAudioTrack(wave,0);
-		}, console.log.bind(console));
+			timeline.addAudioTrack(wave,file.name);
+			timeline.setAudioTrack("new",file.name);
+		}, function(err){
+			console.log(err);
+		});
 	};
 	reader.onerror = function(e){alert(e);};
 	reader.readAsArrayBuffer(file);
 }, false);
 
 document.getElementById('tbtn').addEventListener('click', function() {
-	timeline.addSegmentTrack([], "new", "en", false);
+	timeline.addSegmentTrack([], "track"+(t_count++), "en", false);
 	timeline.render();
 }, false);
 
-	$(function() {
-		var location = document.getElementById("tl");
-		
-		// Create the timeline
-		timeline = new Timeline(location, 187, 5);
-		timeline.render();
-		
-		// Define the timeline callbacks
-		timeline.on('select',function(seg) {
-			cue = seg.cue;
-			if(!cue.caption){
-				cue.caption = Ayamel.Caption.FromCue(captionWrapper,null,cue);
-				cue.caption.display(video);
-			}
-			grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
-			updateEditor();
-			editor.style.display = "block";
-		});
-		timeline.on('unselect',function() {
-			cue = null;
-			editor.style.display = "none";
-		});
-		timeline.on('jump', function(time) {
-			controls.currentTime = time;
-		});
-		timeline.on('segments',function(segs){
-			segs.invalid.forEach(function(seg){
-				if(seg.cue.caption){seg.cue.caption.hide();}
-			});
-			segs.valid.forEach(function(seg){
-				if(seg.cue.caption){seg.cue.caption.display(video);}
-			});
-		});
-		
-		// Bind to the audio events
-		controls.addEventListener("timeupdate", function() {
-			timeline.currentTime = controls.currentTime;
-		});
-		//Bind the toolbar buttons
-		document.getElementById("selb").addEventListener('click',function(){
-			timeline.currentTool = Timeline.SELECT;
-		});
-		document.getElementById("movb").addEventListener('click',function(){
-			timeline.currentTool = Timeline.MOVE;
-		});
-		document.getElementById("resb").addEventListener('click',function(){
-			timeline.currentTool = Timeline.RESIZE;
-		});
-		document.getElementById("creb").addEventListener('click',function(){
-			timeline.currentTool = Timeline.CREATE;
-		});
-		document.getElementById("delb").addEventListener('click',function(){
-			timeline.currentTool = Timeline.DELETE;
-		});
-		document.getElementById("repb").addEventListener('click',function(){
-			timeline.currentTool = Timeline.REPEAT;		
-		});
+// Create the timeline
+timeline = new Timeline(document.getElementById("tl"), 187, 5);
+timeline.addSegmentTrack([], "new", "en", false);
+
+// Define the timeline callbacks
+timeline.on('select',function(seg) {
+	cue = seg.cue;
+	if(!cue.caption){
+		cue.caption = Ayamel.Caption.FromCue(captionWrapper,null,cue);
+		cue.caption.display(video);
+	}
+	grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+	updateEditor();
+	editor.style.display = "block";
+});
+timeline.on('unselect',function() {
+	cue = null;
+	editor.style.display = "none";
+});
+timeline.on('jump', function(time) {
+	controls.currentTime = time;
+});
+timeline.on('segments',function(segs){
+	segs.invalid.forEach(function(seg){
+		if(seg.cue.caption){seg.cue.caption.hide();}
 	});
+	segs.valid.forEach(function(seg){
+		if(seg.cue.caption){seg.cue.caption.display(video);}
+	});
+});
+
+// Bind to the audio events
+controls.addEventListener("timeupdate", function() {
+	timeline.currentTime = controls.currentTime;
+});
+//Bind the toolbar buttons
+document.getElementById("selb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.SELECT;
+});
+document.getElementById("movb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.MOVE;
+});
+document.getElementById("resb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.RESIZE;
+});
+document.getElementById("creb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.CREATE;
+});
+document.getElementById("delb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.DELETE;
+});
+document.getElementById("repb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.REPEAT;		
+});
+
+//need time for images to load
+setTimeout(function(){timeline.render();},100);
+
 </script>
 
 </body>

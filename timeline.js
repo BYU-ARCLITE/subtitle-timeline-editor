@@ -19,7 +19,7 @@ var Timeline = (function(){
 			
 		this.events = {};
 		this.tracks = [];
-		this.audio = [];
+		this.audio = {};
 		this.trackIndices = {};
 		this.kTracks = 0;
 		
@@ -72,6 +72,8 @@ var Timeline = (function(){
 		node.appendChild(canvas);
 		node.appendChild(overlay);
 		location.appendChild(node);
+		
+		this.render();
 	}
 	
 	Timeline.SELECT = 1;
@@ -82,16 +84,21 @@ var Timeline = (function(){
 	Timeline.REPEAT = 6;
 
 	function windowResize() {
-		// Adjust the width
-		this.view.width = window.innerWidth;
-		this.canvas.width = window.innerWidth;
-		this.overlay.width = window.innerWidth;
-		
-		// Adjust the view slider
-		this.slider.updateLength();
+		var id, width = window.innerWidth;
+		if(width != this.view.width){
+			this.view.width = width;
+			this.canvas.width = width;
+			this.overlay.width = width;
+			for(id in this.audio){
+				this.audio[id].width = width;
+			}
+			
+			// Adjust the view slider
+			this.slider.updateLength();
 
-		// Re-render the timeline
-		this.render();		
+			// Re-render the timeline
+			this.render();
+		}
 	}
 
 	Timeline.prototype.segmentTrackHeight = 50;
@@ -99,7 +106,7 @@ var Timeline = (function(){
 	Timeline.prototype.segmentFontPadding = 5;
 	Timeline.prototype.segmentTrackPadding = 10;
 	Timeline.prototype.sliderHeight = 25;
-	Timeline.prototype.sliderHandleWidth = 15;
+	Timeline.prototype.sliderHandleWidth = 10;
 	Timeline.prototype.keyTop = 0;
 	Timeline.prototype.keyHeight = 25;
 	Timeline.prototype.toolbarHeight = 0;
@@ -183,52 +190,56 @@ var Timeline = (function(){
 		var i,j,track,seg,shape,cursor;
 		
 		// Check the slider
-		if(this.slider.containsPoint({x: this.slider.x, y: pos.y})) {
-			cursor = "url(\"./images/cursors/cursor.png\"), auto";
-		}else if(pos.y < this.keyHeight+this.segmentTrackPadding) { // Check the key
-			cursor = "url(\"./images/cursors/skip.png\") 0 5, auto";
+		i = this.slider.onHandle(pos);
+		if(i === 1) {
+			cursor = "url(\"./images/cursors/resize-right.png\") 10 15, col-resize";
+		}else if(i === -1) {
+			cursor = "url(\"./images/cursors/resize-left.png\") 22 15, col-resize";
+		}else if(this.slider.containsPoint(pos)) {
+			cursor = "url(\"./images/cursors/move.png\") 15 15, move";
 		}else
-		select_cursor: {
-			switch(this.currentTool){
-				case Timeline.CREATE:
-					cursor = "url(\"./images/cursors/add.png\"), auto";
-					break select_cursor;
-				case Timeline.REPEAT:
-					cursor = this.abRepeatOn?"url(\"./images/cursors/cursor.png\"), auto":
-							this.repeatA == null?"url(\"./images/cursors/repeat-a.png\"), auto":
-							"url(\"./images/cursors/repeat-b.png\"), auto";
-					break select_cursor;
-			}
-			// Are we on a subtitle
-			for(i=0;track=this.tracks[i];i++) {
-				if(!(track instanceof segmentTrack)){ continue; }
+		// Check the key
+		if(pos.y < this.keyHeight+this.segmentTrackPadding) {
+			cursor = "url(\"./images/cursors/skip.png\") 0 5, auto";
+		}else if(this.currentTool === Timeline.REPEAT){
+			cursor = this.abRepeatOn?"url(\"./images/cursors/cursor.png\"), auto":
+					this.repeatA == null?"url(\"./images/cursors/repeat-a.png\"), auto":
+					"url(\"./images/cursors/repeat-b.png\"), auto";
+		}else
+		track_cursor: // Are we on a track?
+		if(i = this.idFromPos(pos)){
+			track = this.tracks[this.trackIndices[i]];
+			if(this.currentTool === Timeline.CREATE){
+				cursor = "url(\"./images/cursors/add.png\"), auto";
+			}else{
+				//Are we on a segment?
 				//traverse backwards so you get the ones on top
-				for(j=track.visibleSegments.length-1;seg=track.visibleSegments[j];j--) {
+				for(j=track.visibleSegments.length-1;seg=track.visibleSegments[j];j--){
 					if(!seg.containsPoint(pos)){ continue; }
 					shape = seg.getShape();
 					switch(this.currentTool){
 						case Timeline.SELECT:
 							cursor = "url(\"./images/cursors/cursor-highlight.png\"), auto";
-							break select_cursor;
+							break track_cursor;
 						case Timeline.MOVE:
 							cursor = "url(\"./images/cursors/move.png\") 15 15, move";
-							break select_cursor;
+							break track_cursor;
 						case Timeline.DELETE:
 							cursor = "url(\"./images/cursors/delete.png\"), pointer";
-							break select_cursor;
+							break track_cursor;
 						case Timeline.RESIZE:
 							cursor = (pos.x < shape.x + shape.width/2)?
-									"url(\"./images/cursors/resize-left.png\") 3 15, w-resize":
-									"url(\"./images/cursors/resize-right.png\") 29 15, e-resize";
-							break select_cursor;
+									"url(\"./images/cursors/resize-left.png\") 3 15, col-resize":
+									"url(\"./images/cursors/resize-right.png\") 29 15, col-resize";
+							break track_cursor;
 					}
 				}
 			}
-			//default
+		}else{
 			cursor = "url(\"./images/cursors/cursor.png\"), auto";
 		}
 		
-		this.ctx.canvas.style.cursor = cursor;
+		this.canvas.style.cursor = cursor;
 	};
 		
 	/**
@@ -245,11 +256,11 @@ var Timeline = (function(){
 		}
 		if(this.selectedTrack && seg.track != this.selectedTrack.id){
 			this.selectedTrack.active = false;
-			this.selectedTrack = this.tracks[seg.track];
+			this.selectedTrack = this.tracks[this.trackIndices[seg.track]];
 			this.selectedTrack.active = true;
 			this.updateCurrentSegments();
 		}else{
-			this.selectedTrack = this.tracks[seg.track];
+			this.selectedTrack = this.tracks[this.trackIndices[seg.track]];
 			this.selectedTrack.active = true;
 			Array.prototype.push.apply(this.currentSegments,this.selectedTrack.searchRange(this.timeMarkerPos,this.timeMarkerPos));
 			this.emit('segments',{
@@ -278,26 +289,22 @@ var Timeline = (function(){
 
 	// Helper functions
 
-	Timeline.prototype.getTrackTop = function(track) {
-		if(track in this.trackIndices){ track = this.trackIndices[track]; }
-		return this.keyHeight + this.segmentTrackPadding + (track * (this.segmentTrackHeight + this.segmentTrackPadding));
+	Timeline.prototype.getTrackTop = function(id) {
+		if(!(id in this.trackIndices)){ return Number.POSITIVE_INFINITY; }
+		return this.keyHeight + this.segmentTrackPadding + (this.trackIndices[id] * (this.segmentTrackHeight + this.segmentTrackPadding));
 	};
 
-	Timeline.prototype.getTrack = function(pos) {
-		var i, top, bottom;
-		for(var i=this.tracks.length-1; i >= 0; i--) {
-			top = this.getTrackTop(i);
-			bottom = top + this.segmentTrackHeight;
-			if(pos.y >= top & pos.y <= bottom)
-				return i;
+	Timeline.prototype.idFromPos = function(pos) {
+		var i, bottom,
+			padding = this.segmentTrackPadding,
+			height = this.segmentTrackHeight,
+			top = this.keyHeight + this.segmentTrackPadding;
+		for(i = 0; i < this.tracks.length; i++, top = bottom + padding) {
+			bottom = top + height;
+			if(pos.y >= top && pos.y <= bottom)
+				return this.tracks[i].id;
 		}
-		return -1;
-	};
-
-	// Creation functions
-	Timeline.prototype.createSegment = function(pos, track) {
-		// TODO: Don't create if the track is locked/disabled
-		this.segmentPlaceholder = new SegmentPlaceholder(this, pos.x, track);
+		return null;
 	};
 
 	/**
@@ -329,7 +336,7 @@ var Timeline = (function(){
 	function mouseUp(ev) {
 		var canvasTop = $(this.ctx.canvas).offset().top,
 			pos = {x: ev.pageX, y: ev.pageY-canvasTop},
-			id, track;
+			id;
 
 		if(this.currentTool == Timeline.REPEAT // Are we creating a repeat?
 			&& !this.abRepeatOn && this.repeatA != this.repeatB) {
@@ -341,20 +348,10 @@ var Timeline = (function(){
 		}else if(this.sliderActive) {
 			this.slider.mouseUp(pos);
 			this.sliderActive = false;
-			if(this.selectedTrack && this.selectedTrack.audio > -1){
-				this.audio[this.selectedTrack.audio].redraw();
-			}
+			for(id in this.audio){ this.audio[id].redraw(); }
 		}else if(this.activeElement != null) {
 			this.activeElement.mouseUp(pos);
 			this.activeElement = null;
-		}else if(this.currentTool == Timeline.SELECT){ //deactivate a track
-			id = this.getTrack(pos);
-			if(this.tracks[id] === this.selectedTrack && !this.selectedSegment){
-				this.selectedTrack.active = false;
-				this.selectedTrack = null;
-				this.renderTrack(id);
-				this.updateCurrentSegments();
-			}
 		}
 	}
 
@@ -373,8 +370,9 @@ var Timeline = (function(){
 			this.emit('timeupdate',i);
 		}else switch(this.currentTool){
 			case Timeline.CREATE: // Are we creating a segment?
-				id = this.getTrack(pos);
-				if(id > -1) { this.createSegment(pos, id); }
+				if(id = this.idFromPos(pos)){
+					this.segmentPlaceholder = new SegmentPlaceholder(this, pos.x, id);
+				}
 				break;
 			case Timeline.REPEAT: // Are we creating a repeat?
 				if(this.abRepeatOn){ this.clearRepeat(); }
@@ -385,7 +383,6 @@ var Timeline = (function(){
 		
 		// Check all the segments
 		for(i=0;track=this.tracks[i];i++) {
-			if(!(track instanceof segmentTrack)){ continue; }
 			//search backwards 'cause later segments are on top
 			for(j=track.visibleSegments.length-1;seg = track.visibleSegments[j];j--) {
 				if(!seg.containsPoint(pos)) { continue; }
@@ -398,7 +395,7 @@ var Timeline = (function(){
 
 	Timeline.prototype.addSegmentTrack = function(cues, id, language, karaoke) {
 		var track;
-		if(id in this.tracks){ throw new Error("Track with that id already loaded."); }
+		if(id in this.trackIndices){ throw new Error("Track with that id already loaded."); }
 		if(cues instanceof segmentTrack){
 			track = cues;
 			id = track.id;
@@ -406,7 +403,6 @@ var Timeline = (function(){
 		}else{
 			track = new segmentTrack(this, cues, id, language, karaoke);
 		}
-		this.tracks[id] = track;
 		this.trackIndices[id] = this.tracks.length;
 		this.tracks.push(track);
 		if(karaoke == true) { this.kTracks++; }
@@ -414,40 +410,21 @@ var Timeline = (function(){
 		// Adjust the height
 		this.height += this.segmentTrackHeight + this.segmentTrackPadding;
 		this.canvas.height = this.height;
-		this.overlay.height = this.height;	
-	};
-
-	Timeline.prototype.addAudioTrack = function(wave, trackId) {
-		var that = this,
-			i = this.audio.length,
-			track = this.tracks[trackId];
-		if(!track){ return; }
-		track.audio = i;
-		this.audio.push(wave);
-		wave.on('redraw',function(){
-			var ctx, top, track = that.selectedTrack;
-			if(track && track.audio === i){
-				top = that.getTrackTop(track.id);
-				ctx = that.octx;
-				ctx.clearRect(0, top, that.view.width, that.segmentTrackHeight);
-				ctx.save();
-				ctx.globalAlpha = .5;
-				ctx.drawImage(wave.buffer, 0, top);		
-				ctx.restore();
-			}
-		});
-		wave.redraw();
+		this.overlay.height = this.height;
+		this.render();
 	};
 	
 	Timeline.prototype.removeSegmentTrack = function(id) {
-		var i,track,loc = this.tracks.indexOf(id);
-		if(loc >= 0){
-			this.tracks.splice(loc, 1);
+		var i,track,aid,loc;
+		if(id in this.trackIndices){
+			loc = this.trackIndices[id];
+			aid = this.tracks[loc].audioId;
+			if(aid in this.audio){ this.audio[aid].references--; }
 			if(this.tracks[loc].karaoke){ this.kTracks--; }
-			delete this.tracks[id];
+			this.tracks.splice(loc, 1);
 			delete this.trackIndices[id];
 		}
-		for(i=0;track=this.tracks[i];i++){
+		for(i=loc;track=this.tracks[i];i++){
 			this.trackIndices[track.id] = i;		
 		}
 		
@@ -455,6 +432,48 @@ var Timeline = (function(){
 		this.height -= this.segmentTrackHeight + this.segmentTrackPadding;
 		this.canvas.height = this.height;
 		this.overlay.height = this.height;
+		this.render();
+	};
+	
+	Timeline.prototype.addAudioTrack = function(wave, id) {
+		var track;
+		if(id in this.audio){ throw new Error("Track with that id already loaded."); }
+		if(wave instanceof audioTrack){
+			track = wave;
+			id = wave.id;
+		}else{
+			track = new audioTrack(this, wave, id);
+		}
+		this.audio[id] = track;
+		this.render();
+	};
+	
+	Timeline.prototype.setAudioTrack = function(tid, aid){
+		var track;
+		if(!(tid in this.trackIndices)){ return; }
+		track = this.tracks[this.trackIndices[tid]];
+		if(track.audioId in this.audio){ this.audio[track.audioId].references--; }
+		track.audioId = aid;
+		if(aid in this.audio){
+			this.audio[aid].references++;
+			this.audio[aid].render();
+		}
+	};
+	
+	Timeline.prototype.removeAudioTrack = function(id){
+		var i, top, ctx, track;
+		if(!(id in this.audio)){ return; }
+		if(this.audio[id].references){
+			top = this.keyHeight+this.segmentTrackPadding,
+			ctx = this.octx;
+			for(i=0;track=this.tracks[i];i++){
+				if(track.active && track.audioId === id){
+					ctx.clearRect(0, top, this.view.width, this.segmentTrackHeight);
+				}
+				top += this.segmentTrackHeight + this.segmentTrackPadding;
+			}
+		}
+		delete this.audio[id];
 	};
 	
 	// Drawing functions
@@ -552,13 +571,10 @@ var Timeline = (function(){
 	};
 
 	Timeline.prototype.render = function() {
-		var startTime = this.view.startTime,
-			length = this.view.length;
+		var aid, audio;
 		this.renderBackground();
 		this.tracks.forEach(function(track){ track.render(); });
-		if(this.selectedTrack && this.selectedTrack.audio > -1){
-			this.audio[this.selectedTrack.audio].shift(startTime, length);
-		}
+		for(aid in this.audio){ this.audio[aid].render(); }
 		this.renderKey();
 		this.renderTimeMarker();
 		this.renderABRepeat();
@@ -566,10 +582,11 @@ var Timeline = (function(){
 	};
 	
 	Timeline.prototype.renderTrack = function(id) {
+		if(!(id in this.trackIndices)){ return; }
+		
 		var ctx, x = this.timeToPixel(this.timeMarkerPos)-1;
 		
-		this.tracks[id].render();
-		
+		this.tracks[this.trackIndices[id]].render();
 		
 		//redo the peice of the timeMarker that we drew over
 		if(x < 0 || x > this.view.width){ return; }

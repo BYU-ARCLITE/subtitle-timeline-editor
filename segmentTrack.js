@@ -13,8 +13,8 @@ segmentTrack = (function(){
 		});
 		this.segments.sort(Segment.order);
 		this.visibleSegments = [];
-		this.active = false;
-		this.audio = -1;
+		this.active = true;
+		this.audioId = null;
 	}
 	
 	segmentTrack.prototype.add = function(seg){

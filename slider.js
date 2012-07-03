@@ -21,33 +21,42 @@ Slider.prototype.mouseDown = function(pos) {
 	this.startingPos = {x: this.x, y: this.y};
 	this.startingWidth = this.width;
 
-// Check to see if the handle was clicked
-	if(pos.x >= this.width + this.x - this.tl.sliderHandleWidth)
-		this.resize = true;
-	else
-		this.move = true;
+	// Check to see if the handle was clicked
+	this.resizeSide = this.onHandle(pos);
+	this.move = !this.resizeSide;
 };
 
 Slider.prototype.mouseMove = function(pos) {
-	var p, lim, tl = this.tl;
+	var x, width, lim, tl = this.tl;
 	if(this.move) {
-		p = this.startingPos.x + pos.x - this.mouseDownPos.x;
-		if(p < 0){ p = 0; }
+		x = pos.x + (this.startingPos.x - this.mouseDownPos.x);
+		if(x < 0){ x = 0; }
 		else{
 			lim = tl.view.width - this.width;
-			if(p > lim){ p = lim; }
+			if(x > lim){ x = lim; }
 		}
-		this.x = p;
+		this.x = x;
 		tl.render();
-	}else if(this.resize) {
-		p = this.startingWidth + pos.x - this.mouseDownPos.x;
-		lim = tl.sliderHandleWidth * 2;
-		if(p < lim){ p = lim; }
+	}else if(this.resizeSide == 1) {
+		width = this.startingWidth + (pos.x - this.mouseDownPos.x);
+		lim = tl.sliderHandleWidth * 3;
+		if(width < lim){ width = lim; }
 		else{
 			lim = tl.view.width;
-			if(p > lim){ p = lim; }
+			if(width > lim){ width = lim; }
 		}
-		this.width = p;
+		this.width = width;
+		this.updateLength();
+		tl.render();
+	}else if(this.resizeSide == -1) {
+		x = pos.x + (this.startingPos.x - this.mouseDownPos.x);
+		if(x < 0){ x = 0; }
+		else{
+			lim = this.startingPos.x + this.startingWidth - tl.sliderHandleWidth * 3;
+			if(x > lim){ x = lim; }
+		}
+		this.x = x;
+		this.width = this.startingWidth + (this.startingPos.x - x);
 		this.updateLength();
 		tl.render();
 	}
@@ -55,7 +64,7 @@ Slider.prototype.mouseMove = function(pos) {
 
 Slider.prototype.mouseUp = function(pos) {
 	this.move = false;
-	this.resize = false;
+	this.resizeSide = 0;
 };
 
 Slider.prototype.updateLength = function() {
@@ -68,6 +77,15 @@ Slider.prototype.updateLength = function() {
 Slider.prototype.containsPoint = function(pos) {
 	var y = this.tl.height - this.tl.sliderHeight;
 	return (pos.x >= this.x && pos.x <= this.x + this.width && pos.y >= y && pos.y <= y + this.height);
+};
+
+Slider.prototype.onHandle = function(pos) {
+	var tl = this.tl,
+		y = this.tl.height - this.tl.sliderHeight;
+	return	(pos.y < y || pos.y > y + this.height || pos.x < this.x || pos.x > this.x + this.width)?0:
+			(pos.x <= this.x + tl.sliderHandleWidth)?-1:
+			(pos.x >= this.x + this.width - tl.sliderHandleWidth)?1:
+			0;
 };
 
 Slider.prototype.render = function() {

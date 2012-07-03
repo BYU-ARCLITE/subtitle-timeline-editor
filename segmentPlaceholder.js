@@ -42,7 +42,7 @@ SegmentPlaceholder.prototype.mouseUp = function(pos) {
 	seg = new Segment(this.tl, start, end, "", ""+start);
 
 	// Add the segment to its track
-	tl.tracks[this.track].add(seg);
+	tl.tracks[tl.trackIndices[this.track]].add(seg);
 	// Automatically select new segments
 	tl.select(seg);
 };

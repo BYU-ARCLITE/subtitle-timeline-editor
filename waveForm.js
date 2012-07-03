@@ -2,7 +2,7 @@ var WaveForm = (function(){
 
 	function WaveForm(width, height, channels, rate){
 		"use strict";
-		var start = 0, length = 0,
+		var start = 0, end = 0,
 			buffer = document.createElement('canvas'),
 			scalebuf = document.createElement('canvas'),
 			ctx = buffer.getContext('2d'),
@@ -22,18 +22,42 @@ var WaveForm = (function(){
 		this.worker = null;
 		this.events = {};
 		
-		this.sampleShift = function(x,l){
-			if(x == start){
-				if(l!=length){
-					this.sampleLength = l;
-				}
-			}else if(l==length){
-				this.sampleStart = x;
-			}else{
-				start = x>0?x:0;
-				length = l>0?l:0;
+		this.moveToSample = function(s,e){
+			var pstart, pend, ldraw, rdraw;
+			if(s == start && e == end){ return; }
+			if(e <= start || s >= end){
+				start = s;
+				end = e;
 				this.redraw();
+			}else{
+				//find the overlap region
+				pstart = s>start?this.sampleToPixel(s):0;
+				pend = e<end?this.sampleToPixel(e):width;
+				scalectx.putImageData(ctx.getImageData(pstart,0,pend-pstart,height),0,0);
+				
+				//find the length of the left redraw region
+				ldraw = s<start?width*(start-s)/(e-s):0;
+				//find the length of the right redraw region
+				rdraw = e>end?width*(e-end)/(e-s):0;
+				
+				//draw the scaled overlap
+				ctx.save();
+				ctx.translate(ldraw,0);
+				ctx.scale((end-start)/(e-s),1);
+				ctx.clearRect(0,0,pend-pstart,height);
+				ctx.drawImage(scalebuf,0,0);
+				ctx.restore();
+				
+				end = e;
+				start = s;
+				if(ldraw){ draw.call(this, 0, ldraw); }
+				if(rdraw){ draw.call(this, width-rdraw, width); }
+				this.emit('redraw');
 			}
+		};
+		
+		this.moveToTime = function(s,e){
+			this.moveToSample(Math.round(s*rate),Math.round(e*rate));
 		};
 		
 		Object.defineProperties(this,{
@@ -75,68 +99,43 @@ var WaveForm = (function(){
 				get: function(){ return height; },
 				enumerable: true
 			},
-			sampleStart: {
+			startSample: {
 				set: function(val){
-					var diff;
-					if(val < 0){val = 0;}
-					else if(val > this.samples){val = this.samples;}
-					if(val != start){
-						diff = Math.round(width*(val-start)/length);
-						start = val;
-						
-						if(Math.abs(diff) < width/1.5){ //there's significant overlap
-							if(diff > 0){ //moving forward
-								ctx.putImageData(ctx.getImageData(diff,0,width-diff,height),0,0);
-								draw.call(this,width-Math.max(diff,10),width);
-							}else{ //moving backward
-								diff = 0-diff;
-								ctx.putImageData(ctx.getImageData(0,0,width-diff,height),diff,0);
-								draw.call(this,0,Math.max(diff,10));
-							}
-							this.emit('redraw');
-						}else{
-							this.redraw();
-						}
-					}
+					this.moveToSample(val,end);
 					return start;
 				},get: function(){return start;},
 				enumerable: true
 			},
+			endSample: {
+				set: function(val){
+					this.moveToSample(start,val);
+					return end;
+				},get: function(){return end;},
+				enumerable: true
+			},
 			sampleLength: {
+				get: function(){
+					return end-start;
+				}, enumerable: true
+			},
+			startTime: {
 				set: function(val){
-					var newcv, scale, idata;
-					if(val < 0){val = 0;}
-					if(val != length){
-						scale = length/val;
-						length = val;
-						if(scale < 1){
-							idata = ctx.getImageData(0,0,width,height);
-							draw.call(this,Math.floor(width*scale),width);
-						}else{
-							idata = ctx.getImageData(0,0,Math.ceil(width/scale),height);
-						}
-						scalectx.putImageData(idata,0,0);
-						ctx.save();
-						ctx.scale(scale,1);
-						ctx.drawImage(scalebuf,0,0);
-						ctx.restore();
-						this.emit('redraw');
-					}
-					return length;
-				},get: function(){return length;},
+					this.moveToSample(Math.round(val*rate),end);
+					return start/rate;
+				},get: function(){return start/rate;},
 				enumerable: true
 			},
-			start: {
+			endTime: {
 				set: function(val){
-					return this.sampleStart = Math.round(val*this.rate);
-				},get: function(){return start/this.rate;},
+					this.moveToSample(start,Math.round(val*rate));
+					return end/rate;
+				},get: function(){return end/rate;},
 				enumerable: true
 			},
-			length: {
-				set: function(val){
-					return this.sampleLength = Math.round(val*this.rate);
-				},get: function(){return length/this.rate;},
-				enumerable: true
+			timeLength: {
+				get: function(){
+					return (end-start)/rate;
+				},enumerable: true
 			}
 		});
 	}
@@ -151,14 +150,14 @@ var WaveForm = (function(){
 		else{ this.events[name] = [cb]; }
 	};
 	
-	WaveForm.prototype.shift = function(x, l){
-		this.sampleShift(Math.round(x*this.rate),Math.round(l*this.rate));
-	}
+	WaveForm.prototype.sampleToPixel = function(s){
+		return Math.round((s-this.startSample)*this.width/this.sampleLength);
+	};
 
 	WaveForm.prototype.addFrame = function(buffer){
 		"use strict";
 		var samples = this.samples/this.channels,
-			start = this.sampleStart,
+			start = this.startSample,
 			len = this.sampleLength,
 			width, i, f, newm,
 			fmax=Number.NEGATIVE_INFINITY,
@@ -189,8 +188,8 @@ var WaveForm = (function(){
 
 	WaveForm.prototype.redraw = function(){
 		var channels = this.channels,
-			start = this.sampleStart*channels,
-			end = start+this.sampleLength*channels;
+			start = this.startSample*channels,
+			end = this.endSample*channels;
 		if(this.worker){this.worker.terminate();}
 		this.worker = new Worker("waveWorker.js");
 		this.worker.addEventListener('message',drawPath.bind(this));
@@ -240,7 +239,7 @@ var WaveForm = (function(){
 			start,stop,step,end;
 		
 		step = step*channels;
-		k = channels*this.sampleStart;
+		k = channels*this.startSample;
 		start = k+step*startp;
 		stop = Math.min(k+step*endp,this.samples);
 		
