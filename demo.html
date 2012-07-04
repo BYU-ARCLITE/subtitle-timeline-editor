@@ -89,6 +89,7 @@
 <button id="creb">CREATE</button>
 <button id="delb">DELETE</button>
 <button id="repb">REPEAT</button>
+<button id="scrb">SCROLL</button>
 <div id="tl"></div>
 
 <script type="text/javascript">
@@ -275,7 +276,7 @@ document.getElementById('tbtn').addEventListener('click', function() {
 }, false);
 
 // Create the timeline
-timeline = new Timeline(document.getElementById("tl"), 187, 5);
+timeline = new Timeline(document.getElementById("tl"), 7000, 120, 240);
 timeline.addSegmentTrack([], "new", "en", false);
 
 // Define the timeline callbacks
@@ -327,6 +328,9 @@ document.getElementById("delb").addEventListener('click',function(){
 });
 document.getElementById("repb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.REPEAT;		
+});
+document.getElementById("scrb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.SCROLL;		
 });
 
 //need time for images to load

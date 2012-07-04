@@ -79,9 +79,9 @@ Segment.prototype.toSRT = function(){
 // Location computation
 Segment.prototype.getShape = function() {
 	var tl = this.tl,
-		x = tl.timeToPixel(this.startTime),
+		x = tl.view.timeToPixel(this.startTime),
 		y = tl.getTrackTop(this.track),
-		width = tl.timeToPixel(this.endTime) - x;
+		width = tl.view.timeToPixel(this.endTime) - x;
 	return {x: x, y: y, width: width, height: tl.segmentTrackHeight};
 };
 
@@ -101,7 +101,7 @@ Segment.prototype.mouseDown = function(pos) {
 		return;
 		
 	this.mouseDownPos = pos;
-	this.startingPos = this.tl.timeToPixel(this.startTime);
+	this.startingPos = this.tl.view.timeToPixel(this.startTime);
 	this.startingLength = this.endTime - this.startTime;
 			
 	switch(this.tl.currentTool){
@@ -224,12 +224,8 @@ Segment.prototype.render = function() {
 		shape = this.getShape();
 		
 	// is it on the screen
-	if(shape.x + shape.width >= tl.view.startPixel && shape.x <= tl.view.endPixel) {
+	if(shape.x > -shape.width && shape.x < tl.view.width) {
 
-		ctx.save();
-		ctx.font = this.tl.segmentFontSize + ' sans-serif';
-		ctx.textBaseline = 'top';
-		
 		if(this.selected){
 			this.renderImage(shape, tl.segmentLeftSel, tl.segmentRightSel, tl.segmentMidSel);
 		}else if(!this.selectable){
@@ -237,24 +233,27 @@ Segment.prototype.render = function() {
 		}else{
 			this.renderImage(shape, tl.segmentLeft, tl.segmentRight, tl.segmentMid);
 		}
-		// Set the clipping bounds
-		ctx.beginPath();
-		ctx.moveTo(shape.x, shape.y);
-		ctx.lineTo(shape.x, shape.y + shape.height);
-		ctx.lineTo(shape.x + shape.width - tl.segmentFontPadding, shape.y + shape.height);
-		ctx.lineTo(shape.x + shape.width - tl.segmentFontPadding, shape.y);
-		ctx.closePath();
-		ctx.clip();
-		
-		ctx.fillStyle = tl.segmentTextColor;
-		ctx.fillText(this.text, shape.x + (	tl.direction == "ltr"?
-											tl.segmentFontPadding:
-											shape.width - tl.segmentFontPadding	),
-								shape.y + tl.segmentFontPadding	);
-					
-		ctx.restore();
-	}else{
-		debugger;
+		if(shape.width > 2*tl.segmentFontPadding){
+			ctx.save();	
+			// Set the clipping bounds
+			ctx.beginPath();
+			ctx.moveTo(shape.x, shape.y);
+			ctx.lineTo(shape.x, shape.y + shape.height);
+			ctx.lineTo(shape.x + shape.width - tl.segmentFontPadding, shape.y + shape.height);
+			ctx.lineTo(shape.x + shape.width - tl.segmentFontPadding, shape.y);
+			ctx.closePath();
+			ctx.clip();
+			
+			ctx.font = this.tl.segmentFontSize + ' sans-serif';
+			ctx.textBaseline = 'top';
+			
+			ctx.fillStyle = tl.segmentTextColor;
+			ctx.fillText(this.text, shape.x + (	tl.direction == "ltr"?
+												tl.segmentFontPadding:
+												shape.width - tl.segmentFontPadding	),
+									shape.y + tl.segmentFontPadding	);
+			ctx.restore();
+		}
 	}
 };
 	

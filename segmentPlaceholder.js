@@ -32,11 +32,11 @@ SegmentPlaceholder.prototype.mouseUp = function(pos) {
 
 	// Create a new segment
 	if(this.startX < this.endX){
-		start = tl.pixelToTime(this.startX);
-		end   = tl.pixelToTime(this.endX);
+		start = tl.view.pixelToTime(this.startX);
+		end   = tl.view.pixelToTime(this.endX);
 	}else{
-		start = tl.pixelToTime(this.endX);
-		end   = tl.pixelToTime(this.startX);
+		start = tl.view.pixelToTime(this.endX);
+		end   = tl.view.pixelToTime(this.startX);
 	}
 	
 	seg = new Segment(this.tl, start, end, "", ""+start);

@@ -7,15 +7,12 @@
  * subtitles but it can be used for other purposes too.
  **/
 var Timeline = (function(){
-	function Timeline(location, length, viewlength) {
+	function Timeline(location, length, viewstart, viewend) {
 		var canvas = document.createElement('canvas'),
 			overlay = document.createElement('canvas'),
 			node = document.createElement('div');
 		
 		this.length = length; // In seconds
-		this.view = new timelineView(this);
-			this.view.length = viewlength;
-			this.view.width = window.innerWidth;
 			
 		this.events = {};
 		this.tracks = [];
@@ -55,9 +52,15 @@ var Timeline = (function(){
 		this.octx = overlay.getContext('2d');
 		canvas.addEventListener('mousemove', mouseMove.bind(this), false);
 		canvas.addEventListener('mouseup', mouseUp.bind(this), false);
+		canvas.addEventListener('mouseout', mouseUp.bind(this), false);
 		canvas.addEventListener('mousedown', mouseDown.bind(this), false);
 		
 		//put stuff on the page
+		this.view = new timelineView(this);
+			this.view.width = window.innerWidth;
+			this.view.startTime = viewstart;
+			this.view.endTime = viewend;
+			
 		canvas.height = this.height;
 		canvas.width = window.innerWidth;
 		overlay.height = this.height;
@@ -82,6 +85,7 @@ var Timeline = (function(){
 	Timeline.DELETE = 4;
 	Timeline.RESIZE = 5;
 	Timeline.REPEAT = 6;
+	Timeline.SCROLL = 7;
 
 	function windowResize() {
 		var id, width = window.innerWidth;
@@ -93,9 +97,6 @@ var Timeline = (function(){
 				this.audio[id].width = width;
 			}
 			
-			// Adjust the view slider
-			this.slider.updateLength();
-
 			// Re-render the timeline
 			this.render();
 		}
@@ -184,10 +185,11 @@ var Timeline = (function(){
 		else{ this.events[name] = [cb]; }
 	};
 
-	Timeline.prototype.updateCursor = function(pos) {
+	function updateCursor(pos) {
 		if(typeof pos !== 'object')
 			return;
-		var i,j,track,seg,shape,cursor;
+		var i,j,track,seg,shape,
+			cursor = "url(\"./images/cursors/cursor.png\"), auto";
 		
 		// Check the slider
 		i = this.slider.onHandle(pos);
@@ -235,8 +237,6 @@ var Timeline = (function(){
 					}
 				}
 			}
-		}else{
-			cursor = "url(\"./images/cursors/cursor.png\"), auto";
 		}
 		
 		this.canvas.style.cursor = cursor;
@@ -315,36 +315,58 @@ var Timeline = (function(){
 	 * 
 	 * Author: Joshua Monson
 	 **/
+	 
+	 function autoScroll(){
+		if(this.delta){
+			this.slider.x += this.delta*(this.view.width-this.sliderHandleWidth*3)/(this.length-this.view.width/1000);
+			this.render();
+		}
+	 }
+
+	 function autoSize(){
+		var center = this.slider.x+this.slider.width/2,
+			x = this.mousePos.x;
+		if(x > center){
+			this.view.endTime += (x-this.slider.endx)*this.view.zoom/10;
+		}else if(x < center){
+			this.view.startTime += (x-this.slider.startx)*this.view.zoom/10;
+		}else{return;}
+		this.render();
+	 }
+	 
 	function mouseMove(ev) {
-		var canvasTop = $(this.ctx.canvas).offset().top,
-			pos = {x: ev.pageX, y: ev.pageY-canvasTop};
+		var offset = $(this.ctx.canvas).offset(),
+			pos = {x: ev.pageX-offset.left, y: ev.pageY-offset.top},
+			that = this;
+			
+		updateCursor.call(this,pos);
 
-		this.updateCursor(pos);
-
-		if(this.currentTool == Timeline.REPEAT
+		this.mousePos = pos;
+		
+		if(this.scrollInterval){
+			this.delta = 10*(pos.x/this.view.width-.5)*this.view.zoom;
+		}else if(this.currentTool == Timeline.REPEAT
 			&& this.repeatA != null && !this.abRepeatOn){
 			this.updateB(pos);
-		}else if(this.segmentPlaceholder != null){
-			this.segmentPlaceholder.mouseMove(pos);
 		}else if(this.sliderActive){
 			this.slider.mouseMove(pos);
-		}else if(this.activeElement != null){
+		}else if(this.activeElement){
 			this.activeElement.mouseMove(pos);
 		}
 	}
 
 	function mouseUp(ev) {
-		var canvasTop = $(this.ctx.canvas).offset().top,
-			pos = {x: ev.pageX, y: ev.pageY-canvasTop},
+		var offset = $(this.ctx.canvas).offset(),
+			pos = {x: ev.pageX-offset.left, y: ev.pageY-offset.top},
 			id;
-
-		if(this.currentTool == Timeline.REPEAT // Are we creating a repeat?
+		
+		if(this.scrollInterval){
+			clearInterval(this.scrollInterval);
+			this.scrollInterval = null;
+			for(id in this.audio){ this.audio[id].redraw(); }
+		}else if(this.currentTool == Timeline.REPEAT // Are we creating a repeat?
 			&& !this.abRepeatOn && this.repeatA != this.repeatB) {
 			this.setB(pos);
-			this.updateCursor(pos);
-		}else if(this.segmentPlaceholder != null) { // Are we creating a new segment?
-			this.segmentPlaceholder.mouseUp(pos);
-			this.segmentPlaceholder = null;
 		}else if(this.sliderActive) {
 			this.slider.mouseUp(pos);
 			this.sliderActive = false;
@@ -356,29 +378,46 @@ var Timeline = (function(){
 	}
 
 	function mouseDown(ev) {
-		var canvasTop = $(this.ctx.canvas).offset().top,
-			pos = {x: ev.pageX, y: ev.pageY-canvasTop},
+		var offset = $(this.ctx.canvas).offset(),
+			pos = {x: ev.pageX-offset.left, y: ev.pageY-offset.top},
 			track,id,seg,i,j;
 
-		if(this.slider.containsPoint(pos)) { // Check the slider
-			this.slider.mouseDown(pos);
-			this.sliderActive = true;
+		this.mouseDownPos = pos;
+		this.mousePos = pos;
+			
+		if(pos.y > this.height - this.sliderHeight - this.segmentTrackPadding){ // Check the slider
+			if(this.slider.containsPoint(pos)) {
+				this.slider.mouseDown(pos);
+				this.sliderActive = true;
+			}else if(this.currentTool == Timeline.SCROLL){
+				this.scrollInterval = setInterval(autoSize.bind(this),1);
+			}else{
+				this.slider.x = pos.x - this.slider.width/2;
+				this.render();
+				if(pos.y > this.height - this.sliderHeight){
+					this.slider.mouseDown(pos);
+					this.sliderActive = true;
+				}
+			}
 		}else if(pos.y < this.keyHeight+this.segmentTrackPadding) { // Check the key
-			i = this.pixelToTime(pos.x);
+			i = this.view.pixelToTime(pos.x);
 			this.updateTimeMarker(i);
 			this.emit('jump',i);
 			this.emit('timeupdate',i);
 		}else switch(this.currentTool){
 			case Timeline.CREATE: // Are we creating a segment?
 				if(id = this.idFromPos(pos)){
-					this.segmentPlaceholder = new SegmentPlaceholder(this, pos.x, id);
+					this.activeElement = new SegmentPlaceholder(this, pos.x, id);
 				}
 				break;
 			case Timeline.REPEAT: // Are we creating a repeat?
 				if(this.abRepeatOn){ this.clearRepeat(); }
 				else if(this.repeatA == null){ this.setA(pos); }
 				else{ this.setB(pos); }
-				this.updateCursor(pos);
+				break;
+			case Timeline.SCROLL: //are we scrolling?
+				this.delta = 10*(pos.x/this.view.width-.5)*this.view.zoom;
+				this.scrollInterval = setInterval(autoScroll.bind(this),1);
 		}
 		
 		// Check all the segments
@@ -510,7 +549,7 @@ var Timeline = (function(){
 		start -= start%increment;
 		end = view.endTime;
 		
-		for (position = this.timeToPixel(start); start < end; start += increment, position += pixels) {
+		for (position = this.view.timeToPixel(start); start < end; start += increment, position += pixels) {
 
 			// Draw the tick
 			ctx.beginPath();
@@ -549,7 +588,7 @@ var Timeline = (function(){
 	};
 
 	Timeline.prototype.renderTimeMarker = function() {
-		var ctx, x = this.timeToPixel(this.timeMarkerPos)-1;
+		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
 		if(x < 0 || x > this.view.width){ return; }
 		ctx = this.ctx
 		ctx.save();
@@ -560,8 +599,8 @@ var Timeline = (function(){
 		
 	Timeline.prototype.renderABRepeat = function() {
 		if(this.repeatA != null) {
-			var left = this.timeToPixel(this.repeatA),
-				right = this.timeToPixel(this.repeatB),
+			var left = this.view.timeToPixel(this.repeatA),
+				right = this.view.timeToPixel(this.repeatB),
 				ctx = this.ctx;
 			ctx.save();
 			ctx.fillStyle = this.abRepeatOn?this.abRepeatColor:this.abRepeatColorLight;
@@ -584,7 +623,7 @@ var Timeline = (function(){
 	Timeline.prototype.renderTrack = function(id) {
 		if(!(id in this.trackIndices)){ return; }
 		
-		var ctx, x = this.timeToPixel(this.timeMarkerPos)-1;
+		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
 		
 		this.tracks[this.trackIndices[id]].render();
 		
@@ -595,21 +634,6 @@ var Timeline = (function(){
 		ctx.fillStyle = this.timeMarkerColor;
 		ctx.fillRect(x, this.getTrackTop(id), 2, this.segmentTrackHeight);
 		ctx.restore();
-	};
-
-	//Time functions
-	Object.defineProperties(Timeline.prototype,{
-		sliderOffset: {
-			get: function() {
-				return this.length * this.slider.x / this.view.width;
-			}, enumerable: true
-		}
-	});
-	Timeline.prototype.pixelToTime = function(pixel) {
-		return pixel * this.view.zoom + this.sliderOffset;
-	};
-	Timeline.prototype.timeToPixel = function(time) {
-		return Math.round((time-this.sliderOffset) / this.view.zoom);
 	};
 	
 	Timeline.prototype.updateTimeMarker = function(time) {
@@ -626,7 +650,7 @@ var Timeline = (function(){
 		this.updateCurrentSegments();
 		this.emit('timeupdate', time);
 		
-		/*if(this.timeMarkerPos > this.pixelToTime(this.view.width))
+		/*if(this.timeMarkerPos > this.view.pixelToTime(this.view.width))
 			this.moveTimeMarkerIntoView(time);
 		else*/
 			this.render();
@@ -644,18 +668,18 @@ var Timeline = (function(){
 		this.emit('segments',{
 			valid:cursegs,
 			invalid:oldsegs.filter(function(seg){
-				return !that.tracks[seg.track].active || seg.startTime > time || seg.endTime < time;
+				return !that.tracks[that.trackIndices[seg.track]].active || seg.startTime > time || seg.endTime < time;
 			})
 		});
 	};
 
 	Timeline.prototype.setA = function(pos) {
-		this.repeatA = this.pixelToTime(pos.x);
-		this.repeatB = this.pixelToTime(pos.x);
+		this.repeatA = this.view.pixelToTime(pos.x);
+		this.repeatB = this.view.pixelToTime(pos.x);
 	};
 
 	Timeline.prototype.setB = function(pos) {
-		this.repeatB = this.pixelToTime(pos.x);
+		this.repeatB = this.view.pixelToTime(pos.x);
 		if(this.repeatB < this.repeatA) {
 			var t = this.repeatB;
 			this.repeatB = this.repeatA;
@@ -667,7 +691,7 @@ var Timeline = (function(){
 	};
 
 	Timeline.prototype.updateB = function(pos) {
-		this.repeatB = this.pixelToTime(pos.x);
+		this.repeatB = this.view.pixelToTime(pos.x);
 		this.render();
 	};
 
@@ -679,8 +703,8 @@ var Timeline = (function(){
 	};
 
 	Timeline.prototype.moveTimeMarkerIntoView = function(time) {
-		var leftTime = this.pixelToTime(0);
-		var rightTime = this.pixelToTime(this.view.width);
+		var leftTime = this.view.startTime;
+		var rightTime = this.view.endTime;
 		
 		if(time < leftTime || time > rightTime) {
 			// Move the view
