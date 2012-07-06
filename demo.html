@@ -7,16 +7,16 @@
 	<script src="Text.js"></script>
 	<script src="Caption.js"></script>
 	<script src="captionWrapper.js"></script>
-	<script src="timeline.js"></script>
-	<script src="segment.js"></script>
-	<script src="segmentTrack.js"></script>
-	<script src="slider.js"></script>
-	<script src="segmentPlaceholder.js"></script>
-	<script src="timelineEvent.js"></script>
-	<script src="timelineTracker.js"></script>
-	<script src="timelineView.js"></script>
-	<script src="waveForm.js"></script>
-	<script src="audioTrack.js"></script>
+	<script src="Timeline.js"></script>
+	<script src="Segment.js"></script>
+	<script src="SegmentTrack.js"></script>
+	<script src="Slider.js"></script>
+	<script src="SegmentPlaceholder.js"></script>
+	<script src="TimelineEvent.js"></script>
+	<script src="TimelineTracker.js"></script>
+	<script src="TimelineView.js"></script>
+	<script src="WaveForm.js"></script>
+	<script src="AudioTrack.js"></script>
 </head>
 <style type="text/css">
 	body {
@@ -90,15 +90,19 @@
 <button id="delb">DELETE</button>
 <button id="repb">REPEAT</button>
 <button id="scrb">SCROLL</button>
+<button id="undb"> UNDO </button>
+<select id="activetracks" multiple><option value="new" selected>new</option></select>
 <div id="tl"></div>
 
 <script type="text/javascript">
 	var timeline, t_count = 0,
 		screen =  document.getElementById("video"),
 		editor = document.getElementById("editor"),
-		controls = document.getElementById("controls");
+		controls = document.getElementById("controls"),
+		atracks = document.getElementById("activetracks");
 
 	var cue = null, grain = 0,
+		caption = null, captions = {},
 		text_el = document.getElementById("cue_text"),
 		align_el = document.getElementById("cue_align"),
 		snap_el = document.getElementById("cue_snap"),
@@ -110,34 +114,34 @@
 	function text_change(){
 		if(!cue) return;
 		timeline.setText(this.value);
-		cue.caption.Update(cue);
-		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+		caption.Update(cue);
+		grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
 	}
 
 	function line_change(){
 		if(!cue) return;
 		cue.rawLine = this.valueAsNumber;
-		cue.caption.Update(cue);
+		caption.Update(cue);
 	}
 	
 	function pos_change(){
 		if(!cue) return;
 		cue.position = this.value+"%";
-		cue.caption.Update(cue);
-		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+		caption.Update(cue);
+		grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
 	}
 	
 	function size_change(){
 		if(!cue) return;
 		cue.size = this.value+"%";
-		cue.caption.Update(cue);
-		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+		caption.Update(cue);
+		grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
 	}
 	
 	function align_change(){
 		if(!cue) return;
 		cue.align = this.value;
-		cue.caption.Update(cue);
+		caption.Update(cue);
 	}
 	
 	function snap_change(){
@@ -148,7 +152,7 @@
 			cue.rawLine = "auto";
 			line_form.style.display = "none";	
 		}else{
-			cstyle = getComputedStyle(cue.caption.el);
+			cstyle = getComputedStyle(caption.el);
 			cheight = parseInt(getComputedStyle(video).height,10);
 			switch(this.value){
 				case "percent":
@@ -175,7 +179,7 @@
 			line_el.value = cue.rawLine;
 			line_form.style.display = "inline";
 		}
-		cue.caption.Update(cue);
+		caption.Update(cue);
 	};
 
 	function updateEditor(){
@@ -220,7 +224,7 @@
 		pos_el.value = parseInt(cue.pos,10);
 		pos_el.addEventListener('change', pos_change, false);
 		
-		grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+		grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
 	}
 
 document.getElementById('vttfile').addEventListener('change', function(evt) {
@@ -228,12 +232,12 @@ document.getElementById('vttfile').addEventListener('change', function(evt) {
 	var reader = new FileReader();
 	// Closure to capture the file information.
 	reader.onload = function(evt) {
-		var cues = WebVTT.parse(evt.target.result);
-		cues.forEach(function(cue){
-			cue.caption = Ayamel.Caption.FromCue(captionWrapper,null,cue);
-		});
+		var cues = WebVTT.parse(evt.target.result),
+			opt = new Option(file.name);
 		timeline.addSegmentTrack(cues, file.name, "en", false);
 		timeline.render();
+		opt.selected = true;
+		atracks.add(opt);
 	};
 	reader.onerror = function(e){alert(e);};
 	reader.readAsText(file);
@@ -276,17 +280,17 @@ document.getElementById('tbtn').addEventListener('click', function() {
 }, false);
 
 // Create the timeline
-timeline = new Timeline(document.getElementById("tl"), 7000, 120, 240);
+timeline = new Timeline(document.getElementById("tl"), 7000, 0, 240);
 timeline.addSegmentTrack([], "new", "en", false);
 
 // Define the timeline callbacks
 timeline.on('select',function(seg) {
 	cue = seg.cue;
-	if(!cue.caption){
-		cue.caption = Ayamel.Caption.FromCue(captionWrapper,null,cue);
-		cue.caption.display(video);
+	if(!(seg.uid in captions)){
+		captions[seg.uid] = Ayamel.Caption.FromCue(captionWrapper,null,seg.cue);
 	}
-	grain = parseInt(getComputedStyle(cue.caption.el).lineHeight,10);
+	caption = captions[seg.uid];
+	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
 	updateEditor();
 	editor.style.display = "block";
 });
@@ -299,10 +303,13 @@ timeline.on('jump', function(time) {
 });
 timeline.on('segments',function(segs){
 	segs.invalid.forEach(function(seg){
-		if(seg.cue.caption){seg.cue.caption.hide();}
+		captions[seg.uid].hide();
 	});
 	segs.valid.forEach(function(seg){
-		if(seg.cue.caption){seg.cue.caption.display(video);}
+		if(!(seg.uid in captions)){
+			captions[seg.uid] = Ayamel.Caption.FromCue(captionWrapper,null,seg.cue);
+		}
+		captions[seg.uid].display(video);
 	});
 });
 
@@ -332,7 +339,16 @@ document.getElementById("repb").addEventListener('click',function(){
 document.getElementById("scrb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.SCROLL;		
 });
-
+document.getElementById("undb").addEventListener('click',function(){
+	timeline.tracker.undo();		
+});
+atracks.addEventListener('change',function(){
+	var i, opts = atracks.options,
+		len = opts.length;
+	for(i=0;i<len;i++){
+		timeline.getTrack(opts[i].value).active = opts[i].selected;
+	}
+});
 //need time for images to load
 setTimeout(function(){timeline.render();},100);
 
