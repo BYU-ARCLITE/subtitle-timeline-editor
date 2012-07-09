@@ -1,4 +1,5 @@
 var TimelineTracker = (function(){
+	"use strict";
 	function TimelineTracker(tl) {
 		this.tl = tl;
 		this.events = [];

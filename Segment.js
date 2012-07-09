@@ -1,4 +1,5 @@
 var Segment = (function(){
+	"use strict";
 	function Segment(tl, start, end, t, i) {
 		var cue = (start instanceof WebVTT.Cue)?start:new WebVTT.Cue(i, start, end, t);
 		

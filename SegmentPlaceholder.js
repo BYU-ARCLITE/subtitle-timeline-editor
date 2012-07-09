@@ -1,4 +1,5 @@
 var SegmentPlaceholder = (function(){
+	"use strict";
 	function SegmentPlaceholder(tl, x, track) {
 		this.tl = tl;
 		this.startx = x;

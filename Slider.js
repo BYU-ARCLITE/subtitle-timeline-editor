@@ -1,4 +1,5 @@
 var Slider = (function(){
+	"use strict";
 	function Slider(tl) {
 		var x = 0,
 			width = tl.sliderHandleWidth*3;

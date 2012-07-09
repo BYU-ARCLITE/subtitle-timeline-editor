@@ -1,4 +1,5 @@
 var TimelineView = (function(){
+	"use strict";
 	function TimelineView(tl){
 		this.tl = tl;
 		this.width = 0;

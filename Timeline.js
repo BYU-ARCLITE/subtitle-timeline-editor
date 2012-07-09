@@ -7,6 +7,7 @@
  * subtitles but it can be used for other purposes too.
  **/
 var Timeline = (function(){
+	"use strict";
 	function Timeline(location, length, viewstart, viewend) {
 		var canvas = document.createElement('canvas'),
 			overlay = document.createElement('canvas'),

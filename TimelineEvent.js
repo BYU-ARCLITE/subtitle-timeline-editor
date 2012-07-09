@@ -1,4 +1,5 @@
 var TimelineEvent = (function(){
+	"use strict";
 	function TimelineEvent(eventType, attrs) {
 		this.type = eventType;
 		this.attributes = attrs;

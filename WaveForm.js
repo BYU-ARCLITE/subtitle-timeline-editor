@@ -1,7 +1,6 @@
 var WaveForm = (function(){
-
+	"use strict";
 	function WaveForm(width, height, channels, rate){
-		"use strict";
 		var start = 0, end = 0,
 			buffer = document.createElement('canvas'),
 			scalebuf = document.createElement('canvas'),
