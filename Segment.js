@@ -1,7 +1,7 @@
 var Segment = (function(){
 	"use strict";
 	function Segment(tl, start, end, t, i) {
-		var cue = (start instanceof WebVTT.Cue)?start:new WebVTT.Cue(i, start, end, t);
+		var cue = (start instanceof Cue)?start:new Cue(i, start, end, t);
 		
 		this.tl = tl;
 		this.cue = cue;
@@ -69,11 +69,11 @@ var Segment = (function(){
 	};
 
 	Segment.prototype.toVTT = function(){
-		return this.deleted?"":this.cue.toVTT();
+		return this.deleted?"":WebVTT.serialize(this.cue);
 	};
 
 	Segment.prototype.toSRT = function(){
-		return this.deleted?"":this.cue.toSRT();
+		return this.deleted?"":SRT.serialize(this.cue);
 	};
 
 	// Location computation

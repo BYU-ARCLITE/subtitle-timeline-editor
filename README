@@ -5,20 +5,32 @@ Setup
 	var target = document.getElementById("timeline");
 
 2. Create a timeline	
-	timeline = new Timeline(target, length, viewlength);
-    
+	timeline = new Timeline(target, length, viewstart, viewend);
+
+    The parameters are
+     *  - A DOM node into which to insert the timeline.
+     *  - The length of the timeline in seconds.
+     *  - The initial starting time of the viewing window.
+	 *  - The initial ending time of the viewing window.
+	
 3. Create the cues and add them to the timeline
 	var cues = WebVTT.parse(vttdata)
-    timeline.addSegmentTrack(cues, "track-external-id", "en", false);
+    timeline.addSegmentTrack(cues, "track-external-id", "en");
 
 	The parameters are
 	 *  - An array of Segment or Cue objects (may be heterogenous) or a segmentTrack.
 	 *  - A text id
 	 *  - Language
-	 *  - Karaoke (not implemented)
 	 
 4. Add event handlers
-	// select is fired whenever a segment is selected and returns the segment object (which includes the backing cue object)
+
+    // addtrack is fired whenever a segment track is added to the timeline and passes the added track object to the listener
+	timeline.on('addtrack',function(track) {});
+	
+    // removetrack is fired whenever a segment track is removed from the timeline and passes the removed track object to the listener
+	timeline.on('removetrack',function(track) {});
+	
+	// select is fired whenever a segment is selected and passes the segment object (which includes the backing cue object) to the listener
 	timeline.on('select',function(seg) {
 		var cue = seg.cue;
 		....
@@ -53,6 +65,3 @@ Setup
 	
 	//update is fired whenever the contents of the timeline change
 	timeline.on('update', function() {});
-
-5. Draw the timeline
-    timeline.render();

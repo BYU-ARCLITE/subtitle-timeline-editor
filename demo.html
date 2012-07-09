@@ -2,7 +2,9 @@
 <html>
 <head>
 	<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.2.min.js"></script>
+	<script src="Cue.js"></script>
 	<script src="WebVTT.js"></script>
+	<script src="SRT.js"></script>
 	<script src="Ayamel.js"></script>
 	<script src="Text.js"></script>
 	<script src="Caption.js"></script>
@@ -14,6 +16,7 @@
 	<script src="SegmentPlaceholder.js"></script>
 	<script src="TimelineEvent.js"></script>
 	<script src="TimelineTracker.js"></script>
+	<script src="TimelinePersistence.js"></script>
 	<script src="TimelineView.js"></script>
 	<script src="WaveForm.js"></script>
 	<script src="AudioTrack.js"></script>
@@ -228,19 +231,7 @@
 	}
 
 document.getElementById('vttfile').addEventListener('change', function(evt) {
-	var file = evt.target.files[0]; // FileList object
-	var reader = new FileReader();
-	// Closure to capture the file information.
-	reader.onload = function(evt) {
-		var cues = WebVTT.parse(evt.target.result),
-			opt = new Option(file.name);
-		timeline.addSegmentTrack(cues, file.name, "en", false);
-		timeline.render();
-		opt.selected = true;
-		atracks.add(opt);
-	};
-	reader.onerror = function(e){alert(e);};
-	reader.readAsText(file);
+	timeline.loadSegmentTrack(evt.target.files[0]);
 }, false);
 
 document.getElementById('audiofile').addEventListener('change', function(evt) {
@@ -311,6 +302,11 @@ timeline.on('segments',function(segs){
 		}
 		captions[seg.uid].display(video);
 	});
+});
+timeline.on('addtrack',function(track){
+	var opt = new Option(track.id);
+	opt.selected = true;
+	atracks.add(opt);
 });
 
 // Bind to the audio events

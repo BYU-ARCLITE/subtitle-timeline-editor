@@ -27,9 +27,8 @@ var Timeline = (function(){
 		this.slider = new Slider(this);
 			this.sliderActive = false;
 		
-		this.toolbar = null;
-		
 		this.tracker = new TimelineTracker(this);
+		this.persistence = new TimelinePersistence(this);
 		
 		this.timeMarkerPos = 0;
 		this.direction = $(location).css("direction");
@@ -202,14 +201,14 @@ var Timeline = (function(){
 
 	Timeline.prototype.emit = function(evt, data){
 		var that = this, fns = this.events[evt];
-		fns && fns.forEach(function(cb){ cb.call(that,data); });
+		fns && fns.forEach(function(cb){ setTimeout(cb.bind(that,data),0); });
 	};
 
 	Timeline.prototype.on = function(name, cb){
 		if(name in this.events){ this.events[name].push(cb); }
 		else{ this.events[name] = [cb]; }
 	};
-
+	
 	function updateCursor(pos) {
 		if(typeof pos !== 'object')
 			return;
@@ -467,25 +466,24 @@ var Timeline = (function(){
 		return false;
 	}
 
-	Timeline.prototype.addSegmentTrack = function(cues, id, language, karaoke) {
+	Timeline.prototype.addSegmentTrack = function(cues, id, language) {
 		var track;
 		if(id in this.trackIndices){ throw new Error("Track with that id already loaded."); }
 		if(cues instanceof SegmentTrack){
 			track = cues;
 			id = track.id;
-			karaoke = track.karaoke;
 		}else{
-			track = new SegmentTrack(this, cues, id, language, karaoke);
+			track = new SegmentTrack(this, cues, id, language);
 		}
 		this.trackIndices[id] = this.tracks.length;
 		this.tracks.push(track);
-		if(karaoke == true) { this.kTracks++; }
 
 		// Adjust the height
 		this.height += this.segmentTrackHeight + this.segmentTrackPadding;
 		this.canvas.height = this.height;
 		this.overlay.height = this.height;
 		this.render();
+		this.emit("addtrack",track);
 	};
 	
 	Timeline.prototype.removeSegmentTrack = function(id) {
@@ -494,19 +492,21 @@ var Timeline = (function(){
 			loc = this.trackIndices[id];
 			aid = this.tracks[loc].audioId;
 			if(aid in this.audio){ this.audio[aid].references--; }
-			if(this.tracks[loc].karaoke){ this.kTracks--; }
-			this.tracks.splice(loc, 1);
+			if(aid in this.audio){ this.audio[aid].references--; }
+			track = this.tracks.splice(loc, 1)[0];
 			delete this.trackIndices[id];
+			
+			for(i=loc;track=this.tracks[i];i++){
+				this.trackIndices[track.id] = i;		
+			}
+			
+			// Adjust the height
+			this.height -= this.segmentTrackHeight + this.segmentTrackPadding;
+			this.canvas.height = this.height;
+			this.overlay.height = this.height;
+			this.render();
+			this.emit("removetrack",track);
 		}
-		for(i=loc;track=this.tracks[i];i++){
-			this.trackIndices[track.id] = i;		
-		}
-		
-		// Adjust the height
-		this.height -= this.segmentTrackHeight + this.segmentTrackPadding;
-		this.canvas.height = this.height;
-		this.overlay.height = this.height;
-		this.render();
 	};
 	
 	Timeline.prototype.addAudioTrack = function(wave, id) {
@@ -737,6 +737,9 @@ var Timeline = (function(){
 		this.abRepeatOn = false;
 		this.render();
 	};
+	
+	Timeline.prototype.save = function(type, id) { this.persistence.save(type, id); };
+	Timeline.prototype.loadSegmentTrack = function(url) { this.persistence.loadSegmentTrack(url); };
 	
 	return Timeline;
 }());

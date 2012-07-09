@@ -97,5 +97,13 @@ SegmentTrack = (function(){
 		selected && selected.render();
 	};
 	
+	SegmentTrack.prototype.toVTT = function(){
+		return "WEBVTT\n\n"+this.segments.map(function(seg){ return this.toVTT(); }).join('');
+	};
+	
+	SegmentTrack.prototype.toSRT = function(){
+		return this.segments.map(function(seg){ return this.toSRT(); }).join('');
+	};
+	
 	return SegmentTrack;
 }());
