@@ -1,12 +1,16 @@
-var TimelineEvent = (function(){
+(function(Timeline){
 	"use strict";
-	function TimelineEvent(eventType, attrs) {
-		this.type = eventType;
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
+	function Action(type, attrs) {
+		this.type = type;
 		this.attributes = attrs;
 		this.time = +(new Date);
 	}
 
-	TimelineEvent.prototype.toString = function(prepend) {
+	Action.prototype.toString = function(prepend) {
 		var s = prepend + "type: " + this.type + "\n";
 		s += prepend + "time: " + this.time + "\n";
 		for(var key in this.attributes) if(this.attributes.hasOwnProperty(key)) {
@@ -16,5 +20,5 @@ var TimelineEvent = (function(){
 		return s + "\n";
 	};
 	
-	return TimelineEvent;
-}());
+	Timeline.Action = Action;
+}(Timeline));

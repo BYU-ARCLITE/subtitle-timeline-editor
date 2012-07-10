@@ -1,5 +1,11 @@
-var Slider = (function(){
+(function(Timeline){
 	"use strict";
+	var Proto;
+	
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
 	function Slider(tl) {
 		var x = 0,
 			width = tl.sliderHandleWidth*3;
@@ -41,8 +47,10 @@ var Slider = (function(){
 		this.startingWidth = 0;
 	}
 
+	Proto = Slider.prototype;
+	
 	// Event handlers
-	Slider.prototype.mouseDown = function(pos) {
+	Proto.mouseDown = function(pos) {
 		this.startingX = this.x;
 		this.startingWidth = this.width;
 
@@ -51,7 +59,7 @@ var Slider = (function(){
 		this.active = true;
 	};
 
-	Slider.prototype.mouseMove = function(pos) {
+	Proto.mouseMove = function(pos) {
 		var diff;
 		if(this.active) {
 			diff = pos.x - this.tl.mouseDownPos.x;
@@ -69,16 +77,16 @@ var Slider = (function(){
 		}
 	};
 
-	Slider.prototype.mouseUp = function(pos) {
+	Proto.mouseUp = function(pos) {
 		this.active = false;
 	};
 
-	Slider.prototype.containsPoint = function(pos) {
+	Proto.containsPoint = function(pos) {
 		var y = this.tl.height - this.tl.sliderHeight;
 		return (pos.x >= this.startx && pos.x <= this.endx && pos.y >= y && pos.y <= y + this.tl.sliderHeight);
 	};
 
-	Slider.prototype.onHandle = function(pos) {
+	Proto.onHandle = function(pos) {
 		var tl = this.tl,
 			y = this.tl.height - this.tl.sliderHeight;
 		return	(pos.y < y || pos.y > y + this.tl.sliderHeight || pos.x < this.startx || pos.x > this.endx)?0:
@@ -87,7 +95,7 @@ var Slider = (function(){
 				0;
 	};
 
-	Slider.prototype.render = function() {
+	Proto.render = function() {
 		var tl = this.tl,
 			ctx = tl.ctx,
 			start = Math.round(this.startx),
@@ -99,5 +107,5 @@ var Slider = (function(){
 		ctx.drawImage(tl.sliderRight, end - tl.sliderHandleWidth, top);
 	};
 	
-	return Slider;
-}());
+	Timeline.Slider = Slider;
+}(Timeline));

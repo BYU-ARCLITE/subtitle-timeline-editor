@@ -1,5 +1,11 @@
-AudioTrack = (function(){
+(function(Timeline){
 	"use strict";
+	var Proto;
+	
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
 	function AudioTrack(tl, wave, id){
 		var refs = 0;
 		this.tl = tl;
@@ -14,7 +20,9 @@ AudioTrack = (function(){
 		wave.on('redraw',this.draw.bind(this));
 	}
 
-	AudioTrack.prototype.render = function(){
+	Proto = AudioTrack.prototype;
+	
+	Proto.render = function(){
 		var view;
 		if(this.references){
 			view = this.tl.view;
@@ -22,7 +30,7 @@ AudioTrack = (function(){
 		}
 	};
 	
-	AudioTrack.prototype.draw = function(){
+	Proto.draw = function(){
 		var i, track,
 			tl = this.tl,
 			width = tl.view.width,
@@ -44,9 +52,9 @@ AudioTrack = (function(){
 		ctx.restore();
 	};
 	
-	AudioTrack.prototype.redraw = function(){
+	Proto.redraw = function(){
 		if(this.references){ this.wave.redraw(); }
 	};
 
-	return AudioTrack;
-}());
+	Timeline.AudioTrack = AudioTrack;
+}(Timeline));

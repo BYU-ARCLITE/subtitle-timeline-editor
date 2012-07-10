@@ -1,11 +1,15 @@
-var TimelineView = (function(){
+(function(Timeline){
 	"use strict";
-	function TimelineView(tl){
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
+	function View(tl){
 		this.tl = tl;
 		this.width = 0;
 	}
 
-	Object.defineProperties(TimelineView.prototype,{
+	Object.defineProperties(View.prototype,{
 		length: {
 			get: function(){
 				var tl = this.tl,
@@ -52,5 +56,5 @@ var TimelineView = (function(){
 		}
 	});
 	
-	return TimelineView;
-}());
+	Timeline.View = View;
+}(Timeline));

@@ -8,6 +8,8 @@
  **/
 var Timeline = (function(){
 	"use strict";
+	var Proto;
+	
 	function Timeline(location, length, viewstart, viewend) {
 		var canvas = document.createElement('canvas'),
 			overlay = document.createElement('canvas'),
@@ -24,11 +26,11 @@ var Timeline = (function(){
 		this.selectedSegment = null;
 		this.currentSegments = [];
 		
-		this.slider = new Slider(this);
+		this.slider = new Timeline.Slider(this);
 			this.sliderActive = false;
 		
-		this.tracker = new TimelineTracker(this);
-		this.persistence = new TimelinePersistence(this);
+		this.tracker = new Timeline.Tracker(this);
+		this.persistence = new Timeline.Persistence(this);
 		
 		this.timeMarkerPos = 0;
 		this.direction = $(location).css("direction");
@@ -44,6 +46,8 @@ var Timeline = (function(){
 		
 		//mouse control
 		this.mouseDownPos = {x: 0, y: 0};
+		this.scrollInterval = null;
+		this.sizeInterval = null;
 		
 		// Canvas
 		this.canvas = canvas;
@@ -56,7 +60,7 @@ var Timeline = (function(){
 		canvas.addEventListener('mousedown', mouseDown.bind(this), false);
 		
 		//put stuff on the page
-		this.view = new TimelineView(this);
+		this.view = new Timeline.View(this);
 			this.view.width = window.innerWidth;
 			this.view.startTime = viewstart;
 			this.view.endTime = viewend;
@@ -102,43 +106,65 @@ var Timeline = (function(){
 		}
 	}
 	
+	Proto = Timeline.prototype;
+	
 	// Sizing
-	Timeline.prototype.segmentTrackHeight = 50;
-	Timeline.prototype.segmentTrackPadding = 10;
-	Timeline.prototype.sliderHeight = 25;
-	Timeline.prototype.sliderHandleWidth = 10;
-	Timeline.prototype.keyTop = 0;
-	Timeline.prototype.keyHeight = 25;
-	Timeline.prototype.toolbarHeight = 0;
+	Proto.segmentTrackHeight = 50;
+	Proto.segmentTrackPadding = 10;
+	Proto.sliderHeight = 25;
+	Proto.sliderHandleWidth = 10;
+	Proto.keyTop = 0;
+	Proto.keyHeight = 25;
+	Proto.toolbarHeight = 0;
 
 	// Coloring
-	Timeline.prototype.backgroundColor = "rgba(64, 66, 69, 1)";
-		Timeline.prototype.backgroundColorTop = "#3e3f43";
-		Timeline.prototype.backgroundColorBottom = "#292a2d";
-	Timeline.prototype.trackColor = "rgba(75, 75, 255, 0.1)";
-		Timeline.prototype.trackColorTop = "#292a2d";
-		Timeline.prototype.trackColorBottom = "#55585c";
-	Timeline.prototype.segmentColor = "rgba(98, 129, 194, 0.3)";
-		Timeline.prototype.secondarySegmentColor = "rgba(142, 148, 160, 0.3)";
-		Timeline.prototype.placeholderColor = "rgba(255, 255, 160, 0.5)";
-		Timeline.prototype.highlightedColor = "#134dc8";
-	Timeline.prototype.sliderColor = "#134dc8";
-		Timeline.prototype.sliderHandleColor = "#008";
-	Timeline.prototype.timeMarkerColor = "rgba(255, 255, 160, 0.5)";
-	Timeline.prototype.abRepeatColor = "rgba(255, 0, 0, 0.4)";
-		Timeline.prototype.abRepeatColorLight = "rgba(255, 0, 0, 0.25)";
+	Proto.backgroundColor = "rgba(64, 66, 69, 1)";
+		Proto.backgroundColorTop = "#3e3f43";
+		Proto.backgroundColorBottom = "#292a2d";
+	Proto.trackColor = "rgba(75, 75, 255, 0.1)";
+		Proto.trackColorTop = "#292a2d";
+		Proto.trackColorBottom = "#55585c";
+	Proto.segmentColor = "rgba(98, 129, 194, 0.3)";
+		Proto.secondarySegmentColor = "rgba(142, 148, 160, 0.3)";
+		Proto.placeholderColor = "rgba(255, 255, 160, 0.5)";
+		Proto.highlightedColor = "#134dc8";
+	Proto.sliderColor = "#134dc8";
+		Proto.sliderHandleColor = "#008";
+	Proto.timeMarkerColor = "rgba(255, 255, 160, 0.5)";
+	Proto.abRepeatColor = "rgba(255, 0, 0, 0.4)";
+		Proto.abRepeatColorLight = "rgba(255, 0, 0, 0.25)";
 		
 	//Fonts
-	Timeline.prototype.keyFont = "italic 14px sans-serif";
-	Timeline.prototype.keyTextColor = "#fff";
-	Timeline.prototype.titleFont = "italic 14px sans-serif";
-	Timeline.prototype.titleTextColor = "#ddd";
-	Timeline.prototype.segmentFont = "20px sans-serif";
-	Timeline.prototype.segmentFontPadding = 5;
-	Timeline.prototype.segmentTextColor = "#000";
+	Proto.keyFontStyle = "italic";
+	Proto.keyFontSize = 14;
+	Proto.keyFontFace = "sans-serif";
+	Proto.keyTextColor = "#fff";
+	
+	Proto.titleFontStyle = "italic";
+	Proto.titleFontSize = 14;
+	Proto.titleFontFace = "sans-serif";
+	Proto.titleTextColor = "#ddd";
+	
+	Proto.segmentFontStyle = "";
+	Proto.segmentFontSize = 20;
+	Proto.segmentFontFace = "sans-serif";
+	Proto.segmentFontPadding = 5;
+	Proto.segmentTextColor = "#000";
+	
+	Proto.idFontStyle = "italic";
+	Proto.idFontSize = 10;
+	Proto.idFontFace = "sans-serif";
+	Proto.idTextColor = "#ddd";
+	
+	Object.defineProperties(Proto,{
+		keyFont: {get:function(){return this.keyFontStyle+" "+this.keyFontSize+"px "+this.keyFontFace;}},
+		titleFont: {get:function(){return this.titleFontStyle+" "+this.titleFontSize+"px "+this.titleFontFace;}},
+		segmentFont: {get:function(){return this.segmentFontStyle+" "+this.segmentFontSize+"px "+this.segmentFontFace;}},
+		idFont: {get:function(){return this.idFontStyle+" "+this.idFontSize+"px "+this.idFontFace;}}
+	});
 	
 	// Cursors
-	Timeline.prototype.cursors = {
+	Proto.cursors = {
 		pointer:	"url(\"./images/cursors/cursor.png\"), auto",
 		resizeR:	"url(\"./images/cursors/resize-right.png\") 10 15, col-resize",
 		resizeL:	"url(\"./images/cursors/resize-left.png\") 22 15, col-resize",
@@ -153,7 +179,7 @@ var Timeline = (function(){
 	};
 	
 	// Images
-	Timeline.prototype.loadImages = function(srcs) {
+	Proto.loadImages = function(srcs) {
 		var imgName, img;
 		for(imgName in srcs){
 			img = new Image;
@@ -162,7 +188,7 @@ var Timeline = (function(){
 		}
 	};
 	
-	Timeline.prototype.loadImages.call(Timeline.prototype,{
+	Proto.loadImages.call(Proto,{
 		// normal images
 		segmentLeft: "./images/event_left.png",
 		segmentRight: "./images/event_right.png",
@@ -183,7 +209,7 @@ var Timeline = (function(){
 		trackBg: "./images/track_bg.png"
 	});	
 	
-	Object.defineProperties(Timeline.prototype,{
+	Object.defineProperties(Proto,{
 		currentTime: {
 			set: function(val){
 				this.updateTimeMarker(val);
@@ -193,18 +219,18 @@ var Timeline = (function(){
 		}
 	});
 	
-	Timeline.prototype.getTrack = function(id){
+	Proto.getTrack = function(id){
 		return this.tracks[this.trackIndices[id]];
 	};
 	
 	/* Event Triggers */
 
-	Timeline.prototype.emit = function(evt, data){
+	Proto.emit = function(evt, data){
 		var that = this, fns = this.events[evt];
 		fns && fns.forEach(function(cb){ setTimeout(cb.bind(that,data),0); });
 	};
 
-	Timeline.prototype.on = function(name, cb){
+	Proto.on = function(name, cb){
 		if(name in this.events){ this.events[name].push(cb); }
 		else{ this.events[name] = [cb]; }
 	};
@@ -281,7 +307,7 @@ var Timeline = (function(){
 	 * Author: Joshua Monson
 	 **/
 	 
-	Timeline.prototype.select = function(seg){
+	Proto.select = function(seg){
 		if(this.selectedSegment != null){
 			this.selectedSegment.selected = false;
 		}
@@ -291,7 +317,7 @@ var Timeline = (function(){
 		this.emit('select', seg);
 	};
 
-	Timeline.prototype.unselect = function(){
+	Proto.unselect = function(){
 		var seg = this.selectedSegment;
 		this.selectedSegment = null;
 		seg.selected = false;
@@ -299,7 +325,7 @@ var Timeline = (function(){
 		this.emit('unselect');
 	};
 
-	Timeline.prototype.setText = function(text) {
+	Proto.setText = function(text) {
 		if(this.selectedSegment != null) {
 			this.selectedSegment.text = text;
 		}
@@ -307,11 +333,11 @@ var Timeline = (function(){
 
 	// Helper functions
 
-	Timeline.prototype.getTrackTop = function(track) {
+	Proto.getTrackTop = function(track) {
 		return this.keyHeight + this.segmentTrackPadding + (this.trackIndices[track.id] * (this.segmentTrackHeight + this.segmentTrackPadding));
 	};
 
-	Timeline.prototype.trackFromPos = function(pos) {
+	Proto.trackFromPos = function(pos) {
 		var i, bottom,
 			padding = this.segmentTrackPadding,
 			height = this.segmentTrackHeight,
@@ -435,18 +461,18 @@ var Timeline = (function(){
 			this.emit('jump',i);
 			this.emit('timeupdate',i);
 		}else switch(this.currentTool){
-			case Timeline.CREATE: // Are we creating a segment?
+			case Timeline.CREATE:
 				track = this.trackFromPos(pos);
 				if(track && track.active && !track.locked){
-					this.activeElement = new SegmentPlaceholder(this, pos.x, track);
+					this.activeElement = new Timeline.Placeholder(this, track, pos.x);
 				}
 				break;
-			case Timeline.REPEAT: // Are we creating a repeat?
+			case Timeline.REPEAT:
 				if(this.abRepeatOn){ this.clearRepeat(); }
 				else if(this.repeatA == null){ this.setA(pos); }
 				else{ this.setB(pos); }
 				break;
-			case Timeline.SCROLL: //are we scrolling?
+			case Timeline.SCROLL:
 				this.delta = 10*(pos.x/this.view.width-.5)*this.view.zoom;
 				this.scrollInterval = setInterval(autoScroll.bind(this),1);
 		}
@@ -466,14 +492,14 @@ var Timeline = (function(){
 		return false;
 	}
 
-	Timeline.prototype.addSegmentTrack = function(cues, id, language) {
+	Proto.addSegmentTrack = function(cues, id, language) {
 		var track;
 		if(id in this.trackIndices){ throw new Error("Track with that id already loaded."); }
-		if(cues instanceof SegmentTrack){
+		if(cues instanceof Timeline.SegmentTrack){
 			track = cues;
 			id = track.id;
 		}else{
-			track = new SegmentTrack(this, cues, id, language);
+			track = new Timeline.SegmentTrack(this, cues, id, language);
 		}
 		this.trackIndices[id] = this.tracks.length;
 		this.tracks.push(track);
@@ -486,7 +512,7 @@ var Timeline = (function(){
 		this.emit("addtrack",track);
 	};
 	
-	Timeline.prototype.removeSegmentTrack = function(id) {
+	Proto.removeSegmentTrack = function(id) {
 		var i,track,aid,loc;
 		if(id in this.trackIndices){
 			loc = this.trackIndices[id];
@@ -509,20 +535,20 @@ var Timeline = (function(){
 		}
 	};
 	
-	Timeline.prototype.addAudioTrack = function(wave, id) {
+	Proto.addAudioTrack = function(wave, id) {
 		var track;
 		if(id in this.audio){ throw new Error("Track with that id already loaded."); }
-		if(wave instanceof AudioTrack){
+		if(wave instanceof Timeline.AudioTrack){
 			track = wave;
 			id = wave.id;
 		}else{
-			track = new AudioTrack(this, wave, id);
+			track = new Timeline.AudioTrack(this, wave, id);
 		}
 		this.audio[id] = track;
 		this.render();
 	};
 	
-	Timeline.prototype.setAudioTrack = function(tid, aid){
+	Proto.setAudioTrack = function(tid, aid){
 		var track;
 		if(!(tid in this.trackIndices)){ return; }
 		track = this.tracks[this.trackIndices[tid]];
@@ -534,7 +560,7 @@ var Timeline = (function(){
 		}
 	};
 	
-	Timeline.prototype.removeAudioTrack = function(id){
+	Proto.removeAudioTrack = function(id){
 		var i, top, ctx, track;
 		if(!(id in this.audio)){ return; }
 		if(this.audio[id].references){
@@ -551,7 +577,7 @@ var Timeline = (function(){
 	};
 	
 	// Drawing functions
-	Timeline.prototype.renderKey = function() {
+	Proto.renderKey = function() {
 		var ctx = this.ctx,
 			view = this.view,
 			zoom = view.zoom,
@@ -607,7 +633,7 @@ var Timeline = (function(){
 		ctx.restore();
 	};
 
-	Timeline.prototype.renderBackground = function() {
+	Proto.renderBackground = function() {
 		var ctx = this.ctx,
 			grd = ctx.createLinearGradient(0,0,0,this.height);
 
@@ -622,7 +648,7 @@ var Timeline = (function(){
 		ctx.restore();
 	};
 
-	Timeline.prototype.renderTimeMarker = function() {
+	Proto.renderTimeMarker = function() {
 		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
 		if(x < -1 || x > this.view.width){ return; }
 		ctx = this.ctx
@@ -632,7 +658,7 @@ var Timeline = (function(){
 		ctx.restore();
 	};
 		
-	Timeline.prototype.renderABRepeat = function() {
+	Proto.renderABRepeat = function() {
 		if(this.repeatA != null) {
 			var left = this.view.timeToPixel(this.repeatA),
 				right = this.view.timeToPixel(this.repeatB),
@@ -644,7 +670,7 @@ var Timeline = (function(){
 		}
 	};
 
-	Timeline.prototype.render = function() {
+	Proto.render = function() {
 		var aid, audio;
 		this.renderBackground();
 		this.renderKey();
@@ -655,7 +681,7 @@ var Timeline = (function(){
 		this.slider.render();
 	};
 	
-	Timeline.prototype.renderTrack = function(track) {		
+	Proto.renderTrack = function(track) {		
 		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
 		
 		track.render();
@@ -669,7 +695,7 @@ var Timeline = (function(){
 		ctx.restore();
 	};
 	
-	Timeline.prototype.updateTimeMarker = function(time) {
+	Proto.updateTimeMarker = function(time) {
 		if(time == this.timeMarkerPos){ return; }
 		
 		// Check the repeat
@@ -690,7 +716,7 @@ var Timeline = (function(){
 		this.render();
 	};
 
-	Timeline.prototype.updateCurrentSegments = function(){
+	Proto.updateCurrentSegments = function(){
 		var that = this,
 			time = this.timeMarkerPos,
 			oldsegs = this.currentSegments,
@@ -707,13 +733,13 @@ var Timeline = (function(){
 		});
 	};
 
-	Timeline.prototype.setA = function(pos) {
+	Proto.setA = function(pos) {
 		var time = this.view.pixelToTime(pos.x);
 		this.repeatA = time;
 		this.repeatB = time;
 	};
 
-	Timeline.prototype.setB = function(pos) {
+	Proto.setB = function(pos) {
 		var t;
 		this.repeatB = this.view.pixelToTime(pos.x);
 		if(this.repeatB < this.repeatA) {
@@ -726,20 +752,20 @@ var Timeline = (function(){
 		this.emit('abRepeatEnabled');
 	};
 
-	Timeline.prototype.updateB = function(pos) {
+	Proto.updateB = function(pos) {
 		this.repeatB = this.view.pixelToTime(pos.x);
 		this.render();
 	};
 
-	Timeline.prototype.clearRepeat = function() {
+	Proto.clearRepeat = function() {
 		this.repeatA = null;
 		this.repeatB = null;
 		this.abRepeatOn = false;
 		this.render();
 	};
 	
-	Timeline.prototype.save = function(type, id) { this.persistence.save(type, id); };
-	Timeline.prototype.loadSegmentTrack = function(url) { this.persistence.loadSegmentTrack(url); };
+	Proto.save = function(type, id) { this.persistence.save(type, id); };
+	Proto.loadSegmentTrack = function(url) { this.persistence.loadSegmentTrack(url); };
 	
 	return Timeline;
 }());

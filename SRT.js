@@ -22,6 +22,6 @@ var SRT = (function(){
 		
 	return {
 		parse: function(){ throw new Error("SRT Parsing Not Implemented"); },
-		Cue: Cue
+		serialize: serialize
 	};
 }());

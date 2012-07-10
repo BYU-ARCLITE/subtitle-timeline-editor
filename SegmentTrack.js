@@ -1,5 +1,11 @@
-SegmentTrack = (function(){
+(function(Timeline){
 	"use strict";
+	var Proto;
+	
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
 	function SegmentTrack(tl, cues, id, language){
 		var active = true,
 			that = this;
@@ -7,11 +13,11 @@ SegmentTrack = (function(){
 		this.id = id;
 		this.language = language;
 		this.segments = cues.map(function(cue){
-			var seg = (cue instanceof Segment)?cue:new Segment(tl, cue);
+			var seg = (cue instanceof Timeline.Segment)?cue:new Timeline.Segment(tl, cue);
 			seg.track = that;
 			return seg;
 		});
-		this.segments.sort(Segment.order);
+		this.segments.sort(Timeline.Segment.order);
 		this.visibleSegments = [];
 		this.audioId = null;
 		this.locked = false;
@@ -36,15 +42,17 @@ SegmentTrack = (function(){
 		});
 	}
 	
-	SegmentTrack.prototype.add = function(seg){
+	Proto = SegmentTrack.prototype;
+	
+	Proto.add = function(seg){
 		var tl = this.tl;
 		
 		seg.track = this;
 		this.segments.push(seg);
-		this.segments.sort(Segment.order);
+		this.segments.sort(Timeline.Segment.order);
 		
-		// Save the event 
-		tl.tracker.addEvent(new TimelineEvent("create",{
+		// Save the action
+		tl.tracker.addAction(new Timeline.Action("create",{
 			id:seg.uid,
 			track:this.id,
 			initialStart:seg.startTime,
@@ -57,7 +65,7 @@ SegmentTrack = (function(){
 		tl.emit('update');
 	};
 	
-	SegmentTrack.prototype.getSegment = function(id){
+	Proto.getSegment = function(id){
 		var i, segs = this.segments,
 			len = segs.length;
 		for(i=0;i<len;i++){
@@ -65,14 +73,14 @@ SegmentTrack = (function(){
 		}
 	};
 	
-	SegmentTrack.prototype.searchRange = function(low, high){
+	Proto.searchRange = function(low, high){
 		//TODO: Higher efficiency binary search
 		return this.segments.filter(function(seg){
 			return !seg.deleted && seg.startTime < high && seg.endTime > low;
 		});
 	};
 
-	SegmentTrack.prototype.render = function(){
+	Proto.render = function(){
 		var that = this,
 			tl = this.tl,
 			top = tl.getTrackTop(this),
@@ -88,7 +96,7 @@ SegmentTrack = (function(){
 		ctx.fillStyle = tl.titleTextColor;
 		ctx.fillText(this.id, tl.view.width/100, top+tl.segmentTrackHeight/2);
 		ctx.restore();
-		this.visibleSegments = this.searchRange(startTime,tl.view.endTime).sort(Segment.order);
+		this.visibleSegments = this.searchRange(startTime,tl.view.endTime).sort(Timeline.Segment.order);
 		this.visibleSegments.forEach(function(seg){
 			if(seg.selected){ selected = seg; }
 			else{ seg.render(); }
@@ -97,13 +105,13 @@ SegmentTrack = (function(){
 		selected && selected.render();
 	};
 	
-	SegmentTrack.prototype.toVTT = function(){
+	Proto.toVTT = function(){
 		return "WEBVTT\n\n"+this.segments.map(function(seg){ return this.toVTT(); }).join('');
 	};
 	
-	SegmentTrack.prototype.toSRT = function(){
+	Proto.toSRT = function(){
 		return this.segments.map(function(seg){ return this.toSRT(); }).join('');
 	};
 	
-	return SegmentTrack;
-}());
+	Timeline.SegmentTrack = SegmentTrack;
+}(Timeline));

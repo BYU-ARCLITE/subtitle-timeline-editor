@@ -1,16 +1,24 @@
-var TimelineTracker = (function(){
+(function(Timeline){
 	"use strict";
-	function TimelineTracker(tl) {
+	var Proto;
+	
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
+	function Tracker(tl) {
 		this.tl = tl;
 		this.events = [];
 	}
 
-	TimelineTracker.prototype.addEvent = function(evt) {
+	Proto = Tracker.prototype;
+	
+	Proto.addAction = function(evt) {
 		this.events.push(evt);
 		this.updateDebug();
 	};
 	
-	TimelineTracker.prototype.undo = function() {
+	Proto.undo = function() {
 		var e, s, track;
 		if(this.events.length == 0)
 			return;
@@ -40,13 +48,13 @@ var TimelineTracker = (function(){
 	};
 
 	// Debug functions
-	TimelineTracker.prototype.updateDebug = function(text) {
+	Proto.updateDebug = function(text) {
 		if(this.debugElement){
 			this.debugElement.innerHTML = text || this.toString();
 		}
 	};
 
-	TimelineTracker.prototype.toString = function() {
+	Proto.toString = function() {
 		var i, s = "<pre>Events:\n";
 		for(i in this.events) {
 			s += this.events[i].toString("\t");
@@ -55,5 +63,5 @@ var TimelineTracker = (function(){
 		return s;
 	};
 	
-	return TimelineTracker;
-}());
+	Timeline.Tracker = Tracker;
+}(Timeline));

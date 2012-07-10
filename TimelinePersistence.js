@@ -1,6 +1,10 @@
-var TimelinePersistence = (function(){
+(function(Timeline){
 	"use strict";
-	function TimelinePersistence(tl) {
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
+	function Persistence(tl) {
 		this.tl = tl;
 		this.saved = true;
 		
@@ -18,7 +22,7 @@ var TimelinePersistence = (function(){
 		Object.defineProperty(this,'xhr',{get: function(){ return xhr; }});
 	}
 
-	TimelinePersistence.prototype.target = "ajax/saver.php";
+	Persistence.prototype.target = "ajax/saver.php";
 	
 	function buildPart(fname, data, mime) {
 		return 'Content-Disposition: form-data; name="tracks[]"; filename="'
@@ -55,7 +59,7 @@ var TimelinePersistence = (function(){
 				name:name+"."+suffix;
 	}
 	
-	TimelinePersistence.prototype.save = function(suffix, id) {
+	Persistence.prototype.save = function(suffix, id) {
 		var track, that = this,
 			tl = this.tl,
 			serializer, mime;
@@ -74,11 +78,11 @@ var TimelinePersistence = (function(){
 		);
 	};
 	
-	TimelinePersistence.prototype.saveSuccess = function(data){
+	Persistence.prototype.saveSuccess = function(data){
 		this.saved = true;
 	};
 
-	TimelinePersistence.prototype.saveError = function(data) {
+	Persistence.prototype.saveError = function(data) {
 		alert("An error was encountered while saving: " + data);
 	};
 	
@@ -104,7 +108,7 @@ var TimelinePersistence = (function(){
 		}
 	}
 	
-	TimelinePersistence.prototype.loadSegmentTrack = function(url, language){
+	Persistence.prototype.loadSegmentTrack = function(url, language){
 		var tl = this.tl,
 			that = this,
 			reader, mime;
@@ -133,5 +137,5 @@ var TimelinePersistence = (function(){
 		}
 	};
 	
-	return TimelinePersistence;
-}());
+	Timeline.Persistence = Persistence;
+}(Timeline));

@@ -1,5 +1,11 @@
-var Segment = (function(){
+(function(Timeline){
 	"use strict";
+	var Proto;
+	
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
 	function Segment(tl, start, end, t, i) {
 		var cue = (start instanceof Cue)?start:new Cue(i, start, end, t);
 		
@@ -11,7 +17,7 @@ var Segment = (function(){
 		this.resize = false;
 		this.deleted = false;
 		this.track = null;
-		this.moveEvent = null;
+		this.action = null;
 		this.resizeSide = 0;
 
 		// For mouse control
@@ -47,7 +53,7 @@ var Segment = (function(){
 				var tl = this.tl,
 					cue = this.cue;
 				if(cue.text == t){ return t; }
-				tl.tracker.addEvent(new TimelineEvent("update",{
+				tl.tracker.addAction(new Timeline.Action("update",{
 					id:this.uid,
 					track:this.track.id,
 					initialText:cue.text,
@@ -68,16 +74,18 @@ var Segment = (function(){
 		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
 	};
 
-	Segment.prototype.toVTT = function(){
+	Proto = Segment.prototype;
+	
+	Proto.toVTT = function(){
 		return this.deleted?"":WebVTT.serialize(this.cue);
 	};
 
-	Segment.prototype.toSRT = function(){
+	Proto.toSRT = function(){
 		return this.deleted?"":SRT.serialize(this.cue);
 	};
 
 	// Location computation
-	Segment.prototype.getShape = function() {
+	Proto.getShape = function() {
 		var tl = this.tl,
 			x = tl.view.timeToPixel(this.startTime),
 			y = tl.getTrackTop(this.track),
@@ -85,18 +93,19 @@ var Segment = (function(){
 		return {x: x, y: y, width: width, height: tl.segmentTrackHeight};
 	};
 
-	Segment.prototype.containsPoint = function(pos) {
+	Proto.containsPoint = function(pos) {
 		var s = this.getShape();
 		return (pos.x >= s.x && pos.x <= s.x + s.width && pos.y >= s.y && pos.y <= s.y + s.height);
 	};
 
-	Segment.prototype.getMouseSide = function(pos) {
+	Proto.getMouseSide = function(pos) {
 		// Get the x and width
 		var shape = this.getShape();
 		return (pos.x < shape.x + (shape.width/2))?-1:1;
 	};
 
-	Segment.prototype.mouseDown = function(pos) {
+	// Event handlers
+	Proto.mouseDown = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
 			
@@ -110,7 +119,7 @@ var Segment = (function(){
 				break;
 			case Timeline.MOVE:
 				this.move = true;    
-				this.moveEvent = new TimelineEvent("move",{
+				this.action = new Timeline.Action("move",{
 					id:this.uid,
 					track:this.track.id,
 					initialStart:this.startTime,
@@ -118,7 +127,7 @@ var Segment = (function(){
 				});
 				break;
 			case Timeline.RESIZE:
-				this.moveEvent = new TimelineEvent("resize",{
+				this.action = new Timeline.Action("resize",{
 					id:this.uid,
 					track:this.track.id,
 					initialStart:this.startTime,
@@ -128,7 +137,7 @@ var Segment = (function(){
 		}
 	};
 
-	Segment.prototype.mouseUp = function(pos) {
+	Proto.mouseUp = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
 		
@@ -139,9 +148,9 @@ var Segment = (function(){
 				this.move = false;
 				
 				// Save the move
-				this.moveEvent.attributes.finalStart = this.startTime;
-				this.moveEvent.attributes.finalEnd = this.endTime;
-				tl.tracker.addEvent(this.moveEvent);
+				this.action.attributes.finalStart = this.startTime;
+				this.action.attributes.finalEnd = this.endTime;
+				tl.tracker.addAction(this.action);
 				tl.emit('update');
 				this.track.segments.sort(Segment.order);
 				break;
@@ -150,7 +159,7 @@ var Segment = (function(){
 				this.deleted = true;
 				
 				// Save the delete
-				tl.tracker.addEvent(new TimelineEvent("delete",{
+				tl.tracker.addAction(new Timeline.Action("delete",{
 					id:this.uid,
 					track:this.track.id
 				}));
@@ -161,15 +170,15 @@ var Segment = (function(){
 			case Timeline.RESIZE:
 				this.resizeSide = 0;
 				// Save the resize
-				this.moveEvent.attributes.finalStart = this.startTime;
-				this.moveEvent.attributes.finalEnd = this.endTime;
-				tl.tracker.addEvent(this.moveEvent);
+				this.action.attributes.finalStart = this.startTime;
+				this.action.attributes.finalEnd = this.endTime;
+				tl.tracker.addAction(this.action);
 				tl.emit('update');
 				this.track.segments.sort(Segment.order);
 		}
 	};
 
-	Segment.prototype.mouseMove = function(pos) {
+	Proto.mouseMove = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
 		
@@ -214,60 +223,69 @@ var Segment = (function(){
 	};
 
 	// Rendering
-	Segment.prototype.render = function() {
+	
+	function renderImage(shape, imageLeft, imageRight, imageMid) {
+		var ctx = this.tl.ctx;
+		if(shape.width < 2){
+			ctx.drawImage(imageMid, 0, 0, Math.max(1,shape.width), shape.height);
+		}else if(shape.width < imageLeft.width + imageRight.width){
+			ctx.drawImage(imageLeft, 0, 0, shape.width/2, shape.height);
+			ctx.drawImage(imageRight, shape.width/2, 0, shape.width, shape.height);
+		}else{
+			ctx.drawImage(imageLeft, 0, 0);
+			ctx.drawImage(imageRight, shape.width - imageRight.width, 0);
+			ctx.drawImage(imageMid, imageLeft.width, 0, shape.width - (imageRight.width + imageLeft.width), shape.height);
+		}
+	}
+	
+	Proto.render = function() {
 		if(this.deleted)
 			return;
 
 		var tl = this.tl,
 			ctx = tl.ctx,
-			shape = this.getShape();
+			shape = this.getShape(),
+			x = shape.x,
+			y = shape.y;
 			
 		// is it on the screen
-		if(shape.x > -shape.width && shape.x < tl.view.width) {
-
-			if(this.selected){
-				this.renderImage(shape, tl.segmentLeftSel, tl.segmentRightSel, tl.segmentMidSel);
-			}else if(!this.selectable){
-				this.renderImage(shape, tl.segmentLeftDark, tl.segmentRightDark, tl.segmentMidDark);
-			}else{
-				this.renderImage(shape, tl.segmentLeft, tl.segmentRight, tl.segmentMid);
-			}
+		if(x > -shape.width && x < tl.view.width) {
+			ctx.save();
+			ctx.translate(x, y);
+			
+			renderImage.apply(this, (this.selected)?	[shape,	tl.segmentLeftSel,	tl.segmentRightSel,	tl.segmentMidSel]:
+									(!this.selectable)?	[shape,	tl.segmentLeftDark,	tl.segmentRightDark,	tl.segmentMidDark]:
+														[shape,	tl.segmentLeft,	tl.segmentRight,	tl.segmentMid]);
+			
 			if(shape.width > 2*tl.segmentFontPadding){
-				ctx.save();	
 				// Set the clipping bounds
 				ctx.beginPath();
-				ctx.moveTo(shape.x, shape.y);
-				ctx.lineTo(shape.x, shape.y + shape.height);
-				ctx.lineTo(shape.x + shape.width - tl.segmentFontPadding, shape.y + shape.height);
-				ctx.lineTo(shape.x + shape.width - tl.segmentFontPadding, shape.y);
+				ctx.moveTo(0, 0);
+				ctx.lineTo(0, shape.height);
+				ctx.lineTo(shape.width - tl.segmentFontPadding, shape.height);
+				ctx.lineTo(shape.width - tl.segmentFontPadding, 0);
 				ctx.closePath();
 				ctx.clip();
 				
-				ctx.font = this.tl.segmentFont;
 				ctx.textBaseline = 'top';
 				
+				x = tl.direction == "ltr" ? tl.segmentFontPadding : shape.width - tl.segmentFontPadding;
+				
+				if(this.id){
+					ctx.font = tl.idFont;
+					ctx.fillStyle = tl.idTextColor;
+					ctx.fillText(this.id, x, 0);
+					y = Math.max(tl.idFontSize,tl.segmentFontPadding);
+				}else{
+					y = tl.segmentFontPadding;
+				}
+				ctx.font = tl.segmentFont;
 				ctx.fillStyle = tl.segmentTextColor;
-				ctx.fillText(this.text, shape.x + (	tl.direction == "ltr"?
-													tl.segmentFontPadding:
-													shape.width - tl.segmentFontPadding	),
-										shape.y + tl.segmentFontPadding	);
-				ctx.restore();
+				ctx.fillText(this.text, x, y);
 			}
-		}
-	};
-		
-	Segment.prototype.renderImage = function(shape, imageLeft, imageRight, imageMid) {
-		var ctx = this.tl.ctx;
-		if(shape.width < 1){
-			ctx.drawImage(imageMid, shape.x, shape.y, 1, shape.height);
-		}else if(shape.width < 8){
-			ctx.drawImage(imageMid, shape.x, shape.y, shape.width, shape.height);
-		}else{
-			ctx.drawImage(imageLeft, shape.x, shape.y);
-			ctx.drawImage(imageRight, shape.width + shape.x - 4, shape.y);
-			ctx.drawImage(imageMid, shape.x + 4, shape.y, shape.width - 8, shape.height);
+			ctx.restore();
 		}
 	};
 	
-	return Segment;
-}());
+	Timeline.Segment = Segment;
+}(Timeline));

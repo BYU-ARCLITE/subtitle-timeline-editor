@@ -1,13 +1,21 @@
-var SegmentPlaceholder = (function(){
+(function(Timeline){
 	"use strict";
-	function SegmentPlaceholder(tl, x, track) {
+	var Proto;
+	
+	if(!Timeline){
+		throw new Error("Timeline Uninitialized");
+	}
+	
+	function Placeholder(tl, track, x) {
 		this.tl = tl;
+		this.track = track;
 		this.startx = x;
 		this.endx = 0;
-		this.track = track;
 	}
 
-	SegmentPlaceholder.prototype.render = function() {
+	Proto = Placeholder.prototype;
+	
+	Proto.render = function() {
 		var tl = this.tl,
 			ctx = tl.ctx,
 			top = tl.getTrackTop(this.track);
@@ -18,17 +26,17 @@ var SegmentPlaceholder = (function(){
 		ctx.restore();
 	};
 
-	SegmentPlaceholder.prototype.containsPoint = function(pos) { return false; };
+	Proto.containsPoint = function(pos) { return false; };
 
-	SegmentPlaceholder.prototype.mouseMove = function(pos) {
+	Proto.mouseMove = function(pos) {
 		this.endx = pos.x;
 		this.tl.renderTrack(this.track);
 		this.render();
 	};
 
-	SegmentPlaceholder.prototype.mouseUp = function(pos) {
+	Proto.mouseUp = function(pos) {
 		var tl = this.tl,
-			seg, e;
+			seg, start, end;
 			
 		this.endx = pos.x;
 
@@ -41,7 +49,7 @@ var SegmentPlaceholder = (function(){
 			end   = tl.view.pixelToTime(this.startx);
 		}
 		
-		seg = new Segment(this.tl, start, end, "");
+		seg = new Timeline.Segment(this.tl, start, end, "");
 
 		// Add the segment to its track
 		this.track.add(seg);
@@ -49,5 +57,5 @@ var SegmentPlaceholder = (function(){
 		tl.select(seg);
 	};
 	
-	return SegmentPlaceholder;
-}());
+	Timeline.Placeholder = Placeholder;
+}(Timeline));
