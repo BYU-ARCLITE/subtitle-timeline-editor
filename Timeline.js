@@ -583,7 +583,7 @@ var Timeline = (function(){
 			zoom = view.zoom,
 			power, d=0,
 			hours, mins, secs, pixels,
-			start, end, position, increment;
+			start, end, position, offset, increment;
 		
 		ctx.save();
 		ctx.font         = this.keyFont;
@@ -609,6 +609,7 @@ var Timeline = (function(){
 		start = view.startTime;
 		start -= start%increment;
 		end = view.endTime;
+		offset = this.canvas.dir === 'ltr' ? 2 : -2;
 		
 		for (position = this.view.timeToPixel(start); start < end; start += increment, position += pixels) {
 
@@ -625,8 +626,7 @@ var Timeline = (function(){
 			mins %= 60;
 			
 			ctx.fillText(
-				hours + (mins<10?":0":":") + mins + (secs<10?":0":":") + secs.toFixed(d),
-				(this.direction == "ltr") ? position + 2 : position - 2,
+				hours + (mins<10?":0":":") + mins + (secs<10?":0":":") + secs.toFixed(d), position + offset,
 				this.keyTop + 2
 			);
 		}

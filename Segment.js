@@ -246,7 +246,8 @@
 			ctx = tl.ctx,
 			shape = this.getShape(),
 			x = shape.x,
-			y = shape.y;
+			y = shape.y,
+			direction, dir;
 			
 		// is it on the screen
 		if(x > -shape.width && x < tl.view.width) {
@@ -260,8 +261,8 @@
 			if(shape.width > 2*tl.segmentFontPadding){
 				// Set the clipping bounds
 				ctx.beginPath();
-				ctx.moveTo(0, 0);
-				ctx.lineTo(0, shape.height);
+				ctx.moveTo(tl.segmentFontPadding, 0);
+				ctx.lineTo(tl.segmentFontPadding, shape.height);
 				ctx.lineTo(shape.width - tl.segmentFontPadding, shape.height);
 				ctx.lineTo(shape.width - tl.segmentFontPadding, 0);
 				ctx.closePath();
@@ -269,19 +270,28 @@
 				
 				ctx.textBaseline = 'top';
 				
-				x = tl.direction == "ltr" ? tl.segmentFontPadding : shape.width - tl.segmentFontPadding;
+				dir = tl.canvas.dir; //save
 				
 				if(this.id){
+					direction = Ayamel.Text.getDirection(this.id);
+					tl.canvas.dir = direction;
+					
 					ctx.font = tl.idFont;
 					ctx.fillStyle = tl.idTextColor;
-					ctx.fillText(this.id, x, 0);
+					ctx.fillText(this.id, direction === 'ltr' ? tl.segmentFontPadding : shape.width - tl.segmentFontPadding, 0);
 					y = Math.max(tl.idFontSize,tl.segmentFontPadding);
 				}else{
 					y = tl.segmentFontPadding;
 				}
+				
+				direction = Ayamel.Text.getDirection(this.text);
+				tl.canvas.dir = direction;
+				
 				ctx.font = tl.segmentFont;
 				ctx.fillStyle = tl.segmentTextColor;
-				ctx.fillText(this.text, x, y);
+				ctx.fillText(this.text, direction === 'ltr' ? tl.segmentFontPadding : shape.width - tl.segmentFontPadding, y);
+				
+				tl.canvas.dir = dir; //restore
 			}
 			ctx.restore();
 		}
