@@ -328,15 +328,14 @@
 	
 	function renderImage(shape, imageLeft, imageRight, imageMid) {
 		var ctx = this.tl.ctx;
-		if(shape.width < 2){
-			ctx.drawImage(imageMid, 0, 0, Math.max(1,shape.width), shape.height);
-		}else if(shape.width < imageLeft.width + imageRight.width){
+		if(shape.width < imageLeft.width + imageRight.width){
 			ctx.drawImage(imageLeft, 0, 0, shape.width/2, shape.height);
 			ctx.drawImage(imageRight, shape.width/2, 0, shape.width, shape.height);
 		}else{
 			ctx.drawImage(imageLeft, 0, 0);
 			ctx.drawImage(imageRight, shape.width - imageRight.width, 0);
-			ctx.drawImage(imageMid, imageLeft.width, 0, shape.width - (imageRight.width + imageLeft.width), shape.height);
+			ctx.fillStyle = ctx.createPattern(imageMid, "repeat-x");
+			ctx.fillRect(imageLeft.width, 0, shape.width - (imageRight.width + imageLeft.width), shape.height);
 		}
 	}
 	
@@ -356,9 +355,16 @@
 			ctx.save();
 			ctx.translate(x, y);
 			
-			renderImage.apply(this, (this.selected)?	[shape,	tl.segmentLeftSel,	tl.segmentRightSel,	tl.segmentMidSel]:
-									(!this.selectable)?	[shape,	tl.segmentLeftDark,	tl.segmentRightDark,	tl.segmentMidDark]:
-														[shape,	tl.segmentLeft,	tl.segmentRight,	tl.segmentMid]);
+			renderImage.apply(this, (this.selected)?[
+										shape,
+										tl.segmentLeftSel, tl.segmentRightSel, tl.segmentMidSel
+									]:(!this.selectable)?[
+										shape,
+										tl.segmentLeftDark, tl.segmentRightDark, tl.segmentMidDark
+									]:[
+										shape,
+										tl.segmentLeft, tl.segmentRight, tl.segmentMid
+									]);
 			
 			if(shape.width > 2*tl.segmentFontPadding){
 				// Set the clipping bounds

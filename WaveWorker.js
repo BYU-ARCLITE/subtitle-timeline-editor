@@ -57,4 +57,4 @@ self.addEventListener('message',function(e){
 		height:data.height,
 		step:step
 	});
-});
+},false);

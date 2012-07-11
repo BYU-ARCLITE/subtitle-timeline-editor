@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.2.min.js"></script>
-	<script src="https://raw.github.com/BYU-ARCLITE/TimedText/master/Cue.js"></script>
-	<script src="https://raw.github.com/BYU-ARCLITE/TimedText/master/WebVTT.js"></script>
-	<script src="https://raw.github.com/BYU-ARCLITE/TimedText/master/SRT.js"></script>
-	<script src="https://raw.github.com/BYU-ARCLITE/Ayamel.js/master/Ayamel.js"></script>
-	<script src="https://raw.github.com/BYU-ARCLITE/Ayamel.js/master/Text.js"></script>
-	<script src="https://raw.github.com/BYU-ARCLITE/Ayamel.js/master/Caption.js"></script>
+	<script src="../TimedText/Cue.js"></script>
+	<script src="../TimedText/WebVTT.js"></script>
+	<script src="../TimedText/SRT.js"></script>
+	<script src="../Ayamel.js/Ayamel.js"></script>
+	<script src="../Ayamel.js/Text.js"></script>
+	<script src="../Ayamel.js/Caption.js"></script>
 	<script src="captionWrapper.js"></script>
 	<script src="Timeline.js"></script>
 	<script src="Slider.js"></script>
@@ -97,137 +96,137 @@
 <div id="tl"></div>
 
 <script type="text/javascript">
-	var timeline, t_count = 0,
-		screen =  document.getElementById("video"),
-		editor = document.getElementById("editor"),
-		controls = document.getElementById("controls"),
-		atracks = document.getElementById("activetracks");
+var timeline, t_count = 0,
+	video =  document.getElementById("video"),
+	editor = document.getElementById("editor"),
+	controls = document.getElementById("controls"),
+	atracks = document.getElementById("activetracks");
 
-	var cue = null, grain = 0,
-		caption = null, captions = {},
-		text_el = document.getElementById("cue_text"),
-		align_el = document.getElementById("cue_align"),
-		snap_el = document.getElementById("cue_snap"),
-		line_form = document.getElementById("linediv"),
-		line_el = document.getElementById("cue_line"),
-		pos_el = document.getElementById("cue_pos"),
-		size_el = document.getElementById("cue_size");	
-	
-	function text_change(){
-		if(!cue) return;
-		timeline.setText(this.value);
-		caption.Update(cue);
-		grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
-	}
+var cue = null, grain = 0,
+	caption = null, captions = {},
+	text_el = document.getElementById("cue_text"),
+	align_el = document.getElementById("cue_align"),
+	snap_el = document.getElementById("cue_snap"),
+	line_form = document.getElementById("linediv"),
+	line_el = document.getElementById("cue_line"),
+	pos_el = document.getElementById("cue_pos"),
+	size_el = document.getElementById("cue_size");	
 
-	function line_change(){
-		if(!cue) return;
-		cue.rawLine = this.valueAsNumber;
-		caption.Update(cue);
-	}
-	
-	function pos_change(){
-		if(!cue) return;
-		cue.position = this.value+"%";
-		caption.Update(cue);
-		grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
-	}
-	
-	function size_change(){
-		if(!cue) return;
-		cue.size = this.value+"%";
-		caption.Update(cue);
-		grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
-	}
-	
-	function align_change(){
-		if(!cue) return;
-		cue.align = this.value;
-		caption.Update(cue);
-	}
-	
-	function snap_change(){
-		if(!cue) return;
-		var cheight, cstyle;
-		if(this.value === "auto"){
-			cue.snapToLines = true;
-			cue.rawLine = "auto";
-			line_form.style.display = "none";	
-		}else{
-			cstyle = getComputedStyle(caption.el);
-			cheight = parseInt(getComputedStyle(video).height,10);
-			switch(this.value){
-				case "percent":
-					cue.snapToLines = false;
-					if(cue.rawLine === 'auto'){
-						cue.rawLine = 0;
-					}else if(cue.rawLine < 0){
-						cue.rawLine = Math.round(100*(1-(parseInt(cstyle.bottom,10)+parseInt(cstyle.height,10))/cheight));
-					}else{
-						cue.rawLine = Math.round(100*parseInt(cstyle.top,10)/cheight);
-					}
-					line_el.type = "range";
-					line_el.max = 100;
-					line_el.min = 0;
-					break;
-				case "snap":
-					cue.snapToLines = true;
-					cue.rawLine = cue.rawLine==='auto'?0:Math.round(parseInt(cstyle.top,10)*cheight/(100*grain));
-					line_el.type = "number"
-					line_el.max = null;
-					line_el.min = null;
-					break;
-			}
-			line_el.value = cue.rawLine;
-			line_form.style.display = "inline";
+function text_change(){
+	if(!cue) return;
+	timeline.setText(this.value);
+	caption.Update(cue);
+	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
+}
+
+function line_change(){
+	if(!cue) return;
+	cue.rawLine = this.valueAsNumber;
+	caption.Update(cue);
+}
+
+function pos_change(){
+	if(!cue) return;
+	cue.position = this.value+"%";
+	caption.Update(cue);
+	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
+}
+
+function size_change(){
+	if(!cue) return;
+	cue.size = this.value+"%";
+	caption.Update(cue);
+	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
+}
+
+function align_change(){
+	if(!cue) return;
+	cue.align = this.value;
+	caption.Update(cue);
+}
+
+function snap_change(){
+	if(!cue) return;
+	var cheight, cstyle;
+	if(this.value === "auto"){
+		cue.snapToLines = true;
+		cue.rawLine = "auto";
+		line_form.style.display = "none";	
+	}else{
+		cstyle = getComputedStyle(caption.el);
+		cheight = parseInt(getComputedStyle(video).height,10);
+		switch(this.value){
+			case "percent":
+				cue.snapToLines = false;
+				if(cue.rawLine === 'auto'){
+					cue.rawLine = 0;
+				}else if(cue.rawLine < 0){
+					cue.rawLine = Math.round(100*(1-(parseInt(cstyle.bottom,10)+parseInt(cstyle.height,10))/cheight));
+				}else{
+					cue.rawLine = Math.round(100*parseInt(cstyle.top,10)/cheight);
+				}
+				line_el.type = "range";
+				line_el.max = 100;
+				line_el.min = 0;
+				break;
+			case "snap":
+				cue.snapToLines = true;
+				cue.rawLine = cue.rawLine==='auto'?0:Math.round(parseInt(cstyle.top,10)*cheight/(100*grain));
+				line_el.type = "number"
+				line_el.max = null;
+				line_el.min = null;
+				break;
 		}
-		caption.Update(cue);
-	};
-
-	function updateEditor(){
-		text_el.removeEventListener('change', text_change);
-		text_el.value = cue.text;
-		text_el.addEventListener('change', text_change, false);
-		
-		size_el.removeEventListener('change', size_change);
-		size_el.value = parseInt(cue.size,10);
-		size_el.addEventListener('change', size_change, false);
-		
-		align_el.removeEventListener('change', align_change);
-		align_el.value = cue.align;
-		align_el.addEventListener('change', align_change, false);
-		
-		snap_el.removeEventListener('change', snap_change);
-		snap_el.value = cue.snapToLines?(cue.rawLine==='auto'?'auto':'snap'):'percent';
-		if(snap_el.value === "auto"){
-			line_form.style.display = "none";	
-		}else{
-			switch(snap_el.value){
-				case "percent":
-					line_el.type = "range";
-					line_el.max = 100;
-					line_el.min = 0;
-					break;
-				case "snap":
-					line_el.type = "number"
-					line_el.max = null;
-					line_el.min = null;
-					break;
-			}
-			line_form.style.display = "inline";
-		}
-		snap_el.addEventListener('change', snap_change, false);
-		
-		line_el.removeEventListener('change', line_change);
 		line_el.value = cue.rawLine;
-		line_el.addEventListener('change', line_change, false);
-		
-		pos_el.removeEventListener('change', pos_change);
-		pos_el.value = parseInt(cue.pos,10);
-		pos_el.addEventListener('change', pos_change, false);
-		
-		grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
+		line_form.style.display = "inline";
 	}
+	caption.Update(cue);
+};
+
+function updateEditor(){
+	text_el.removeEventListener('change', text_change, false);
+	text_el.value = cue.text;
+	text_el.addEventListener('change', text_change, false);
+	
+	size_el.removeEventListener('change', size_change, false);
+	size_el.value = parseInt(cue.size,10);
+	size_el.addEventListener('change', size_change, false);
+	
+	align_el.removeEventListener('change', align_change, false);
+	align_el.value = cue.align;
+	align_el.addEventListener('change', align_change, false);
+	
+	snap_el.removeEventListener('change', snap_change, false);
+	snap_el.value = cue.snapToLines?(cue.rawLine==='auto'?'auto':'snap'):'percent';
+	if(snap_el.value === "auto"){
+		line_form.style.display = "none";	
+	}else{
+		switch(snap_el.value){
+			case "percent":
+				line_el.type = "range";
+				line_el.max = 100;
+				line_el.min = 0;
+				break;
+			case "snap":
+				line_el.type = "number"
+				line_el.max = null;
+				line_el.min = null;
+				break;
+		}
+		line_form.style.display = "inline";
+	}
+	snap_el.addEventListener('change', snap_change, false);
+	
+	line_el.removeEventListener('change', line_change, false);
+	line_el.value = cue.rawLine;
+	line_el.addEventListener('change', line_change, false);
+	
+	pos_el.removeEventListener('change', pos_change, false);
+	pos_el.value = parseInt(cue.position,10);
+	pos_el.addEventListener('change', pos_change, false);
+	
+	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
+}
 
 document.getElementById('vttfile').addEventListener('change', function(evt) {
 	timeline.loadTextTrack(evt.target.files[0]);
@@ -305,45 +304,45 @@ timeline.on('segments',function(segs){
 timeline.on('addtrack',function(track){
 	var opt = new Option(track.id);
 	opt.selected = true;
-	atracks.add(opt);
+	atracks.add(opt,null);
 });
 
 // Bind to the audio events
 controls.addEventListener("timeupdate", function() {
 	timeline.currentTime = controls.currentTime;
-});
+},false);
 //Bind the toolbar buttons
 document.getElementById("selb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.SELECT;
-});
+},false);
 document.getElementById("movb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.MOVE;
-});
+},false);
 document.getElementById("resb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.RESIZE;
-});
+},false);
 document.getElementById("creb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.CREATE;
-});
+},false);
 document.getElementById("delb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.DELETE;
-});
+},false);
 document.getElementById("repb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.REPEAT;		
-});
+},false);
 document.getElementById("scrb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.SCROLL;		
-});
+},false);
 document.getElementById("undb").addEventListener('click',function(){
 	timeline.tracker.undo();		
-});
+},false);
 atracks.addEventListener('change',function(){
 	var i, opts = atracks.options,
 		len = opts.length;
 	for(i=0;i<len;i++){
 		timeline.getTrack(opts[i].value).active = opts[i].selected;
 	}
-});
+},false);
 //need time for images to load
 setTimeout(function(){timeline.render();},100);
 

@@ -96,14 +96,18 @@
 	};
 
 	Proto.render = function() {
-		var tl = this.tl,
+		var i, k, tl = this.tl,
 			ctx = tl.ctx,
 			start = Math.round(this.startx),
 			end = Math.round(this.endx),
 			top = tl.height - tl.toolbarHeight - tl.sliderHeight;
 		
 		ctx.drawImage(tl.sliderLeft, start, top);
-		ctx.drawImage(tl.sliderMid, start + tl.sliderHandleWidth, top, Math.ceil(this.width) - 2*tl.sliderHandleWidth, tl.sliderHeight);
+		ctx.save();
+		ctx.translate(start + tl.sliderHandleWidth, top);
+		ctx.fillStyle = ctx.createPattern(tl.sliderMid, "repeat-x");
+		ctx.fillRect(0, 0, Math.ceil(this.width) - 2*tl.sliderHandleWidth, tl.sliderHeight);
+		ctx.restore();
 		ctx.drawImage(tl.sliderRight, end - tl.sliderHandleWidth, top);
 	};
 	

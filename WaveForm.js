@@ -193,7 +193,7 @@ var WaveForm = (function(){
 			end = this.endSample*channels;
 		if(this.worker){this.worker.terminate();}
 		this.worker = new Worker("WaveWorker.js");
-		this.worker.addEventListener('message',drawPath.bind(this));
+		this.worker.addEventListener('message',drawPath.bind(this),false);
 		this.worker.postMessage({
 			frame:new Float32Array(this.data.subarray(start, end)),
 			channels:channels,

@@ -33,7 +33,6 @@ var Timeline = (function(){
 		this.persistence = new Timeline.Persistence(this);
 		
 		this.timeMarkerPos = 0;
-		this.direction = $(location).css("direction");
 		this.repeatA = null;
 		this.repeatB = null;
 		this.abRepeatOn = false;
@@ -378,8 +377,7 @@ var Timeline = (function(){
 	 }
 	 
 	function mouseMove(ev) {
-		var offset = $(this.ctx.canvas).offset(),
-			pos = {x: ev.pageX-offset.left, y: ev.pageY-offset.top},
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
 			that = this;
 
 		this.mousePos = pos;
@@ -405,8 +403,7 @@ var Timeline = (function(){
 	}
 
 	function mouseUp(ev) {
-		var offset = $(this.ctx.canvas).offset(),
-			pos = {x: ev.pageX-offset.left, y: ev.pageY-offset.top},
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
 			id;
 		
 		if(this.scrollInterval){
@@ -434,13 +431,12 @@ var Timeline = (function(){
 	}
 
 	function mouseDown(ev) {
-		var offset = $(this.ctx.canvas).offset(),
-			pos = {x: ev.pageX-offset.left, y: ev.pageY-offset.top},
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
 			track,seg,i,j;
 
 		this.mouseDownPos = pos;
 		this.mousePos = pos;
-			
+		
 		if(pos.y > this.height - this.sliderHeight - this.trackPadding){ // Check the slider
 			if(this.slider.containsPoint(pos)) {
 				this.slider.mouseDown(pos);
