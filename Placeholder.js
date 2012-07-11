@@ -20,7 +20,7 @@
 			ctx = tl.ctx,
 			top = tl.getTrackTop(this.track);
 		ctx.save();
-		ctx.fillStyle = tl.placeholderColor;
+		ctx.fillStyle = tl.colors.placeholder;
 		ctx.globalAlpha = .5;
 		ctx.fillRect(this.startx, top, this.endx - this.startx, tl.trackHeight);
 		ctx.restore();

@@ -33,7 +33,7 @@
 	Proto.draw = function(){
 		var i, track,
 			tl = this.tl,
-			width = tl.view.width,
+			width = tl.width,
 			height = tl.trackHeight,
 			padding = tl.trackPadding,
 			top = tl.keyHeight + padding,

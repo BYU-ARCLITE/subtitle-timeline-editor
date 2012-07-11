@@ -17,19 +17,19 @@
 			width: {
 				get: function(){ return width; },
 				set: function(val){
-					width = Math.min(Math.max(val, tl.sliderHandleWidth*3), tl.view.width - x);//, 1800*tl.view.width/tl.length);
+					width = Math.min(Math.max(val, tl.sliderHandleWidth*3), tl.width - x);//, 1800*tl.width/tl.length);
 					return width;
 				}
 			},
 			x: {
 				get: function(){ return x; },
-				set: function(val){ return x = Math.min(tl.view.width-width, Math.max(0,val)); }
+				set: function(val){ return x = Math.min(tl.width-width, Math.max(0,val)); }
 			},
 			startx: {
 				get: function(){ return x; },
 				set: function(val){
-					var nx = Math.min(tl.view.width-width, Math.max(0,val));
-					width = Math.min(Math.max(width + x - nx, tl.sliderHandleWidth*3), tl.view.width - x);
+					var nx = Math.min(tl.width-width, Math.max(0,val));
+					width = Math.min(Math.max(width + x - nx, tl.sliderHandleWidth*3), tl.width - x);
 					return x = nx;
 				},
 				enumerable: true
@@ -37,7 +37,7 @@
 			endx: {
 				get: function(){ return x+width; },
 				set: function(val){
-					width = Math.min(Math.max(val - x, tl.sliderHandleWidth*3), tl.view.width - x);//, 1800*tl.view.width/tl.length);
+					width = Math.min(Math.max(val - x, tl.sliderHandleWidth*3), tl.width - x);//, 1800*tl.view.width/tl.length);
 					return x + width;
 				},enumerable: true
 			}
@@ -66,7 +66,7 @@
 			switch(this.resizeSide){
 				case -1:
 					this.x = Math.min(Math.max(this.startingX + diff,0), this.startingX+this.startingWidth-this.tl.sliderHandleWidth*3);
-					//, this.startingX+this.startingWidth - 1800*this.tl.view.width/this.tl.length);
+					//, this.startingX+this.startingWidth - 1800*this.tl.width/this.tl.length);
 					this.width = this.startingWidth + (this.startingX - this.x);
 					break;
 				case 0: this.x = this.startingX + diff;
@@ -88,7 +88,7 @@
 
 	Proto.onHandle = function(pos) {
 		var tl = this.tl,
-			y = this.tl.height - this.tl.sliderHeight;
+			y = tl.height - tl.sliderHeight;
 		return	(pos.y < y || pos.y > y + this.tl.sliderHeight || pos.x < this.startx || pos.x > this.endx)?0:
 				(pos.x <= this.startx + tl.sliderHandleWidth)?-1:
 				(pos.x >= this.endx - tl.sliderHandleWidth)?1:
@@ -97,18 +97,19 @@
 
 	Proto.render = function() {
 		var i, k, tl = this.tl,
+			images = tl.images,
 			ctx = tl.ctx,
 			start = Math.round(this.startx),
 			end = Math.round(this.endx),
-			top = tl.height - tl.toolbarHeight - tl.sliderHeight;
+			top = tl.height - tl.sliderHeight;
 		
-		ctx.drawImage(tl.sliderLeft, start, top);
+		ctx.drawImage(images.sliderLeft, start, top);
 		ctx.save();
 		ctx.translate(start + tl.sliderHandleWidth, top);
-		ctx.fillStyle = ctx.createPattern(tl.sliderMid, "repeat-x");
+		ctx.fillStyle = ctx.createPattern(images.sliderMid, "repeat-x");
 		ctx.fillRect(0, 0, Math.ceil(this.width) - 2*tl.sliderHandleWidth, tl.sliderHeight);
 		ctx.restore();
-		ctx.drawImage(tl.sliderRight, end - tl.sliderHandleWidth, top);
+		ctx.drawImage(images.sliderRight, end - tl.sliderHandleWidth, top);
 	};
 	
 	Timeline.Slider = Slider;

@@ -5,21 +5,23 @@ Setup
 	var target = document.getElementById("timeline");
 
 2. Create a timeline	
-	timeline = new Timeline(target, length, viewstart, viewend);
+	timeline = new Timeline(target, {});
 
-    The parameters are
+    The arguments are
      *  - A DOM node into which to insert the timeline.
-     *  - The length of the timeline in seconds.
-     *  - The initial starting time of the viewing window.
-	 *  - The initial ending time of the viewing window.
+     *  - A map of optional parameters, including:
+	     *  - width: the width of the timeline display in pixels (defaults to the offsetWidth of the target).
+		 *  - length: the length of the timeline in seconds.
+         *  - start: the initial starting time of the viewing window.
+	     *  - end: the initial ending time of the viewing window.
 	
 3. Create the cues and add them to the timeline
 	var cues = WebVTT.parse(vttdata)
-    timeline.addSegmentTrack(cues, "track-external-id", "en");
+    timeline.addTextTrack(cues, "track-external-id", "en");
 
-	The parameters are
-	 *  - An array of Cue objects or a TextTrack.
-	 *  - An id string
+	The arguments are
+	 *  - An array of Cue objects or a TextTrack object.
+	 *  - A text id
 	 *  - Language
 	 
 4. Add event handlers

@@ -11,6 +11,7 @@
 	<script src="Timeline.js"></script>
 	<script src="Slider.js"></script>
 	<script src="Placeholder.js"></script>
+	<script src="TimelineSkin.js"></script>
 	<script src="TimelineAction.js"></script>
 	<script src="TimelineTracker.js"></script>
 	<script src="TimelinePersistence.js"></script>
@@ -97,6 +98,7 @@
 
 <script type="text/javascript">
 var timeline, t_count = 0,
+	target = document.getElementById("tl"),
 	video =  document.getElementById("video"),
 	editor = document.getElementById("editor"),
 	controls = document.getElementById("controls"),
@@ -240,7 +242,7 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 		(new webkitAudioContext).decodeAudioData(evt.target.result, function(buffer) {
 			var i,j,frame,chan,
 				wave = new WaveForm(
-				timeline.view.width,
+				timeline.width,
 				timeline.trackHeight,
 				1,//buffer.numberOfChannels,
 				buffer.sampleRate/2);
@@ -269,8 +271,14 @@ document.getElementById('tbtn').addEventListener('click', function() {
 }, false);
 
 // Create the timeline
-timeline = new Timeline(document.getElementById("tl"), 7000, 0, 240);
-timeline.addTextTrack([], "new", "en", false);
+timeline = new Timeline(target, {
+	width: window.innerWidth,
+	length: 7000,
+	start: 0,
+	end: 240
+});
+timeline.addTextTrack([], "new", "en");
+window.addEventListener('resize',function(){ timeline.width = window.innerWidth; }, false);
 
 // Define the timeline callbacks
 timeline.on('select',function(seg) {

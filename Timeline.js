@@ -10,12 +10,63 @@ var Timeline = (function(){
 	"use strict";
 	var Proto;
 	
-	function Timeline(location, length, viewstart, viewend) {
+	function Timeline(location, params) {
+		if(!(location instanceof HTMLElement)){ throw new Error("Invalid DOM Insertion Point"); }
+		if(!params){ params = {}; }
 		var canvas = document.createElement('canvas'),
 			overlay = document.createElement('canvas'),
-			node = document.createElement('div');
-		
-		this.length = length; // In seconds
+			node = document.createElement('div'),
+			fonts = params.fonts || new Timeline.Fonts({}),
+			colors = params.colors || new Timeline.Colors({}),
+			images = params.images || new Timeline.Images({}),
+			cursors = params.cursors || new Timeline.Cursors({}),
+			width = params.width || location.offsetWidth,
+			length = params.length || 1800;
+			
+		Object.defineProperties(this,{
+			fonts: {
+				get: function(){ return fonts; },
+				set: function(obj){ fonts = obj; this.render(); },
+				enumerable:true
+			},colors: {
+				get: function(){ return colors; },
+				set: function(obj){ colors = obj; this.render(); },
+				enumerable:true
+			},images: {
+				get: function(){ return images; },
+				set: function(obj){ images = obj; this.render(); },
+				enumerable:true
+			},cursors: {
+				get: function(){ return cursors; },
+				set: function(obj){ cursors = obj; this.render(); },
+				enumerable:true
+			},length: { // In seconds
+				get: function(){ return length; },
+				set: function(val){
+					if(val != length){
+						length = val;
+						this.render();
+					}
+					return length;
+				},enumerable:true
+			},width: { // In pixels
+				get: function(){ return width; },
+				set: function(val){
+					var id;
+					if(val != width){
+						width = +val;
+						canvas.width = width;
+						overlay.width = width;
+						for(id in this.audio){
+							this.audio[id].width = width;
+						}
+						// Re-render the timeline
+						this.render();
+					}
+					return width;				
+				},enumerable: true
+			}
+		});
 			
 		this.events = {};
 		this.tracks = [];
@@ -25,12 +76,12 @@ var Timeline = (function(){
 		this.activeElement = null;
 		this.selectedSegment = null;
 		this.currentSegments = [];
+		this.sliderActive = false;
 		
 		this.slider = new Timeline.Slider(this);
-			this.sliderActive = false;
-		
 		this.tracker = new Timeline.Tracker(this);
 		this.persistence = new Timeline.Persistence(this);
+		this.view = new Timeline.View(this, params.start || 0, params.end || 60);
 		
 		this.timeMarkerPos = 0;
 		this.repeatA = null;
@@ -47,33 +98,27 @@ var Timeline = (function(){
 		this.mouseDownPos = {x: 0, y: 0};
 		this.scrollInterval = null;
 		this.sizeInterval = null;
+		this.renderInterval = null;
 		
 		// Canvas
 		this.canvas = canvas;
-		this.ctx = canvas.getContext('2d');	
-		this.overlay = overlay;
-		this.octx = overlay.getContext('2d');
+		this.ctx = canvas.getContext('2d');
+		canvas.width = width;
+		canvas.height = this.height;
 		canvas.addEventListener('mousemove', mouseMove.bind(this), false);
 		canvas.addEventListener('mouseup', mouseUp.bind(this), false);
 		canvas.addEventListener('mouseout', mouseUp.bind(this), false);
 		canvas.addEventListener('mousedown', mouseDown.bind(this), false);
 		
-		//put stuff on the page
-		this.view = new Timeline.View(this);
-			this.view.width = window.innerWidth;
-			this.view.startTime = viewstart;
-			this.view.endTime = viewend;
-			
-		canvas.height = this.height;
-		canvas.width = window.innerWidth;
+		this.overlay = overlay;
+		this.octx = overlay.getContext('2d');
+		overlay.width = width;
 		overlay.height = this.height;
-		overlay.width = window.innerWidth;
 		overlay.style.position = "absolute";
 		overlay.style.top = 0;
 		overlay.style.left = 0;
 		overlay.style.pointerEvents = "none";
-		window.addEventListener("resize", windowResize.bind(this), false);
-		
+
 		node.style.position = "relative";
 		node.appendChild(canvas);
 		node.appendChild(overlay);
@@ -89,21 +134,6 @@ var Timeline = (function(){
 	Timeline.RESIZE = 5;
 	Timeline.REPEAT = 6;
 	Timeline.SCROLL = 7;
-
-	function windowResize() {
-		var id, width = window.innerWidth;
-		if(width != this.view.width){
-			this.view.width = width;
-			this.canvas.width = width;
-			this.overlay.width = width;
-			for(id in this.audio){
-				this.audio[id].width = width;
-			}
-			
-			// Re-render the timeline
-			this.render();
-		}
-	}
 	
 	Proto = Timeline.prototype;
 	
@@ -112,101 +142,9 @@ var Timeline = (function(){
 	Proto.trackPadding = 10;
 	Proto.sliderHeight = 25;
 	Proto.sliderHandleWidth = 10;
+	Proto.segmentTextPadding = 5;
 	Proto.keyTop = 0;
 	Proto.keyHeight = 25;
-	Proto.toolbarHeight = 0;
-
-	// Coloring
-	Proto.backgroundColor = "rgba(64, 66, 69, 1)";
-		Proto.backgroundColorTop = "#3e3f43";
-		Proto.backgroundColorBottom = "#292a2d";
-	Proto.trackColor = "rgba(75, 75, 255, 0.1)";
-		Proto.trackColorTop = "#292a2d";
-		Proto.trackColorBottom = "#55585c";
-	Proto.segmentColor = "rgba(98, 129, 194, 0.3)";
-		Proto.secondarySegmentColor = "rgba(142, 148, 160, 0.3)";
-		Proto.placeholderColor = "rgba(255, 255, 160, 0.5)";
-		Proto.highlightedColor = "#134dc8";
-	Proto.sliderColor = "#134dc8";
-		Proto.sliderHandleColor = "#008";
-	Proto.timeMarkerColor = "rgba(255, 255, 160, 0.5)";
-	Proto.abRepeatColor = "rgba(255, 0, 0, 0.4)";
-		Proto.abRepeatColorLight = "rgba(255, 0, 0, 0.25)";
-		
-	//Fonts
-	Proto.keyFontStyle = "italic";
-	Proto.keyFontSize = 14;
-	Proto.keyFontFace = "sans-serif";
-	Proto.keyTextColor = "#fff";
-	
-	Proto.titleFontStyle = "italic";
-	Proto.titleFontSize = 14;
-	Proto.titleFontFace = "sans-serif";
-	Proto.titleTextColor = "#ddd";
-	
-	Proto.segmentFontStyle = "";
-	Proto.segmentFontSize = 20;
-	Proto.segmentFontFace = "sans-serif";
-	Proto.segmentFontPadding = 5;
-	Proto.segmentTextColor = "#000";
-	
-	Proto.idFontStyle = "italic";
-	Proto.idFontSize = 10;
-	Proto.idFontFace = "sans-serif";
-	Proto.idTextColor = "#ddd";
-	
-	Object.defineProperties(Proto,{
-		keyFont: {get:function(){return this.keyFontStyle+" "+this.keyFontSize+"px "+this.keyFontFace;}},
-		titleFont: {get:function(){return this.titleFontStyle+" "+this.titleFontSize+"px "+this.titleFontFace;}},
-		segmentFont: {get:function(){return this.segmentFontStyle+" "+this.segmentFontSize+"px "+this.segmentFontFace;}},
-		idFont: {get:function(){return this.idFontStyle+" "+this.idFontSize+"px "+this.idFontFace;}}
-	});
-	
-	// Cursors
-	Proto.cursors = {
-		pointer:	"url(\"./images/cursors/cursor.png\"), auto",
-		resizeR:	"url(\"./images/cursors/resize-right.png\") 10 15, col-resize",
-		resizeL:	"url(\"./images/cursors/resize-left.png\") 22 15, col-resize",
-		move:		"url(\"./images/cursors/move.png\") 15 15, move",
-		skip:		"url(\"./images/cursors/skip.png\") 0 5, auto",
-		repeatA:	"url(\"./images/cursors/repeat-a.png\"), auto",
-		repeatB:	"url(\"./images/cursors/repeat-b.png\"), auto",
-		add:		"url(\"./images/cursors/add.png\"), auto",
-		select:		"url(\"./images/cursors/cursor-highlight.png\"), auto",
-		remove:		"url(\"./images/cursors/delete.png\") 15 15, pointer",
-		locked:		"not-allowed"
-	};
-	
-	// Images
-	Proto.loadImages = function(srcs) {
-		var imgName, img;
-		for(imgName in srcs){
-			img = new Image;
-			img.src = srcs[imgName];
-			this[imgName] = img;
-		}
-	};
-	
-	Proto.loadImages.call(Proto,{
-		// normal images
-		segmentLeft: "./images/event_left.png",
-		segmentRight: "./images/event_right.png",
-		segmentMid: "./images/event_mid.png",
-		// selected images
-		segmentLeftSel: "./images/event_left_sel.png",
-		segmentRightSel: "./images/event_right_sel.png",
-		segmentMidSel: "./images/event_mid_sel.png",
-		// dark images
-		segmentLeftDark: "./images/event_left_dark.png",
-		segmentRightDark: "./images/event_right_dark.png",
-		segmentMidDark: "./images/event_mid_dark.png",
-		// slider images
-		sliderLeft: "./images/slider_left.png",
-		sliderRight: "./images/slider_right.png",
-		sliderMid: "./images/slider_mid.png",
-		// track images
-		trackBg: "./images/track_bg.png"
-	});	
 	
 	Object.defineProperties(Proto,{
 		currentTime: {
@@ -259,7 +197,7 @@ var Timeline = (function(){
 		}else if(this.currentTool === Timeline.SCROLL){
 			cursor = this.cursors[(
 						(this.mousePos.y < this.height - this.sliderHeight - this.trackPadding)
-						&& (this.mousePos.x < this.view.width/2)
+						&& (this.mousePos.x < this.width/2)
 						|| (this.mousePos.x < this.slider.x+this.slider.width/2)
 					)?'resizeL':'resizeR'];
 		}else 
@@ -360,7 +298,7 @@ var Timeline = (function(){
 	 
 	 function autoScroll(){
 		if(this.delta){
-			this.slider.x += this.delta*(this.view.width-this.sliderHandleWidth*3)/(this.length-this.view.width/1000);
+			this.slider.x += this.delta*(this.width-this.sliderHandleWidth*3)/(this.length-this.width/1000);
 			this.render();
 		}
 	 }
@@ -383,8 +321,8 @@ var Timeline = (function(){
 		this.mousePos = pos;
 		
 		if(this.scrollInterval){
-			this.delta = 10*(pos.x/this.view.width-.5)*this.view.zoom;
-			this.canvas.style.cursor = this.cursors[(this.mousePos.x < this.view.width/2)?'resizeL':'resizeR'];
+			this.delta = 10*(pos.x/this.width-.5)*this.view.zoom;
+			this.canvas.style.cursor = this.cursors[(this.mousePos.x < this.width/2)?'resizeL':'resizeR'];
 		}else if(this.sizeInterval){
 			this.canvas.style.cursor = this.cursors[(this.mousePos.x < this.slider.x + this.slider.width/2)?'resizeL':'resizeR'];
 		}else if(this.currentTool == Timeline.REPEAT
@@ -469,7 +407,7 @@ var Timeline = (function(){
 				else{ this.setB(pos); }
 				break;
 			case Timeline.SCROLL:
-				this.delta = 10*(pos.x/this.view.width-.5)*this.view.zoom;
+				this.delta = 10*(pos.x/this.width-.5)*this.view.zoom;
 				this.scrollInterval = setInterval(autoScroll.bind(this),1);
 		}
 		
@@ -564,7 +502,7 @@ var Timeline = (function(){
 			ctx = this.octx;
 			for(i=0;track=this.tracks[i];i++){
 				if(track.active && track.audioId === id){
-					ctx.clearRect(0, top, this.view.width, this.trackHeight);
+					ctx.clearRect(0, top, this.width, this.trackHeight);
 				}
 				top += this.trackHeight + this.trackPadding;
 			}
@@ -582,10 +520,10 @@ var Timeline = (function(){
 			start, end, position, offset, increment;
 		
 		ctx.save();
-		ctx.font         = this.keyFont;
+		ctx.font         = this.fonts.keyFont;
 		ctx.textBaseline = 'top';
-		ctx.fillStyle    = this.keyTextColor;
-		ctx.strokeStyle    = this.keyTextColor;
+		ctx.fillStyle    = this.fonts.keyTextColor;
+		ctx.strokeStyle    = this.fonts.keyTextColor;
 
 		// Find the smallest increment in powers of 2 that gives enough room for 1-second precision
 		power = Math.ceil(Math.log(ctx.measureText(" 0:00:00").width*zoom)/0.6931471805599453);
@@ -634,22 +572,22 @@ var Timeline = (function(){
 			grd = ctx.createLinearGradient(0,0,0,this.height);
 
 		// Draw the backround color
-		grd.addColorStop(0,this.backgroundColorBottom);
-		grd.addColorStop(0.5,this.backgroundColorTop);
-		grd.addColorStop(1,this.backgroundColorBottom);
+		grd.addColorStop(0,this.colors.bgTop);
+		grd.addColorStop(0.5,this.colors.bgMid);
+		grd.addColorStop(1,this.colors.bgBottom);
 		ctx.save();
 		ctx.fillStyle = grd;
 		ctx.globalCompositeOperation = "source-over";
-		ctx.fillRect(0, 0, this.view.width, this.height);
+		ctx.fillRect(0, 0, this.width, this.height);
 		ctx.restore();
 	};
 
 	Proto.renderTimeMarker = function() {
 		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
-		if(x < -1 || x > this.view.width){ return; }
+		if(x < -1 || x > this.width){ return; }
 		ctx = this.ctx
 		ctx.save();
-		ctx.fillStyle = this.timeMarkerColor;
+		ctx.fillStyle = this.colors.timeMarker;
 		ctx.fillRect(x, 0, 2, this.height);
 		ctx.restore();
 	};
@@ -660,7 +598,7 @@ var Timeline = (function(){
 				right = this.view.timeToPixel(this.repeatB),
 				ctx = this.ctx;
 			ctx.save();
-			ctx.fillStyle = this.abRepeatOn?this.abRepeatColor:this.abRepeatColorLight;
+			ctx.fillStyle = this.colors[this.abRepeatOn?'abRepeat':'abRepeatLight'];
 			ctx.fillRect(left, 0, right-left, this.height);
 			ctx.restore();
 		}
@@ -668,13 +606,19 @@ var Timeline = (function(){
 
 	Proto.render = function() {
 		var aid, audio;
-		this.renderBackground();
-		this.renderKey();
-		this.tracks.forEach(function(track){ track.render(); });
-		for(aid in this.audio){ this.audio[aid].render(); }
-		this.renderABRepeat();
-		this.renderTimeMarker();
-		this.slider.render();
+		if(this.images.complete){
+			clearInterval(this.renderInterval);
+			this.renderInterval = null;
+			this.renderBackground();
+			this.renderKey();
+			this.tracks.forEach(function(track){ track.render(); });
+			for(aid in this.audio){ this.audio[aid].render(); }
+			this.renderABRepeat();
+			this.renderTimeMarker();
+			this.slider.render();
+		}else if(!this.renderInterval){
+			this.renderInterval = setInterval(this.render.bind(this),1);
+		}
 	};
 	
 	Proto.renderTrack = function(track) {		
@@ -683,10 +627,10 @@ var Timeline = (function(){
 		track.render();
 		
 		//redo the peice of the timeMarker that we drew over
-		if(x < -1 || x > this.view.width){ return; }
+		if(x < -1 || x > this.width){ return; }
 		ctx = this.ctx;
 		ctx.save();
-		ctx.fillStyle = this.timeMarkerColor;
+		ctx.fillStyle = this.colors.timeMarker;
 		ctx.fillRect(x, this.getTrackTop(track), 2, this.trackHeight);
 		ctx.restore();
 	};
@@ -706,7 +650,7 @@ var Timeline = (function(){
 		
 		if(time < this.view.startTime || time > this.view.endTime) {
 			// Move the view
-			this.slider.x = Math.round(time*(this.view.width - this.slider.width)/this.length);
+			this.slider.x = Math.round(time*(this.width - this.slider.width)/this.length);
 		}
 		
 		this.render();

@@ -83,21 +83,26 @@
 	};
 
 	Proto.render = function(){
-		var that = this,
-			tl = this.tl,
-			top = tl.getTrackTop(this),
+		var tl = this.tl,
 			startTime = tl.view.startTime,
 			ctx = tl.ctx,
 			audio = this.audio,
 			selected = null;
 		
-		ctx.drawImage(tl.trackBg, 0, top, tl.view.width, tl.trackHeight);
 		ctx.save();
-		ctx.font = tl.titleFont;
+		
+		ctx.translate(0,tl.getTrackTop(this));
+		
+		ctx.fillStyle = ctx.createPattern(tl.images.trackBg, "repeat-x");
+		ctx.fillRect(0, 0, tl.width, tl.trackHeight);
+		
 		ctx.textBaseline = 'middle';
-		ctx.fillStyle = tl.titleTextColor;
-		ctx.fillText(this.id, tl.view.width/100, top+tl.trackHeight/2);
+		ctx.font = tl.fonts.titleFont;
+		ctx.fillStyle = tl.fonts.titleTextColor;
+		ctx.fillText(this.id, tl.width/100, tl.trackHeight/2);
+		
 		ctx.restore();
+		
 		this.visibleSegments = this.searchRange(startTime,tl.view.endTime).sort(order);
 		this.visibleSegments.forEach(function(seg){
 			if(seg.selected){ selected = seg; }
@@ -344,6 +349,8 @@
 			return;
 
 		var tl = this.tl,
+			images = tl.images,
+			fonts = tl.fonts,
 			ctx = tl.ctx,
 			shape = this.getShape(),
 			x = shape.x,
@@ -351,28 +358,28 @@
 			direction, dir;
 			
 		// is it on the screen
-		if(x > -shape.width && x < tl.view.width) {
+		if(x > -shape.width && x < tl.width) {
 			ctx.save();
 			ctx.translate(x, y);
 			
 			renderImage.apply(this, (this.selected)?[
 										shape,
-										tl.segmentLeftSel, tl.segmentRightSel, tl.segmentMidSel
+										images.segmentLeftSel, images.segmentRightSel, images.segmentMidSel
 									]:(!this.selectable)?[
 										shape,
-										tl.segmentLeftDark, tl.segmentRightDark, tl.segmentMidDark
+										images.segmentLeftDark, images.segmentRightDark, images.segmentMidDark
 									]:[
 										shape,
-										tl.segmentLeft, tl.segmentRight, tl.segmentMid
+										images.segmentLeft, images.segmentRight, images.segmentMid
 									]);
 			
-			if(shape.width > 2*tl.segmentFontPadding){
+			if(shape.width > 2*tl.segmentTextPadding){
 				// Set the clipping bounds
 				ctx.beginPath();
-				ctx.moveTo(tl.segmentFontPadding, 0);
-				ctx.lineTo(tl.segmentFontPadding, shape.height);
-				ctx.lineTo(shape.width - tl.segmentFontPadding, shape.height);
-				ctx.lineTo(shape.width - tl.segmentFontPadding, 0);
+				ctx.moveTo(tl.segmentTextPadding, 0);
+				ctx.lineTo(tl.segmentTextPadding, shape.height);
+				ctx.lineTo(shape.width - tl.segmentTextPadding, shape.height);
+				ctx.lineTo(shape.width - tl.segmentTextPadding, 0);
 				ctx.closePath();
 				ctx.clip();
 				
@@ -384,20 +391,20 @@
 					direction = Ayamel.Text.getDirection(this.id);
 					tl.canvas.dir = direction;
 					
-					ctx.font = tl.idFont;
-					ctx.fillStyle = tl.idTextColor;
-					ctx.fillText(this.id, direction === 'ltr' ? tl.segmentFontPadding : shape.width - tl.segmentFontPadding, 0);
-					y = Math.max(tl.idFontSize,tl.segmentFontPadding);
+					ctx.font = fonts.idFont;
+					ctx.fillStyle = fonts.idTextColor;
+					ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
+					y = Math.max(fonts.idFontSize,tl.segmentTextPadding);
 				}else{
-					y = tl.segmentFontPadding;
+					y = tl.segmentTextPadding;
 				}
 				
 				direction = Ayamel.Text.getDirection(this.text);
 				tl.canvas.dir = direction;
 				
-				ctx.font = tl.segmentFont;
-				ctx.fillStyle = tl.segmentTextColor;
-				ctx.fillText(this.text, direction === 'ltr' ? tl.segmentFontPadding : shape.width - tl.segmentFontPadding, y);
+				ctx.font = fonts.segmentFont;
+				ctx.fillStyle = fonts.segmentTextColor;
+				ctx.fillText(this.text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
 				
 				tl.canvas.dir = dir; //restore
 			}
