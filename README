@@ -18,16 +18,16 @@ Setup
     timeline.addSegmentTrack(cues, "track-external-id", "en");
 
 	The parameters are
-	 *  - An array of Segment or Cue objects (may be heterogenous) or a segmentTrack.
-	 *  - A text id
+	 *  - An array of Cue objects or a TextTrack.
+	 *  - An id string
 	 *  - Language
 	 
 4. Add event handlers
 
-    // addtrack is fired whenever a segment track is added to the timeline and passes the added track object to the listener
+    // addtrack is fired whenever a text track is added to the timeline and passes the added track object to the listener
 	timeline.on('addtrack',function(track) {});
 	
-    // removetrack is fired whenever a segment track is removed from the timeline and passes the removed track object to the listener
+    // removetrack is fired whenever a text track is removed from the timeline and passes the removed track object to the listener
 	timeline.on('removetrack',function(track) {});
 	
 	// select is fired whenever a segment is selected and passes the segment object (which includes the backing cue object) to the listener

@@ -34,8 +34,8 @@
 		var i, track,
 			tl = this.tl,
 			width = tl.view.width,
-			height = tl.segmentTrackHeight,
-			padding = tl.segmentTrackPadding,
+			height = tl.trackHeight,
+			padding = tl.trackPadding,
 			top = tl.keyHeight + padding,
 			ctx = tl.octx,
 			wave = this.wave;

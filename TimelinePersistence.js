@@ -101,14 +101,14 @@
 					cues = WebVTT.parse(data);
 			}
 			
-			tl.addSegmentTrack(cues, name, language);
+			tl.addTextTrack(cues, name, language);
 			tl.render();
 		}catch(e){
 			alert("There was an error loading the track: "+e);
 		}
 	}
 	
-	Persistence.prototype.loadSegmentTrack = function(url, language){
+	Persistence.prototype.loadTextTrack = function(url, language){
 		var tl = this.tl,
 			that = this,
 			reader, mime;

@@ -1,22 +1,129 @@
 (function(Timeline){
 	"use strict";
-	var Proto;
+	var Proto, segId = 0;
 	
 	if(!Timeline){
 		throw new Error("Timeline Uninitialized");
 	}
 	
-	function Segment(tl, start, end, t, i) {
-		var cue = (start instanceof Cue)?start:new Cue(i, start, end, t);
-		
+	function order(a,b){
+		//sort first by start time, then by length
+		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
+	}
+	
+	function TextTrack(tl, cues, id, language){
+		var active = true,
+			that = this;
 		this.tl = tl;
+		this.id = id;
+		this.language = language;
+		this.segments = cues.map(function(cue){ return new Segment(that, cue); });
+		this.segments.sort(order);
+		this.visibleSegments = [];
+		this.audioId = null;
+		this.locked = false;
+		Object.defineProperty(this,'active',{
+			get: function(){ return active; },
+			set: function(val){
+				if(!this.locked){
+					val = !!val;
+					if(val != active){
+						active = val;
+						if(!active && tl.selectedSegment && tl.selectedSegment.track === this){
+							tl.unselect();
+						}else{
+							tl.renderTrack(this);
+						}
+						if(this.audioId){ tl.audio[this.audioId].draw(); }
+						tl.updateCurrentSegments();
+					}
+				}
+				return active;
+			}
+		});
+	}
+	
+	Proto = TextTrack.prototype;
+	
+	Proto.add = function(start, end, t, i){
+		var tl = this.tl,
+			seg = new Segment(this, (start instanceof Cue)?start:new Cue(i, start, end, t));
+		
+		this.segments.push(seg);
+		this.segments.sort(order);
+		
+		// Save the action
+		tl.tracker.addAction(new Timeline.Action("create",{
+			id:seg.uid,
+			track:this.id,
+			initialStart:seg.startTime,
+			initialEnd:seg.endTime
+		}));
+		tl.renderTrack(this);
+		if(this.active && seg.startTime < this.tl.view.endTime && seg.endTime > this.tl.view.startTime){
+			tl.updateCurrentSegments();
+		}
+		tl.emit('update');
+		return seg;
+	};
+	
+	Proto.getSegment = function(id){
+		var i, segs = this.segments,
+			len = segs.length;
+		for(i=0;i<len;i++){
+			if(segs[i].uid === id){ return segs[i]; }
+		}
+	};
+	
+	Proto.searchRange = function(low, high){
+		//TODO: Higher efficiency binary search
+		return this.segments.filter(function(seg){
+			return !seg.deleted && seg.startTime < high && seg.endTime > low;
+		});
+	};
+
+	Proto.render = function(){
+		var that = this,
+			tl = this.tl,
+			top = tl.getTrackTop(this),
+			startTime = tl.view.startTime,
+			ctx = tl.ctx,
+			audio = this.audio,
+			selected = null;
+		
+		ctx.drawImage(tl.trackBg, 0, top, tl.view.width, tl.trackHeight);
+		ctx.save();
+		ctx.font = tl.titleFont;
+		ctx.textBaseline = 'middle';
+		ctx.fillStyle = tl.titleTextColor;
+		ctx.fillText(this.id, tl.view.width/100, top+tl.trackHeight/2);
+		ctx.restore();
+		this.visibleSegments = this.searchRange(startTime,tl.view.endTime).sort(order);
+		this.visibleSegments.forEach(function(seg){
+			if(seg.selected){ selected = seg; }
+			else{ seg.render(); }
+		});
+		//save the selected segment for last so it's always on top
+		selected && selected.render();
+	};
+	
+	Proto.toVTT = function(){
+		return "WEBVTT\n\n"+this.segments.map(function(seg){ return this.toVTT(); }).join('');
+	};
+	
+	Proto.toSRT = function(){
+		return this.segments.map(function(seg){ return this.toSRT(); }).join('');
+	};
+	
+	function Segment(track, cue) {
+		this.tl = track.tl;
+		this.track = track;
 		this.cue = cue;
-		this.uid = +(new Date)+start;
+		this.uid = (segId++).toString(36);
 		this.selected = false;
 		this.move = false;
 		this.resize = false;
 		this.deleted = false;
-		this.track = null;
 		this.action = null;
 		this.resizeSide = 0;
 
@@ -25,7 +132,9 @@
 		this.startingLength = 0;
 	}
 
-	Object.defineProperties(Segment.prototype,{
+	Proto = Segment.prototype;
+	
+	Object.defineProperties(Proto,{
 		selectable: { get: function(){ return !this.track.locked && this.track.active; }, enumerable: true },
 		active: {
 			get: function(){
@@ -68,13 +177,6 @@
 			enumerable: true
 		}
 	});
-
-	Segment.order = function(a,b){
-		//sort first by start time, then by length
-		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
-	};
-
-	Proto = Segment.prototype;
 	
 	Proto.toVTT = function(){
 		return this.deleted?"":WebVTT.serialize(this.cue);
@@ -90,7 +192,7 @@
 			x = tl.view.timeToPixel(this.startTime),
 			y = tl.getTrackTop(this.track),
 			width = tl.view.timeToPixel(this.endTime) - x;
-		return {x: x, y: y, width: width, height: tl.segmentTrackHeight};
+		return {x: x, y: y, width: width, height: tl.trackHeight};
 	};
 
 	Proto.containsPoint = function(pos) {
@@ -295,7 +397,7 @@
 			}
 			ctx.restore();
 		}
-	};
+	};	
 	
-	Timeline.Segment = Segment;
+	Timeline.TextTrack = TextTrack;
 }(Timeline));

@@ -22,7 +22,7 @@
 		ctx.save();
 		ctx.fillStyle = tl.placeholderColor;
 		ctx.globalAlpha = .5;
-		ctx.fillRect(this.startx, top, this.endx - this.startx, tl.segmentTrackHeight);
+		ctx.fillRect(this.startx, top, this.endx - this.startx, tl.trackHeight);
 		ctx.restore();
 	};
 
@@ -36,23 +36,14 @@
 
 	Proto.mouseUp = function(pos) {
 		var tl = this.tl,
-			seg, start, end;
-			
-		this.endx = pos.x;
+			seg;
 
 		// Create a new segment
-		if(this.startx < this.endx){
-			start = tl.view.pixelToTime(this.startx);
-			end   = tl.view.pixelToTime(this.endx);
+		if(this.startx < pos.x){
+			seg = this.track.add(tl.view.pixelToTime(this.startx), tl.view.pixelToTime(pos.x), "");
 		}else{
-			start = tl.view.pixelToTime(this.endx);
-			end   = tl.view.pixelToTime(this.startx);
+			seg = this.track.add(tl.view.pixelToTime(pos.x), tl.view.pixelToTime(this.startx), "");
 		}
-		
-		seg = new Timeline.Segment(this.tl, start, end, "");
-
-		// Add the segment to its track
-		this.track.add(seg);
 		// Automatically select new segments
 		tl.select(seg);
 	};

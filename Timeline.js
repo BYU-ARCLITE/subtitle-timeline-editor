@@ -39,7 +39,7 @@ var Timeline = (function(){
 		this.abRepeatOn = false;
 	  
 		// Sizing
-		this.height = this.keyHeight + this.segmentTrackPadding + this.sliderHeight;
+		this.height = this.keyHeight + this.trackPadding + this.sliderHeight;
 		
 		//cursor & tool selection
 		this.currentTool = Timeline.SELECT;
@@ -109,8 +109,8 @@ var Timeline = (function(){
 	Proto = Timeline.prototype;
 	
 	// Sizing
-	Proto.segmentTrackHeight = 50;
-	Proto.segmentTrackPadding = 10;
+	Proto.trackHeight = 50;
+	Proto.trackPadding = 10;
 	Proto.sliderHeight = 25;
 	Proto.sliderHandleWidth = 10;
 	Proto.keyTop = 0;
@@ -251,7 +251,7 @@ var Timeline = (function(){
 			cursor = this.cursors.move;
 		}else
 		// Check the key
-		if(pos.y < this.keyHeight+this.segmentTrackPadding) {
+		if(pos.y < this.keyHeight+this.trackPadding) {
 			cursor = this.cursors.skip;
 		}else if(this.currentTool === Timeline.REPEAT){
 			if(!this.abRepeatOn){
@@ -259,7 +259,7 @@ var Timeline = (function(){
 			}
 		}else if(this.currentTool === Timeline.SCROLL){
 			cursor = this.cursors[(
-						(this.mousePos.y < this.height - this.sliderHeight - this.segmentTrackPadding)
+						(this.mousePos.y < this.height - this.sliderHeight - this.trackPadding)
 						&& (this.mousePos.x < this.view.width/2)
 						|| (this.mousePos.x < this.slider.x+this.slider.width/2)
 					)?'resizeL':'resizeR'];
@@ -334,14 +334,14 @@ var Timeline = (function(){
 	// Helper functions
 
 	Proto.getTrackTop = function(track) {
-		return this.keyHeight + this.segmentTrackPadding + (this.trackIndices[track.id] * (this.segmentTrackHeight + this.segmentTrackPadding));
+		return this.keyHeight + this.trackPadding + (this.trackIndices[track.id] * (this.trackHeight + this.trackPadding));
 	};
 
 	Proto.trackFromPos = function(pos) {
 		var i, bottom,
-			padding = this.segmentTrackPadding,
-			height = this.segmentTrackHeight,
-			top = this.keyHeight + this.segmentTrackPadding;
+			padding = this.trackPadding,
+			height = this.trackHeight,
+			top = this.keyHeight + this.trackPadding;
 		for(i = 0; i < this.tracks.length; i++, top = bottom + padding) {
 			bottom = top + height;
 			if(pos.y >= top && pos.y <= bottom)
@@ -441,7 +441,7 @@ var Timeline = (function(){
 		this.mouseDownPos = pos;
 		this.mousePos = pos;
 			
-		if(pos.y > this.height - this.sliderHeight - this.segmentTrackPadding){ // Check the slider
+		if(pos.y > this.height - this.sliderHeight - this.trackPadding){ // Check the slider
 			if(this.slider.containsPoint(pos)) {
 				this.slider.mouseDown(pos);
 				this.sliderActive = true;
@@ -455,7 +455,7 @@ var Timeline = (function(){
 					this.sliderActive = true;
 				}
 			}
-		}else if(pos.y < this.keyHeight+this.segmentTrackPadding) { // Check the key
+		}else if(pos.y < this.keyHeight+this.trackPadding) { // Check the key
 			i = this.view.pixelToTime(pos.x);
 			this.updateTimeMarker(i);
 			this.emit('jump',i);
@@ -492,27 +492,27 @@ var Timeline = (function(){
 		return false;
 	}
 
-	Proto.addSegmentTrack = function(cues, id, language) {
+	Proto.addTextTrack = function(cues, id, language) {
 		var track;
 		if(id in this.trackIndices){ throw new Error("Track with that id already loaded."); }
-		if(cues instanceof Timeline.SegmentTrack){
+		if(cues instanceof Timeline.TextTrack){
 			track = cues;
 			id = track.id;
 		}else{
-			track = new Timeline.SegmentTrack(this, cues, id, language);
+			track = new Timeline.TextTrack(this, cues, id, language);
 		}
 		this.trackIndices[id] = this.tracks.length;
 		this.tracks.push(track);
 
 		// Adjust the height
-		this.height += this.segmentTrackHeight + this.segmentTrackPadding;
+		this.height += this.trackHeight + this.trackPadding;
 		this.canvas.height = this.height;
 		this.overlay.height = this.height;
 		this.render();
 		this.emit("addtrack",track);
 	};
 	
-	Proto.removeSegmentTrack = function(id) {
+	Proto.removeTextTrack = function(id) {
 		var i,track,aid,loc;
 		if(id in this.trackIndices){
 			loc = this.trackIndices[id];
@@ -527,7 +527,7 @@ var Timeline = (function(){
 			}
 			
 			// Adjust the height
-			this.height -= this.segmentTrackHeight + this.segmentTrackPadding;
+			this.height -= this.trackHeight + this.trackPadding;
 			this.canvas.height = this.height;
 			this.overlay.height = this.height;
 			this.render();
@@ -564,13 +564,13 @@ var Timeline = (function(){
 		var i, top, ctx, track;
 		if(!(id in this.audio)){ return; }
 		if(this.audio[id].references){
-			top = this.keyHeight+this.segmentTrackPadding,
+			top = this.keyHeight+this.trackPadding,
 			ctx = this.octx;
 			for(i=0;track=this.tracks[i];i++){
 				if(track.active && track.audioId === id){
-					ctx.clearRect(0, top, this.view.width, this.segmentTrackHeight);
+					ctx.clearRect(0, top, this.view.width, this.trackHeight);
 				}
-				top += this.segmentTrackHeight + this.segmentTrackPadding;
+				top += this.trackHeight + this.trackPadding;
 			}
 		}
 		delete this.audio[id];
@@ -691,7 +691,7 @@ var Timeline = (function(){
 		ctx = this.ctx;
 		ctx.save();
 		ctx.fillStyle = this.timeMarkerColor;
-		ctx.fillRect(x, this.getTrackTop(track), 2, this.segmentTrackHeight);
+		ctx.fillRect(x, this.getTrackTop(track), 2, this.trackHeight);
 		ctx.restore();
 	};
 	
@@ -765,7 +765,7 @@ var Timeline = (function(){
 	};
 	
 	Proto.save = function(type, id) { this.persistence.save(type, id); };
-	Proto.loadSegmentTrack = function(url) { this.persistence.loadSegmentTrack(url); };
+	Proto.loadTextTrack = function(url) { this.persistence.loadTextTrack(url); };
 	
 	return Timeline;
 }());

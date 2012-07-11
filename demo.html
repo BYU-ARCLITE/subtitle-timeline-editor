@@ -10,14 +10,13 @@
 	<script src="https://raw.github.com/BYU-ARCLITE/Ayamel.js/master/Caption.js"></script>
 	<script src="captionWrapper.js"></script>
 	<script src="Timeline.js"></script>
-	<script src="Segment.js"></script>
-	<script src="SegmentTrack.js"></script>
 	<script src="Slider.js"></script>
-	<script src="SegmentPlaceholder.js"></script>
+	<script src="Placeholder.js"></script>
 	<script src="TimelineAction.js"></script>
 	<script src="TimelineTracker.js"></script>
 	<script src="TimelinePersistence.js"></script>
 	<script src="TimelineView.js"></script>
+	<script src="TextTrack.js"></script>
 	<script src="WaveForm.js"></script>
 	<script src="AudioTrack.js"></script>
 </head>
@@ -231,7 +230,7 @@
 	}
 
 document.getElementById('vttfile').addEventListener('change', function(evt) {
-	timeline.loadSegmentTrack(evt.target.files[0]);
+	timeline.loadTextTrack(evt.target.files[0]);
 }, false);
 
 document.getElementById('audiofile').addEventListener('change', function(evt) {
@@ -243,7 +242,7 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 			var i,j,frame,chan,
 				wave = new WaveForm(
 				timeline.view.width,
-				timeline.segmentTrackHeight,
+				timeline.trackHeight,
 				1,//buffer.numberOfChannels,
 				buffer.sampleRate/2);
 			console.log("Decoded");
@@ -266,13 +265,13 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 }, false);
 
 document.getElementById('tbtn').addEventListener('click', function() {
-	timeline.addSegmentTrack([], "track"+(t_count++), "en", false);
+	timeline.addTextTrack([], "track"+(t_count++), "en", false);
 	timeline.render();
 }, false);
 
 // Create the timeline
 timeline = new Timeline(document.getElementById("tl"), 7000, 0, 240);
-timeline.addSegmentTrack([], "new", "en", false);
+timeline.addTextTrack([], "new", "en", false);
 
 // Define the timeline callbacks
 timeline.on('select',function(seg) {
