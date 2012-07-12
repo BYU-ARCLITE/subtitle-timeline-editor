@@ -4,12 +4,6 @@
 		throw new Error("Timeline Uninitialized");
 	}
 	
-	if(!XMLHttpRequest.prototype.sendAsBinary){
-		XMLHttpRequest.prototype.sendAsBinary = function(str){
-			this.send((new Uint8Array(Array.prototype.map.call(str,function(x){return x.charCodeAt(0)&0xff;}))).buffer);
-		};
-	}
-	
 	function Persistence(tl) {
 		var that = this;
 		this.tl = tl;
@@ -52,7 +46,7 @@
 		
 		xhr.open("POST",this.target,true);
 		xhr.setRequestHeader("Content-type","multipart/form-data; boundary=" + boundary);
-		xhr.sendAsBinary(
+		xhr.send(
 			"--" + boundary + "\r\n"
 			+ parts.join("--" + boundary + "\r\n")
 			+ "--" + boundary + "--" + "\r\n"
