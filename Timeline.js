@@ -96,9 +96,10 @@ var Timeline = (function(){
 		
 		//mouse control
 		this.mouseDownPos = {x: 0, y: 0};
+		this.mousePos = {x: 0, y: 0};
 		this.scrollInterval = null;
-		this.sizeInterval = null;
 		this.renderInterval = null;
+		this.currentCursor = "pointer";
 		
 		// Canvas
 		this.canvas = canvas;
@@ -146,21 +147,7 @@ var Timeline = (function(){
 	Proto.keyTop = 0;
 	Proto.keyHeight = 25;
 	
-	Object.defineProperties(Proto,{
-		currentTime: {
-			set: function(val){
-				this.updateTimeMarker(val);
-				return this.timeMarkerPos;
-			},
-			get: function(){return this.timeMarkerPos;}
-		}
-	});
-	
-	Proto.getTrack = function(id){
-		return this.tracks[this.trackIndices[id]];
-	};
-	
-	/* Event Triggers */
+	/** Event Triggers **/
 
 	Proto.emit = function(evt, data){
 		var that = this, fns = this.events[evt];
@@ -170,70 +157,6 @@ var Timeline = (function(){
 	Proto.on = function(name, cb){
 		if(name in this.events){ this.events[name].push(cb); }
 		else{ this.events[name] = [cb]; }
-	};
-	
-	function updateCursor(pos) {
-		if(typeof pos !== 'object')
-			return;
-		var i,j,track,seg,shape,
-			cursor = this.cursors.pointer;
-		
-		// Check the slider
-		i = this.slider.onHandle(pos);
-		if(i === 1) {
-			cursor = this.cursors.resizeR;
-		}else if(i === -1) {
-			cursor = this.cursors.resizeL;
-		}else if(this.slider.containsPoint(pos)) {
-			cursor = this.cursors.move;
-		}else
-		// Check the key
-		if(pos.y < this.keyHeight+this.trackPadding) {
-			cursor = this.cursors.skip;
-		}else if(this.currentTool === Timeline.REPEAT){
-			if(!this.abRepeatOn){
-				cursor = this.cursors[this.repeatA == null?'repeatA':'repeatB'];
-			}
-		}else if(this.currentTool === Timeline.SCROLL){
-			cursor = this.cursors[(
-						(this.mousePos.y < this.height - this.sliderHeight - this.trackPadding)
-						&& (this.mousePos.x < this.width/2)
-						|| (this.mousePos.x < this.slider.x+this.slider.width/2)
-					)?'resizeL':'resizeR'];
-		}else 
-		track_cursor: // Are we on a track?
-		if(track = this.trackFromPos(pos)){
-			if(!track.active || track.locked){
-				cursor = this.cursors.locked;
-				break track_cursor;
-			}
-			if(this.currentTool === Timeline.CREATE){
-				 cursor = this.cursors.add;
-			}else{
-				//Are we on a segment?
-				//traverse backwards so you get the ones on top
-				for(j=track.visibleSegments.length-1;seg=track.visibleSegments[j];j--){
-					if(!seg.containsPoint(pos)){ continue; }
-					shape = seg.getShape();
-					switch(this.currentTool){
-						case Timeline.SELECT:
-							cursor = this.cursors.select;
-							break track_cursor;
-						case Timeline.MOVE:
-							cursor = this.cursors.move;
-							break track_cursor;
-						case Timeline.DELETE:
-							cursor = this.cursors.remove;
-							break track_cursor;
-						case Timeline.RESIZE:
-							cursor = this.cursors[(pos.x < shape.x + shape.width/2)?'resizeL':'resizeR'];
-							break track_cursor;
-					}
-				}
-			}
-		}
-		
-		this.canvas.style.cursor = cursor;
 	};
 		
 	/**
@@ -268,10 +191,12 @@ var Timeline = (function(){
 		}
 	};
 
-	// Helper functions
-
 	Proto.getTrackTop = function(track) {
 		return this.keyHeight + this.trackPadding + (this.trackIndices[track.id] * (this.trackHeight + this.trackPadding));
+	};
+	
+	Proto.getTrack = function(id){
+		return this.tracks[this.trackIndices[id]];
 	};
 
 	Proto.trackFromPos = function(pos) {
@@ -286,145 +211,6 @@ var Timeline = (function(){
 		}
 		return null;
 	};
-
-	/**
-	 * Event Listeners and Callbacks
-	 *
-	 * These listeners include mouseMove, mouseUp, and mouseDown.
-	 * They check the mouse location and active elements and call their mouse listener function.
-	 * 
-	 * Author: Joshua Monson
-	 **/
-	 
-	 function autoScroll(){
-		if(this.delta){
-			this.slider.x += this.delta*(this.width-this.sliderHandleWidth*3)/(this.length-this.width/1000);
-			this.render();
-		}
-	 }
-
-	 function autoSize(){
-		var center = this.slider.x+this.slider.width/2,
-			x = this.mousePos.x;
-		if(x > center){
-			this.view.endTime += (x-this.slider.endx)*this.view.zoom/10;
-		}else if(x < center){
-			this.view.startTime += (x-this.slider.startx)*this.view.zoom/10;
-		}else{return;}
-		this.render();
-	 }
-	 
-	function mouseMove(ev) {
-		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
-			that = this;
-
-		this.mousePos = pos;
-		
-		if(this.scrollInterval){
-			this.delta = 10*(pos.x/this.width-.5)*this.view.zoom;
-			this.canvas.style.cursor = this.cursors[(this.mousePos.x < this.width/2)?'resizeL':'resizeR'];
-		}else if(this.sizeInterval){
-			this.canvas.style.cursor = this.cursors[(this.mousePos.x < this.slider.x + this.slider.width/2)?'resizeL':'resizeR'];
-		}else if(this.currentTool == Timeline.REPEAT
-			&& this.repeatA != null && !this.abRepeatOn){
-			this.updateB(pos);
-		}else if(this.sliderActive){
-			this.slider.mouseMove(pos);
-		}else if(this.activeElement){
-			this.activeElement.mouseMove(pos);
-		}else{
-			updateCursor.call(this,pos);
-		}
-		
-		ev.preventDefault();
-		return false;
-	}
-
-	function mouseUp(ev) {
-		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
-			id;
-		
-		if(this.scrollInterval){
-			clearInterval(this.scrollInterval);
-			this.scrollInterval = null;
-			for(id in this.audio){ this.audio[id].redraw(); }
-		}else if(this.sizeInterval){
-			clearInterval(this.sizeInterval);
-			this.sizeInterval = null;
-			for(id in this.audio){ this.audio[id].redraw(); }
-		}else if(this.currentTool == Timeline.REPEAT // Are we creating a repeat?
-			&& !this.abRepeatOn && this.repeatA != this.repeatB) {
-			this.setB(pos);
-		}else if(this.sliderActive) {
-			this.slider.mouseUp(pos);
-			this.sliderActive = false;
-			for(id in this.audio){ this.audio[id].redraw(); }
-		}else if(this.activeElement) {
-			this.activeElement.mouseUp(pos);
-			this.activeElement = null;
-		}
-		
-		ev.preventDefault();
-		return false;
-	}
-
-	function mouseDown(ev) {
-		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
-			track,seg,i,j;
-
-		this.mouseDownPos = pos;
-		this.mousePos = pos;
-		
-		if(pos.y > this.height - this.sliderHeight - this.trackPadding){ // Check the slider
-			if(this.slider.containsPoint(pos)) {
-				this.slider.mouseDown(pos);
-				this.sliderActive = true;
-			}else if(this.currentTool == Timeline.SCROLL){
-				this.sizeInterval = setInterval(autoSize.bind(this),1);
-			}else{
-				this.slider.x = pos.x - this.slider.width/2;
-				this.render();
-				if(pos.y > this.height - this.sliderHeight){
-					this.slider.mouseDown(pos);
-					this.sliderActive = true;
-				}
-			}
-		}else if(pos.y < this.keyHeight+this.trackPadding) { // Check the key
-			i = this.view.pixelToTime(pos.x);
-			this.updateTimeMarker(i);
-			this.emit('jump',i);
-			this.emit('timeupdate',i);
-		}else switch(this.currentTool){
-			case Timeline.CREATE:
-				track = this.trackFromPos(pos);
-				if(track && track.active && !track.locked){
-					this.activeElement = new Timeline.Placeholder(this, track, pos.x);
-				}
-				break;
-			case Timeline.REPEAT:
-				if(this.abRepeatOn){ this.clearRepeat(); }
-				else if(this.repeatA == null){ this.setA(pos); }
-				else{ this.setB(pos); }
-				break;
-			case Timeline.SCROLL:
-				this.delta = 10*(pos.x/this.width-.5)*this.view.zoom;
-				this.scrollInterval = setInterval(autoScroll.bind(this),1);
-		}
-		
-		// Check all the segments
-		track_loop: for(i=0;track=this.tracks[i];i++) {
-			//search backwards 'cause later segments are on top
-			for(j=track.visibleSegments.length-1;seg = track.visibleSegments[j];j--) {
-				if(!seg.containsPoint(pos)) { continue; }
-				this.activeElement = seg;
-				seg.mouseDown(pos);
-				break track_loop;
-			}
-		}
-		
-		ev.preventDefault();
-		return false;
-	}
 
 	Proto.addTextTrack = function(cues, id, language) {
 		var track;
@@ -510,7 +296,40 @@ var Timeline = (function(){
 		delete this.audio[id];
 	};
 	
-	// Drawing functions
+	Proto.updateCurrentSegments = function(){
+		var that = this,
+			time = this.timeMarkerPos,
+			oldsegs = this.currentSegments,
+			cursegs = [];
+		this.tracks.forEach(function(track){
+			if(track.active){Array.prototype.push.apply(cursegs,track.searchRange(time,time));}
+		});
+		this.currentSegments = cursegs;
+		this.emit('segments',{
+			valid:cursegs,
+			invalid:oldsegs.filter(function(seg){
+				return !seg.track.active || seg.startTime > time || seg.endTime < time;
+			})
+		});
+	};
+	
+	/** Drawing functions **/
+	
+	Proto.renderBackground = function() {
+		var ctx = this.ctx,
+			grd = ctx.createLinearGradient(0,0,0,this.height);
+
+		// Draw the backround color
+		grd.addColorStop(0,this.colors.bgTop);
+		grd.addColorStop(0.5,this.colors.bgMid);
+		grd.addColorStop(1,this.colors.bgBottom);
+		ctx.save();
+		ctx.fillStyle = grd;
+		ctx.globalCompositeOperation = "source-over";
+		ctx.fillRect(0, 0, this.width, this.height);
+		ctx.restore();
+	};
+	
 	Proto.renderKey = function() {
 		var ctx = this.ctx,
 			view = this.view,
@@ -566,31 +385,6 @@ var Timeline = (function(){
 		}
 		ctx.restore();
 	};
-
-	Proto.renderBackground = function() {
-		var ctx = this.ctx,
-			grd = ctx.createLinearGradient(0,0,0,this.height);
-
-		// Draw the backround color
-		grd.addColorStop(0,this.colors.bgTop);
-		grd.addColorStop(0.5,this.colors.bgMid);
-		grd.addColorStop(1,this.colors.bgBottom);
-		ctx.save();
-		ctx.fillStyle = grd;
-		ctx.globalCompositeOperation = "source-over";
-		ctx.fillRect(0, 0, this.width, this.height);
-		ctx.restore();
-	};
-
-	Proto.renderTimeMarker = function() {
-		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
-		if(x < -1 || x > this.width){ return; }
-		ctx = this.ctx
-		ctx.save();
-		ctx.fillStyle = this.colors.timeMarker;
-		ctx.fillRect(x, 0, 2, this.height);
-		ctx.restore();
-	};
 		
 	Proto.renderABRepeat = function() {
 		if(this.repeatA != null) {
@@ -602,6 +396,30 @@ var Timeline = (function(){
 			ctx.fillRect(left, 0, right-left, this.height);
 			ctx.restore();
 		}
+	};
+	
+	Proto.renderTimeMarker = function() {
+		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
+		if(x < -1 || x > this.width){ return; }
+		ctx = this.ctx
+		ctx.save();
+		ctx.fillStyle = this.colors.timeMarker;
+		ctx.fillRect(x, 0, 2, this.height);
+		ctx.restore();
+	};
+	
+	Proto.renderTrack = function(track) {		
+		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
+		
+		track.render();
+		
+		//redo the peice of the timeMarker that we drew over
+		if(x < -1 || x > this.width){ return; }
+		ctx = this.ctx;
+		ctx.save();
+		ctx.fillStyle = this.colors.timeMarker;
+		ctx.fillRect(x, this.getTrackTop(track), 2, this.trackHeight);
+		ctx.restore();
 	};
 
 	Proto.render = function() {
@@ -621,57 +439,34 @@ var Timeline = (function(){
 		}
 	};
 	
-	Proto.renderTrack = function(track) {		
-		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
-		
-		track.render();
-		
-		//redo the peice of the timeMarker that we drew over
-		if(x < -1 || x > this.width){ return; }
-		ctx = this.ctx;
-		ctx.save();
-		ctx.fillStyle = this.colors.timeMarker;
-		ctx.fillRect(x, this.getTrackTop(track), 2, this.trackHeight);
-		ctx.restore();
-	};
+	/** Time functions **/
 	
-	Proto.updateTimeMarker = function(time) {
-		if(time == this.timeMarkerPos){ return; }
-		
-		// Check the repeat
-		if(this.abRepeatOn && time > this.repeatB) {
-			time = this.repeatA;
-			this.emit('jump',this.repeatA);
-		}
-
-		this.timeMarkerPos = time;
-		this.updateCurrentSegments();
-		this.emit('timeupdate', time);
-		
-		if(time < this.view.startTime || time > this.view.endTime) {
-			// Move the view
-			this.slider.x = Math.round(time*(this.width - this.slider.width)/this.length);
-		}
-		
-		this.render();
-	};
-
-	Proto.updateCurrentSegments = function(){
-		var that = this,
-			time = this.timeMarkerPos,
-			oldsegs = this.currentSegments,
-			cursegs = [];
-		this.tracks.forEach(function(track){
-			if(track.active){Array.prototype.push.apply(cursegs,track.searchRange(time,time));}
-		});
-		this.currentSegments = cursegs;
-		this.emit('segments',{
-			valid:cursegs,
-			invalid:oldsegs.filter(function(seg){
-				return !seg.track.active || seg.startTime > time || seg.endTime < time;
-			})
-		});
-	};
+	Object.defineProperties(Proto,{
+		currentTime: {
+			set: function(time){
+				if(time == this.timeMarkerPos){ return; }
+				if(this.abRepeatOn && time > this.repeatB) {
+					time = this.repeatA;
+					this.emit('jump',this.repeatA);
+				}
+				this.timeMarkerPos = time;
+				this.updateCurrentSegments();
+				this.emit('timeupdate', time);
+				
+				if(time < this.view.startTime || time > this.view.endTime) {
+					// Move the view
+					this.view.endTime = time + this.view.length;
+					this.view.startTime = time;
+				}
+				
+				this.render();
+				return this.timeMarkerPos;
+			},
+			get: function(){return this.timeMarkerPos;},
+			enumerable: true
+		},
+		timeMarkerPos: {enumerable: false}
+	});
 
 	Proto.setA = function(pos) {
 		var time = this.view.pixelToTime(pos.x);
@@ -704,8 +499,237 @@ var Timeline = (function(){
 		this.render();
 	};
 	
+	/** Persistence functions **/
+	
 	Proto.save = function(type, id) { this.persistence.save(type, id); };
 	Proto.loadTextTrack = function(url) { this.persistence.loadTextTrack(url); };
+	
+	/** Scroll Tool Functions **/
+	
+	function autoScroll(){
+		var delta = this.mousePos.x/this.width-.5;
+		if((this.mouseDownPos.x>this.width/2)?delta > 0:delta < 0){
+			this.view.move(10*(delta)*this.view.zoom);
+			this.render();
+		}
+	}
+
+	function initScroll(){
+		if(this.mouseDownPos.x < this.width/2){
+			this.currentCursor = 'resizeL';
+			this.canvas.style.cursor = this.cursors.resizeL;
+		}else{
+			this.currentCursor = 'resizeR';
+			this.canvas.style.cursor = this.cursors.resizeR;
+		}
+		this.scrollInterval = setInterval(autoScroll.bind(this),1);
+	}
+	
+	function autoSizeL(){
+		var mx = this.mousePos.x,
+			dx = mx - this.slider.startx;
+		if(mx < this.slider.middle && dx){
+			this.view.startTime += dx*this.view.zoom/10;
+			this.render();
+		}
+	}
+	
+	function autoSizeR(){
+		var mx = this.mousePos.x,
+			dx = mx - this.slider.endx;
+		if(mx > this.slider.middle && dx){
+			this.view.endTime += dx*this.view.zoom/10;
+			this.render();
+		}
+	}
+	
+	function initResize(){
+		var diff = this.mouseDownPos.x - this.slider.middle;
+		if(diff < 0){
+			this.currentCursor = 'resizeL';
+			this.canvas.style.cursor = this.cursors.resizeL;
+			this.scrollInterval = setInterval(autoSizeL.bind(this),1);
+		}else if(diff > 0){
+			this.currentCursor = 'resizeR';
+			this.canvas.style.cursor = this.cursors.resizeR;
+			this.scrollInterval = setInterval(autoSizeR.bind(this),1);
+		}
+	}
+	
+	/**
+	 * Event Listeners and Callbacks
+	 *
+	 * These listeners include mouseMove, mouseUp, and mouseDown.
+	 * They check the mouse location and active elements and call their mouse listener function.
+	 * 
+	 * Author: Joshua Monson
+	 **/
+	 
+	function updateCursor(pos) {
+		if(typeof pos !== 'object')
+			return;
+		var i,j,track,seg,shape,
+			cursor = 'pointer';
+		
+	
+		// Check the slider
+		i = this.slider.onHandle(pos);
+		if(i === 1) {
+			cursor = 'resizeR';
+		}else if(i === -1) {
+			cursor = 'resizeL';
+		}else if(this.slider.containsPoint(pos)) {
+			cursor = 'move';
+		}else
+		// Check the key
+		if(pos.y < this.keyHeight+this.trackPadding) {
+			cursor = 'skip';
+		}else if(this.currentTool === Timeline.REPEAT){
+			if(!this.abRepeatOn){
+				cursor = this.repeatA == null?'repeatA':'repeatB';
+			}
+		}else if(this.currentTool === Timeline.SCROLL){
+			cursor = (
+						(this.mousePos.y < this.height - this.sliderHeight - this.trackPadding)
+						&& (this.mousePos.x < this.width/2)
+						|| (this.mousePos.x < this.slider.middle)
+					)?'resizeL':'resizeR';
+		}else 
+		track_cursor: // Are we on a track?
+		if(track = this.trackFromPos(pos)){
+			if(!track.active || track.locked){
+				cursor = 'locked';
+				break track_cursor;
+			}
+			if(this.currentTool === Timeline.CREATE){
+				 cursor = 'add';
+			}else{
+				//Are we on a segment?
+				//traverse backwards so you get the ones on top
+				for(j=track.visibleSegments.length-1;seg=track.visibleSegments[j];j--){
+					if(!seg.containsPoint(pos)){ continue; }
+					shape = seg.getShape();
+					switch(this.currentTool){
+						case Timeline.SELECT:
+							cursor = 'select';
+							break track_cursor;
+						case Timeline.MOVE:
+							cursor = 'move';
+							break track_cursor;
+						case Timeline.DELETE:
+							cursor = 'remove';
+							break track_cursor;
+						case Timeline.RESIZE:
+							cursor = (pos.x < shape.x + shape.width/2)?'resizeL':'resizeR';
+							break track_cursor;
+					}
+				}
+			}
+		}
+		if(this.currentCursor != cursor){
+			this.currentCursor = cursor;
+			this.canvas.style.cursor = this.cursors[cursor];
+		}
+	}
+	
+	function mouseMove(ev) {
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
+		
+		this.mousePos = pos;
+		
+		if(this.scrollInterval){ return; }
+		if(this.currentTool == Timeline.REPEAT
+			&& this.repeatA != null && !this.abRepeatOn){
+			this.updateB(pos);
+		}else if(this.sliderActive){
+			this.slider.mouseMove(pos);
+		}else if(this.activeElement){
+			this.activeElement.mouseMove(pos);
+		}else{
+			updateCursor.call(this,pos);
+		}
+		
+		ev.preventDefault();
+	}
+
+	function mouseUp(ev) {
+		var id, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
+		
+		if(this.scrollInterval){
+			clearInterval(this.scrollInterval);
+			this.scrollInterval = null;
+			for(id in this.audio){ this.audio[id].redraw(); }
+		}else if(this.currentTool == Timeline.REPEAT
+			&& !this.abRepeatOn && this.repeatA != this.repeatB) {
+			this.setB(pos);
+		}else if(this.sliderActive) {
+			this.slider.mouseUp(pos);
+			this.sliderActive = false;
+			for(id in this.audio){ this.audio[id].redraw(); }
+		}else if(this.activeElement) {
+			this.activeElement.mouseUp(pos);
+			this.activeElement = null;
+		}
+		
+		ev.preventDefault();
+	}
+
+	function mouseDown(ev) {
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
+			track,seg,i,j;
+
+		this.mouseDownPos = pos;
+		this.mousePos = pos;
+		
+		if(pos.y > this.height - this.sliderHeight - this.trackPadding){ // Check the slider
+			if(this.slider.containsPoint(pos)) {
+				this.slider.mouseDown(pos);
+				this.sliderActive = true;
+			}else if(this.currentTool == Timeline.SCROLL){
+				initResize.call(this);
+			}else{
+				this.slider.middle = pos.x;
+				this.render();
+				if(pos.y > this.height - this.sliderHeight){
+					this.slider.mouseDown(pos);
+					this.sliderActive = true;
+					this.canvas.style.cursor = this.cursors.move;
+				}
+			}
+		}else if(pos.y < this.keyHeight+this.trackPadding) { // Check the key
+			i = this.view.pixelToTime(pos.x);
+			this.currentTime = i;
+			this.emit('jump',i);
+			this.emit('timeupdate',i);
+		}else switch(this.currentTool){
+			case Timeline.CREATE:
+				track = this.trackFromPos(pos);
+				if(track && track.active && !track.locked){
+					this.activeElement = new Timeline.Placeholder(this, track, pos.x);
+				}
+				break;
+			case Timeline.REPEAT:
+				if(this.abRepeatOn){ this.clearRepeat(); }
+				else if(this.repeatA == null){ this.setA(pos); }
+				else{ this.setB(pos); }
+				break;
+			case Timeline.SCROLL:
+				initScroll.call(this);
+			default:
+				// Check all the segments
+				track_loop: for(i=0;track=this.tracks[i];i++) {
+					//search backwards 'cause later segments are on top
+					for(j=track.visibleSegments.length-1;seg = track.visibleSegments[j];j--) {
+						if(!seg.containsPoint(pos)) { continue; }
+						this.activeElement = seg;
+						seg.mouseDown(pos);
+						break track_loop;
+					}
+				}
+		}
+		
+		ev.preventDefault();
+	}
 	
 	return Timeline;
 }());

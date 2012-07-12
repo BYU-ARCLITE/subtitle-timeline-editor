@@ -7,52 +7,82 @@
 	}
 	
 	function Slider(tl) {
-		var x = 0,
-			width = tl.sliderHandleWidth*3;
+		var view = tl.view;
 		this.tl = tl;
 		this.active = false;
-		this.resizeSide = 0;
-
-		Object.defineProperties(this, {
-			width: {
-				get: function(){ return width; },
-				set: function(val){
-					width = Math.min(Math.max(val, tl.sliderHandleWidth*3), tl.width - x);//, 1800*tl.width/tl.length);
-					return width;
-				}
-			},
-			x: {
-				get: function(){ return x; },
-				set: function(val){ return x = Math.min(tl.width-width, Math.max(0,val)); }
-			},
-			startx: {
-				get: function(){ return x; },
-				set: function(val){
-					var nx = Math.min(tl.width-width, Math.max(0,val));
-					width = Math.min(Math.max(width + x - nx, tl.sliderHandleWidth*3), tl.width - x);
-					return x = nx;
-				},
-				enumerable: true
-			},
-			endx: {
-				get: function(){ return x+width; },
-				set: function(val){
-					width = Math.min(Math.max(val - x, tl.sliderHandleWidth*3), tl.width - x);//, 1800*tl.view.width/tl.length);
-					return x + width;
-				},enumerable: true
-			}
-		});
-		
-		this.startingX = 0;
-		this.startingWidth = 0;
+		this.resizeSide = 0;		
+		this.initStart = 0;
+		this.initEnd = 0;
 	}
-
+	
+	function move(diff){
+		if(diff > 0){
+			if(this.initEnd+diff <= this.tl.width){
+				this.endx = this.initEnd+diff;
+				this.startx = this.initStart+diff;
+			}else{
+				this.endx = this.tl.width;
+				this.startx = this.initStart+this.tl.width-this.initEnd;
+			}
+		}else{
+			if(this.initStart+diff >= 0){
+				this.startx = this.initStart+diff;
+				this.endx = this.initEnd+diff;
+			}else{
+				this.startx = 0;
+				this.endx = this.initEnd-this.initStart;
+			}
+		}
+	}
+	
 	Proto = Slider.prototype;
+	
+	Object.defineProperties(Proto, {
+		startx: {
+			get: function(){
+				var tl = this.tl;
+				return Math.round(tl.view.startTime*(tl.width-3*tl.sliderHandleWidth)/(tl.length-tl.width/1000));
+			},
+			set: function(px){
+				var tl = this.tl;
+				tl.view.startTime = px*(tl.length-tl.width/1000)/(tl.width-3*tl.sliderHandleWidth);
+			},enumerable: true
+		},
+		endx: {
+			get: function(){
+				var tl = this.tl,
+					tw = tl.width/1000,
+					mw = 3*tl.sliderHandleWidth;
+				return mw + Math.round((tl.view.endTime-tw)*(tl.width-mw)/(tl.length-tw));
+			},
+			set: function(px){
+				var tl = this.tl,
+					tw = tl.width/1000,
+					mw = 3*tl.sliderHandleWidth;
+				tl.view.endTime = tw + (px - mw)*(tl.length-tw)/(tl.width-mw);
+			},enumerable: true
+		},
+		middle: {
+			get: function(){
+				var tl = this.tl,
+					view = tl.view,
+					tw = tl.width/1000,
+					mw = 3*tl.sliderHandleWidth;
+				return (mw + (tl.view.endTime + tl.view.startTime - tw)*(tl.width-mw)/(tl.length-tw))/2;
+			},
+			set: function(px){
+				var diff = px - this.middle;
+				this.initEnd = this.endx;
+				this.initStart = this.startx;
+				move.call(this,diff);
+			},enumerable: true
+		}
+	});
 	
 	// Event handlers
 	Proto.mouseDown = function(pos) {
-		this.startingX = this.x;
-		this.startingWidth = this.width;
+		this.initStart = this.startx;
+		this.initEnd = this.endx;
 
 		// Check to see if the handle was clicked
 		this.resizeSide = this.onHandle(pos);
@@ -65,13 +95,13 @@
 			diff = pos.x - this.tl.mouseDownPos.x;
 			switch(this.resizeSide){
 				case -1:
-					this.x = Math.min(Math.max(this.startingX + diff,0), this.startingX+this.startingWidth-this.tl.sliderHandleWidth*3);
-					//, this.startingX+this.startingWidth - 1800*this.tl.width/this.tl.length);
-					this.width = this.startingWidth + (this.startingX - this.x);
+					this.startx = this.initStart + diff;
 					break;
-				case 0: this.x = this.startingX + diff;
+				case 0:
+					move.call(this,diff);
 					break;
-				case 1: this.width = this.startingWidth + diff;
+				case 1:
+					this.endx = this.initEnd + diff;
 			}
 			this.tl.render();
 		}
@@ -96,20 +126,20 @@
 	};
 
 	Proto.render = function() {
-		var i, k, tl = this.tl,
+		var tl = this.tl,
 			images = tl.images,
 			ctx = tl.ctx,
-			start = Math.round(this.startx),
-			end = Math.round(this.endx),
-			top = tl.height - tl.sliderHeight;
+			start = this.startx,
+			end = this.endx - tl.sliderHandleWidth;
 		
-		ctx.drawImage(images.sliderLeft, start, top);
+		
 		ctx.save();
-		ctx.translate(start + tl.sliderHandleWidth, top);
+		ctx.translate(0, tl.height - tl.sliderHeight);
+		ctx.drawImage(images.sliderLeft, start, 0);
+		ctx.drawImage(images.sliderRight, end, 0);
 		ctx.fillStyle = ctx.createPattern(images.sliderMid, "repeat-x");
-		ctx.fillRect(0, 0, Math.ceil(this.width) - 2*tl.sliderHandleWidth, tl.sliderHeight);
+		ctx.fillRect(start + tl.sliderHandleWidth, 0, end - start - tl.sliderHandleWidth, tl.sliderHeight);
 		ctx.restore();
-		ctx.drawImage(images.sliderRight, end - tl.sliderHandleWidth, top);
 	};
 	
 	Timeline.Slider = Slider;
