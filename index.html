@@ -93,7 +93,8 @@
 <button id="repb">REPEAT</button>
 <button id="scrb">SCROLL</button>
 <button id="undb"> UNDO </button>
-<select id="activetracks" multiple><option value="new" selected>new</option></select>
+<button id="savb"> SAVE </button>
+<select id="activetracks" multiple></select>
 <div id="tl"></div>
 
 <script type="text/javascript">
@@ -277,7 +278,7 @@ timeline = new Timeline(target, {
 	start: 0,
 	end: 240
 });
-timeline.addTextTrack([], "new", "en");
+//timeline.addTextTrack([], prompt('filename'), "en");
 window.addEventListener('resize',function(){ timeline.width = window.innerWidth; }, false);
 
 // Define the timeline callbacks
@@ -343,6 +344,9 @@ document.getElementById("scrb").addEventListener('click',function(){
 },false);
 document.getElementById("undb").addEventListener('click',function(){
 	timeline.tracker.undo();		
+},false);
+document.getElementById("savb").addEventListener('click',function(){
+	timeline.save('vtt',prompt('filename'));		
 },false);
 atracks.addEventListener('change',function(){
 	var i, opts = atracks.options,

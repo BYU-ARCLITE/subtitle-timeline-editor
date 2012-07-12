@@ -113,11 +113,11 @@
 	};
 	
 	Proto.toVTT = function(){
-		return "WEBVTT\n\n"+this.segments.map(function(seg){ return this.toVTT(); }).join('');
+		return "WEBVTT\r\n\r\n"+this.segments.map(function(seg){ return seg.toVTT(); }).join('');
 	};
 	
 	Proto.toSRT = function(){
-		return this.segments.map(function(seg){ return this.toSRT(); }).join('');
+		return this.segments.map(function(seg){ return seg.toSRT(); }).join('');
 	};
 	
 	function Segment(track, cue) {

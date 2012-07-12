@@ -4,22 +4,28 @@
 		throw new Error("Timeline Uninitialized");
 	}
 	
+	if(!XMLHttpRequest.prototype.sendAsBinary){
+		XMLHttpRequest.prototype.sendAsBinary = function(str){
+			this.send((new Uint8Array(Array.prototype.map.call(str,function(x){return x.charCodeAt(0)&0xff;}))).buffer);
+		};
+	}
+	
 	function Persistence(tl) {
+		var that = this;
 		this.tl = tl;
-		this.saved = true;
-		
-		var xhr = new XMLHttpRequest();
-		xhr.onreadystatechange = function(){
-			if (xhr.readyState==4){
-				if(xhr.status>=200 &&  xhr.status<400){
-					this.saveSuccess(xhr.responseText);
+		this.saved = true;		
+		this.xhr = new XMLHttpRequest();
+		this.xhr.onreadystatechange = function(){
+			if(this.readyState==4){
+				if(this.status>=200 &&  this.status<400){
+					that.saveSuccess(this.responseText);
 				}else{
-					this.saveError(xhr.responseText);
+					that.saveError(this.responseText);
 				}
 			}
 		};
 		
-		Object.defineProperty(this,'xhr',{get: function(){ return xhr; }});
+		Object.defineProperty(this,'xhr',{writable: false});
 	}
 
 	Persistence.prototype.target = "ajax/saver.php";
@@ -35,8 +41,7 @@
 		var i, boundary, notunique,
 			xhr = this.xhr;
 		
-		do{
-			boundary = "TimeLineVTT----" + (new Date).getTime();
+		do{	boundary = "TimeLineVTT----" + (new Date).getTime();
 			for(notunique = false, i = 0; i < parts.length; i++){
 				if(parts[i].indexOf(boundary) !== -1){
 					notunique = true;
@@ -55,18 +60,17 @@
 	}
 	
 	function addSuffix(name,suffix){
-		return (name.toUpperCase().substr(name.length-suffix.length) === suffix)?
+		return (name.substr(name.length-suffix.length).toLowerCase() === suffix)?
 				name:name+"."+suffix;
 	}
 	
-	Persistence.prototype.save = function(suffix, id) {
+	Persistence.prototype.save = function(type, id) {
 		var track, that = this,
 			tl = this.tl,
-			serializer, mime;
-		suffix = suffix.toUpperCase();
-		
-		serializer = "to"+suffix;
-		mime = {SRT:"text/srt",VTT:"text/vtt"}[suffix];
+			serializer = "to"+type.toUpperCase(),
+			suffix = type.toLowerCase(),
+			mime = {srt:"text/srt",vtt:"text/vtt"}[suffix];
+			
 		if(!mime){ throw new Error("Unsupported file type."); }
 			
 		sendParts.call(this,
@@ -80,6 +84,7 @@
 	
 	Persistence.prototype.saveSuccess = function(data){
 		this.saved = true;
+		alert(data);
 	};
 
 	Persistence.prototype.saveError = function(data) {
