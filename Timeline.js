@@ -528,7 +528,7 @@ var Timeline = (function(){
 	function autoSizeL(){
 		var mx = this.mousePos.x,
 			dx = mx - this.slider.startx;
-		if(mx < this.slider.middle && dx){
+		if(dx){
 			this.view.startTime += dx*this.view.zoom/10;
 			this.render();
 		}
@@ -537,7 +537,7 @@ var Timeline = (function(){
 	function autoSizeR(){
 		var mx = this.mousePos.x,
 			dx = mx - this.slider.endx;
-		if(mx > this.slider.middle && dx){
+		if(dx){
 			this.view.endTime += dx*this.view.zoom/10;
 			this.render();
 		}
@@ -589,11 +589,8 @@ var Timeline = (function(){
 				cursor = this.repeatA == null?'repeatA':'repeatB';
 			}
 		}else if(this.currentTool === Timeline.SCROLL){
-			cursor = (
-						(this.mousePos.y < this.height - this.sliderHeight - this.trackPadding)
-						&& (this.mousePos.x < this.width/2)
-						|| (this.mousePos.x < this.slider.middle)
-					)?'resizeL':'resizeR';
+			cursor = ((this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?
+						(this.mousePos.x < this.width/2):(this.mousePos.x < this.slider.middle))?'resizeL':'resizeR';
 		}else 
 		track_cursor: // Are we on a track?
 		if(track = this.trackFromPos(pos)){

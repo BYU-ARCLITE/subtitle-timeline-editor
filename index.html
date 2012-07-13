@@ -43,7 +43,7 @@
 </style>
 <body>
 <div id="left">
-	Add caption track: <input type="file" id="vttfile" /><button id="tbtn">Empty Track</button><br/>
+	Add caption track: <input type="file" id="vttfile" /><button id="tbtn">Empty Track</button><button id="ubtn">From URL</button><br/>
 	Add audio track: <input type="file" id="audiofile" /><br/><br/>
 	<center>
 	<div id="editor">
@@ -235,6 +235,16 @@ document.getElementById('vttfile').addEventListener('change', function(evt) {
 	timeline.loadTextTrack(evt.target.files[0]);
 }, false);
 
+document.getElementById('tbtn').addEventListener('click', function() {
+	timeline.addTextTrack([], "track"+(t_count++), "en", false);
+	timeline.render();
+}, false);
+
+document.getElementById('ubtn').addEventListener('click', function() {
+	timeline.loadTextTrack(prompt("Enter URL:"), "track"+(t_count++), "en", false);
+	timeline.render();
+}, false);
+
 document.getElementById('audiofile').addEventListener('change', function(evt) {
 	var file = evt.target.files[0]; // FileList object
 	var reader = new FileReader();
@@ -264,11 +274,6 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 	};
 	reader.onerror = function(e){alert(e);};
 	reader.readAsArrayBuffer(file);
-}, false);
-
-document.getElementById('tbtn').addEventListener('click', function() {
-	timeline.addTextTrack([], "track"+(t_count++), "en", false);
-	timeline.render();
 }, false);
 
 // Create the timeline
