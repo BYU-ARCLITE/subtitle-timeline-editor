@@ -7,7 +7,6 @@
 	<script src="../Ayamel.js/Ayamel.js"></script>
 	<script src="../Ayamel.js/Text.js"></script>
 	<script src="../Ayamel.js/Caption.js"></script>
-	<script src="captionWrapper.js"></script>
 	<script src="Timeline.js"></script>
 	<script src="Slider.js"></script>
 	<script src="Placeholder.js"></script>
@@ -124,6 +123,7 @@ var cue = null,
 function text_change(){
 	if(!cue) return;
 	timeline.setText(this.innerHTML);
+	text_el.dir = Ayamel.Text.getDirection(cue.text);
 	caption.displayed && caption.display(video);
 }
 
@@ -186,6 +186,7 @@ function updateEditor(){
 	text_el.removeEventListener('DOMCharacterDataModified', text_change, false);
 	text_el.removeEventListener('DOMSubtreeModified', text_change, false);
 	text_el.innerHTML = cue.text;
+	text_el.dir = Ayamel.Text.getDirection(cue.text);
 	text_el.addEventListener('DOMCharacterDataModified', text_change, false);
 	text_el.addEventListener('DOMSubtreeModified', text_change, false);
 	
@@ -286,7 +287,7 @@ window.addEventListener('resize',function(){ timeline.width = window.innerWidth;
 timeline.on('select',function(seg) {
 	cue = seg.cue;
 	if(!(seg.uid in captions)){
-		captions[seg.uid] = Ayamel.Caption.FromCue(captionWrapper,null,seg.cue);
+		captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue);
 	}
 	caption = captions[seg.uid];
 	updateEditor();
@@ -310,7 +311,7 @@ timeline.on('segments',function(segs){
 	});
 	segs.valid.forEach(function(seg){
 		if(!(seg.uid in captions)){
-			captions[seg.uid] = Ayamel.Caption.FromCue(captionWrapper,null,seg.cue);
+			captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue);
 		}
 		captions[seg.uid].display(video);
 	});
