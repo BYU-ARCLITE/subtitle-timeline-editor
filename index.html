@@ -34,6 +34,12 @@
 	#editor, #linediv {
 		display: none;
 	}
+	#cue_text {
+		width: 40%;
+		height: 6em;
+		overflow: auto;
+		border: 1px solid black;
+	}
 	#left, #right {
 		margin-top: 20px;
 		float: left;
@@ -47,8 +53,8 @@
 	Add audio track: <input type="file" id="audiofile" /><br/><br/>
 	<center>
 	<div id="editor">
-	<textarea id="cue_text" placeholder="Cue text will appear here."></textarea><br/>
-	<table style="text-align:center;">
+	<div id="cue_text" contentEditable="true"></div><br/>
+	<table style="text-align:center;border: 1px solid black;">
 		<tr><td><label for="cue_align">Alignment:</label></td><td><label for="cue_snap">Positioning:</label></td></tr>
 		<tr>
 			<td>
@@ -67,7 +73,7 @@
 		</tr>
 		<tr id="linediv">
 			<td colspan=2>
-				<label for="cue_line">Line Number</label>
+				<label for="cue_line">Line Position</label>
 				<input id="cue_line" type="range" value=0/>
 			</td>
 		</tr>
@@ -105,7 +111,7 @@ var timeline, t_count = 0,
 	controls = document.getElementById("controls"),
 	atracks = document.getElementById("activetracks");
 
-var cue = null, grain = 0,
+var cue = null,
 	caption = null, captions = {},
 	text_el = document.getElementById("cue_text"),
 	align_el = document.getElementById("cue_align"),
@@ -117,79 +123,71 @@ var cue = null, grain = 0,
 
 function text_change(){
 	if(!cue) return;
-	timeline.setText(this.value);
-	caption.Update(cue);
-	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
+	timeline.setText(this.innerHTML);
+	caption.displayed && caption.display(video);
 }
 
 function line_change(){
 	if(!cue) return;
 	cue.rawLine = this.valueAsNumber;
-	caption.Update(cue);
+	caption.displayed && caption.display(video);
 }
 
 function pos_change(){
 	if(!cue) return;
 	cue.position = this.value+"%";
-	caption.Update(cue);
-	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
+	caption.displayed && caption.display(video);
 }
 
 function size_change(){
 	if(!cue) return;
 	cue.size = this.value+"%";
-	caption.Update(cue);
-	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
+	caption.displayed && caption.display(video);
 }
 
 function align_change(){
 	if(!cue) return;
 	cue.align = this.value;
-	caption.Update(cue);
+	caption.displayed && caption.display(video);
 }
 
 function snap_change(){
 	if(!cue) return;
-	var cheight, cstyle;
 	if(this.value === "auto"){
 		cue.snapToLines = true;
 		cue.rawLine = "auto";
 		line_form.style.display = "none";	
 	}else{
 		cstyle = getComputedStyle(caption.el);
-		cheight = parseInt(getComputedStyle(video).height,10);
+		vheight = video.clientHeight;
 		switch(this.value){
 			case "percent":
 				cue.snapToLines = false;
-				if(cue.rawLine === 'auto'){
-					cue.rawLine = 0;
-				}else if(cue.rawLine < 0){
-					cue.rawLine = Math.round(100*(1-(parseInt(cstyle.bottom,10)+parseInt(cstyle.height,10))/cheight));
-				}else{
-					cue.rawLine = Math.round(100*parseInt(cstyle.top,10)/cheight);
-				}
+				cue.rawLine = cue.rawLine==='auto'?100:0;
 				line_el.type = "range";
 				line_el.max = 100;
 				line_el.min = 0;
 				break;
 			case "snap":
 				cue.snapToLines = true;
-				cue.rawLine = cue.rawLine==='auto'?0:Math.round(parseInt(cstyle.top,10)*cheight/(100*grain));
+				cue.rawLine = cue.rawLine==='auto'?-1:0;
 				line_el.type = "number"
 				line_el.max = null;
 				line_el.min = null;
 				break;
 		}
 		line_el.value = cue.rawLine;
-		line_form.style.display = "inline";
+		line_form.style.display = "table-row";
 	}
-	caption.Update(cue);
+	caption.displayed && caption.display(video);
 };
 
 function updateEditor(){
-	text_el.removeEventListener('change', text_change, false);
-	text_el.value = cue.text;
-	text_el.addEventListener('change', text_change, false);
+	text_el.removeEventListener('DOMCharacterDataModified', text_change, false);
+	text_el.removeEventListener('DOMSubtreeModified', text_change, false);
+	text_el.innerHTML = cue.text;
+	text_el.addEventListener('DOMCharacterDataModified', text_change, false);
+	text_el.addEventListener('DOMSubtreeModified', text_change, false);
 	
 	size_el.removeEventListener('change', size_change, false);
 	size_el.value = parseInt(cue.size,10);
@@ -227,8 +225,6 @@ function updateEditor(){
 	pos_el.removeEventListener('change', pos_change, false);
 	pos_el.value = parseInt(cue.position,10);
 	pos_el.addEventListener('change', pos_change, false);
-	
-	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
 }
 
 document.getElementById('vttfile').addEventListener('change', function(evt) {
@@ -293,13 +289,17 @@ timeline.on('select',function(seg) {
 		captions[seg.uid] = Ayamel.Caption.FromCue(captionWrapper,null,seg.cue);
 	}
 	caption = captions[seg.uid];
-	grain = parseInt(getComputedStyle(caption.el).lineHeight,10);
 	updateEditor();
 	editor.style.display = "block";
 });
 timeline.on('unselect',function() {
 	cue = null;
 	editor.style.display = "none";
+});
+timeline.on('update',function(seg) {
+	if(cue === seg.cue && seg.deleted){
+		editor.style.display = "none";
+	}
 });
 timeline.on('jump', function(time) {
 	controls.currentTime = time;
@@ -348,7 +348,7 @@ document.getElementById("scrb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.SCROLL;		
 },false);
 document.getElementById("undb").addEventListener('click',function(){
-	timeline.tracker.undo();		
+	timeline.tracker.undo();
 },false);
 document.getElementById("savb").addEventListener('click',function(){
 	timeline.save('vtt',prompt('filename'));		

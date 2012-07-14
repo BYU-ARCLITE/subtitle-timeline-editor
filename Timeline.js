@@ -77,6 +77,7 @@ var Timeline = (function(){
 		this.selectedSegment = null;
 		this.currentSegments = [];
 		this.sliderActive = false;
+		this.scrubActive = false;
 		
 		this.slider = new Timeline.Slider(this);
 		this.tracker = new Timeline.Tracker(this);
@@ -151,7 +152,7 @@ var Timeline = (function(){
 
 	Proto.emit = function(evt, data){
 		var that = this, fns = this.events[evt];
-		fns && fns.forEach(function(cb){ setTimeout(cb.bind(that,data),0); });
+		fns && fns.forEach(function(cb){ cb.call(that,data); });
 	};
 
 	Proto.on = function(name, cb){
@@ -308,7 +309,7 @@ var Timeline = (function(){
 		this.emit('segments',{
 			valid:cursegs,
 			invalid:oldsegs.filter(function(seg){
-				return !seg.track.active || seg.startTime > time || seg.endTime < time;
+				return seg.deleted || !seg.track.active || seg.startTime > time || seg.endTime < time;
 			})
 		});
 	};
@@ -508,20 +509,15 @@ var Timeline = (function(){
 	
 	function autoScroll(){
 		var delta = this.mousePos.x/this.width-.5;
-		if((this.mouseDownPos.x>this.width/2)?delta > 0:delta < 0){
+		if(delta){
 			this.view.move(10*(delta)*this.view.zoom);
 			this.render();
 		}
 	}
 
 	function initScroll(){
-		if(this.mouseDownPos.x < this.width/2){
-			this.currentCursor = 'resizeL';
-			this.canvas.style.cursor = this.cursors.resizeL;
-		}else{
-			this.currentCursor = 'resizeR';
-			this.canvas.style.cursor = this.cursors.resizeR;
-		}
+		this.currentCursor = 'move';
+		this.canvas.style.cursor = this.cursors.move;
 		this.scrollInterval = setInterval(autoScroll.bind(this),1);
 	}
 	
@@ -589,8 +585,8 @@ var Timeline = (function(){
 				cursor = this.repeatA == null?'repeatA':'repeatB';
 			}
 		}else if(this.currentTool === Timeline.SCROLL){
-			cursor = ((this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?
-						(this.mousePos.x < this.width/2):(this.mousePos.x < this.slider.middle))?'resizeL':'resizeR';
+			cursor =	(this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?'move':
+						(this.mousePos.x < this.slider.middle)?'resizeL':'resizeR';
 		}else 
 		track_cursor: // Are we on a track?
 		if(track = this.trackFromPos(pos)){
@@ -630,12 +626,16 @@ var Timeline = (function(){
 	}
 	
 	function mouseMove(ev) {
-		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
+		var i, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
 		
 		this.mousePos = pos;
 		
 		if(this.scrollInterval){ return; }
-		if(this.currentTool == Timeline.REPEAT
+		if(this.scrubActive){
+			i = this.view.pixelToTime(pos.x);
+			this.emit('jump',i);
+			this.currentTime = i;
+		}else if(this.currentTool == Timeline.REPEAT
 			&& this.repeatA != null && !this.abRepeatOn){
 			this.updateB(pos);
 		}else if(this.sliderActive){
@@ -652,7 +652,10 @@ var Timeline = (function(){
 	function mouseUp(ev) {
 		var id, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
 		
-		if(this.scrollInterval){
+		if(this.scrubActive){
+			this.scrubActive = false;
+			updateCursor.call(this,pos);
+		}else if(this.scrollInterval){
 			clearInterval(this.scrollInterval);
 			this.scrollInterval = null;
 			for(id in this.audio){ this.audio[id].redraw(); }
@@ -694,10 +697,10 @@ var Timeline = (function(){
 				}
 			}
 		}else if(pos.y < this.keyHeight+this.trackPadding) { // Check the key
+			this.scrubActive = true;
 			i = this.view.pixelToTime(pos.x);
-			this.currentTime = i;
 			this.emit('jump',i);
-			this.emit('timeupdate',i);
+			this.currentTime = i;
 		}else switch(this.currentTool){
 			case Timeline.CREATE:
 				track = this.trackFromPos(pos);

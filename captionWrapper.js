@@ -7,6 +7,7 @@ var captionWrapper = (function(){
 		position = "relative";
 		width = "auto";
 		display = "inline-block";
+		overflow = "hidden";
 	}
 	with(tstyle.style){
 		position = "relative";

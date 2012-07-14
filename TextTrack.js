@@ -63,7 +63,7 @@
 		if(this.active && seg.startTime < this.tl.view.endTime && seg.endTime > this.tl.view.startTime){
 			tl.updateCurrentSegments();
 		}
-		tl.emit('update');
+		tl.emit('update',seg);
 		return seg;
 	};
 	
@@ -175,7 +175,7 @@
 				}));
 				cue.text = t;
 				tl.renderTrack(this.track);
-				tl.emit('update');
+				tl.emit('update',this);
 				return t;
 			},
 			get: function(){return this.cue.text;},
@@ -258,12 +258,13 @@
 				this.action.attributes.finalStart = this.startTime;
 				this.action.attributes.finalEnd = this.endTime;
 				tl.tracker.addAction(this.action);
-				tl.emit('update');
+				tl.emit('update',this);
 				this.track.segments.sort(Segment.order);
 				break;
 			case Timeline.DELETE:
 				// Delete tool
 				this.deleted = true;
+				this.selected = false;
 				
 				// Save the delete
 				tl.tracker.addAction(new Timeline.Action("delete",{
@@ -272,7 +273,8 @@
 				}));
 				tl.selectedSegment = null;
 				tl.render();
-				tl.emit('update');
+				tl.updateCurrentSegments();
+				tl.emit('update',this);
 				break;
 			case Timeline.RESIZE:
 				this.resizeSide = 0;
@@ -280,7 +282,7 @@
 				this.action.attributes.finalStart = this.startTime;
 				this.action.attributes.finalEnd = this.endTime;
 				tl.tracker.addAction(this.action);
-				tl.emit('update');
+				tl.emit('update',this);
 				this.track.segments.sort(Segment.order);
 		}
 	};
@@ -355,7 +357,7 @@
 			shape = this.getShape(),
 			x = shape.x,
 			y = shape.y,
-			direction, dir;
+			direction, dir, text, t_el;
 			
 		// is it on the screen
 		if(x > -shape.width && x < tl.width) {
@@ -399,12 +401,16 @@
 					y = tl.segmentTextPadding;
 				}
 				
-				direction = Ayamel.Text.getDirection(this.text);
+				t_el = document.createElement('span');
+				t_el.innerHTML = this.text;
+				text = t_el.innerText;
+				
+				direction = Ayamel.Text.getDirection(text);
 				tl.canvas.dir = direction;
 				
 				ctx.font = fonts.segmentFont;
 				ctx.fillStyle = fonts.segmentTextColor;
-				ctx.fillText(this.text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
+				ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
 				
 				tl.canvas.dir = dir; //restore
 			}

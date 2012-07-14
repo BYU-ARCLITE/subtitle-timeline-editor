@@ -44,6 +44,8 @@
 		}
 		
 		this.tl.renderTrack(track);
+		this.tl.emit('update',s);
+		this.tl.updateCurrentSegments();
 		this.updateDebug();
 	};
 
