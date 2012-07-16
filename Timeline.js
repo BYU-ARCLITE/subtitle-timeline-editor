@@ -65,6 +65,8 @@ var Timeline = (function(){
 					}
 					return width;				
 				},enumerable: true
+			},timeMarkerPos: {
+				value: 0, writable: true
 			}
 		});
 		
@@ -86,7 +88,6 @@ var Timeline = (function(){
 		this.persistence = new Timeline.Persistence(this);
 		this.view = new Timeline.View(this, params.start || 0, params.end || 60);
 		
-		this.timeMarkerPos = 0;
 		this.repeatA = null;
 		this.repeatB = null;
 		this.abRepeatOn = false;
@@ -443,8 +444,7 @@ var Timeline = (function(){
 			},
 			get: function(){return this.timeMarkerPos;},
 			enumerable: true
-		},
-		timeMarkerPos: {enumerable: false}
+		}
 	});
 
 	Proto.setA = function(pos) {
