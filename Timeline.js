@@ -67,6 +67,9 @@ var Timeline = (function(){
 				},enumerable: true
 			}
 		});
+		
+		this.multi = params.multi;
+		this.selectedSegments = [];
 			
 		this.events = {};
 		this.tracks = [];
@@ -74,7 +77,6 @@ var Timeline = (function(){
 		this.trackIndices = {};
 		
 		this.activeElement = null;
-		this.selectedSegment = null;
 		this.currentSegments = [];
 		this.sliderActive = false;
 		this.scrubActive = false;
@@ -167,30 +169,6 @@ var Timeline = (function(){
 	 * 
 	 * Author: Joshua Monson
 	 **/
-	 
-	Proto.select = function(seg){
-		if(this.selectedSegment != null){
-			this.selectedSegment.selected = false;
-		}
-		this.selectedSegment = seg;
-		seg.selected = true;
-		this.render();
-		this.emit('select', seg);
-	};
-
-	Proto.unselect = function(){
-		var seg = this.selectedSegment;
-		this.selectedSegment = null;
-		seg.selected = false;
-		this.renderTrack(seg.track);
-		this.emit('unselect');
-	};
-
-	Proto.setText = function(text) {
-		if(this.selectedSegment != null) {
-			this.selectedSegment.text = text;
-		}
-	};
 
 	Proto.getTrackTop = function(track) {
 		return this.keyHeight + this.trackPadding + (this.trackIndices[track.id] * (this.trackHeight + this.trackPadding));

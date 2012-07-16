@@ -38,8 +38,11 @@
 			case "delete":
 				s.deleted = false;
 				break;
-			case "update":
+			case "changetext":
 				s.cue.text = e.attributes.initialText;
+				break;
+			case "changeid":
+				s.cue.id = e.attributes.initialId;
 				break;
 		}
 		

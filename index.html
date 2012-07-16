@@ -52,9 +52,10 @@
 	Add audio track: <input type="file" id="audiofile" /><br/><br/>
 	<center>
 	<div id="editor">
+	Title: <input type="text" id="cue_id"/><br/>
 	<div id="cue_text" contentEditable="true"></div><br/>
 	<table style="text-align:center;border: 1px solid black;">
-		<tr><td><label for="cue_align">Alignment:</label></td><td><label for="cue_snap">Positioning:</label></td></tr>
+		<tr><td><label for="cue_align">Alignment:</label></td><td/><td><label for="cue_snap">Positioning:</label></td></tr>
 		<tr>
 			<td>
 				<select id="cue_align">
@@ -62,6 +63,8 @@
 					<option value="middle" selected>Middle</option> 
 					<option value="end">End</option>
 				</select>
+			</td><td>
+				<button id="fbtn">Flip</button>
 			</td><td>
 				<select id="cue_snap">
 					<option value="auto">Auto</option>
@@ -71,13 +74,13 @@
 			</td>
 		</tr>
 		<tr id="linediv">
-			<td colspan=2>
+			<td colspan=3>
 				<label for="cue_line">Line Position</label>
 				<input id="cue_line" type="range" value=0/>
 			</td>
 		</tr>
-		<tr><td><label for="cue_pos">Indentation</label></td><td><label for="cue_size">Caption Size</label></td></tr>
-		<tr><td><input id="cue_pos" type="range" value=50/></td><td><input id="cue_size" type="range" value=100 min=0 max=100 /></td></tr>
+		<tr><td><label for="cue_pos">Indentation</label></td><td/><td><label for="cue_size">Caption Size</label></td></tr>
+		<tr><td><input id="cue_pos" type="range" value=50/></td><td/><td><input id="cue_size" type="range" value=100 min=0 max=100 /></td></tr>
 	</table>
 	</center>
 	</div>
@@ -110,8 +113,9 @@ var timeline, t_count = 0,
 	controls = document.getElementById("controls"),
 	atracks = document.getElementById("activetracks");
 
-var cue = null,
+var curseg = null,
 	caption = null, captions = {},
+	id_el = document.getElementById("cue_id"),
 	text_el = document.getElementById("cue_text"),
 	align_el = document.getElementById("cue_align"),
 	snap_el = document.getElementById("cue_snap"),
@@ -120,39 +124,50 @@ var cue = null,
 	pos_el = document.getElementById("cue_pos"),
 	size_el = document.getElementById("cue_size");	
 
+function id_change(){
+	var id;
+	if(!curseg) return;
+	id = this.value;
+	curseg.id = id;
+	this.dir = Ayamel.Text.getDirection(id);
+}
+	
 function text_change(){
-	if(!cue) return;
-	timeline.setText(this.innerHTML);
-	text_el.dir = Ayamel.Text.getDirection(cue.text);
+	var text;
+	if(!curseg) return;
+	text = this.innerHTML;
+	curseg.text = text;
+	this.dir = Ayamel.Text.getDirection(text);
 	caption.displayed && caption.display(video);
 }
 
 function line_change(){
-	if(!cue) return;
-	cue.rawLine = this.valueAsNumber;
+	if(!curseg) return;
+	curseg.cue.rawLine = this.valueAsNumber;
 	caption.displayed && caption.display(video);
 }
 
 function pos_change(){
-	if(!cue) return;
-	cue.position = this.value+"%";
+	if(!curseg) return;
+	curseg.cue.position = this.value+"%";
 	caption.displayed && caption.display(video);
 }
 
 function size_change(){
-	if(!cue) return;
-	cue.size = this.value+"%";
+	if(!curseg) return;
+	curseg.cue.size = this.value+"%";
 	caption.displayed && caption.display(video);
 }
 
 function align_change(){
-	if(!cue) return;
-	cue.align = this.value;
+	if(!curseg) return;
+	curseg.cue.align = this.value;
 	caption.displayed && caption.display(video);
 }
 
 function snap_change(){
-	if(!cue) return;
+	if(!curseg) return;
+	var cue = curseg.cue;
 	if(this.value === "auto"){
 		cue.snapToLines = true;
 		cue.rawLine = "auto";
@@ -183,6 +198,12 @@ function snap_change(){
 };
 
 function updateEditor(){
+	var cue = curseg.cue;
+	
+	id_el.removeEventListener('change', id_change, false);
+	id_el.value = cue.id;
+	id_el.addEventListener('change', id_change, false);
+	
 	text_el.removeEventListener('DOMCharacterDataModified', text_change, false);
 	text_el.removeEventListener('DOMSubtreeModified', text_change, false);
 	text_el.innerHTML = cue.text;
@@ -242,9 +263,21 @@ document.getElementById('ubtn').addEventListener('click', function() {
 	timeline.render();
 }, false);
 
+document.getElementById('fbtn').addEventListener('click', function() {
+	var a = align_el.value, cue = curseg.cue;
+	if(a === 'middle'){ return; }
+	else{
+		align_el.value = a==='start'?'end':'start';
+		cue.align = align_el.value;
+		pos_el.value = 100-pos_el.valueAsNumber;
+		cue.position = pos_el.value+"%";
+		caption.displayed && caption.display(video);
+	}
+}, false);
+
 document.getElementById('audiofile').addEventListener('change', function(evt) {
-	var file = evt.target.files[0]; // FileList object
-	var reader = new FileReader();
+	var file = evt.target.files[0], // FileList object
+		reader = new FileReader();
 	// Closure to capture the file information.
 	reader.onload = function(evt) {
 		(new webkitAudioContext).decodeAudioData(evt.target.result, function(buffer) {
@@ -264,7 +297,11 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 			wave.addFrame(frame);
 			console.log("loaded");
 			timeline.addAudioTrack(wave,file.name);
-			timeline.setAudioTrack("new",file.name);
+			for(i=0;i<atracks.options.length;i++){
+				if(atracks.options[i].selected){
+					timeline.setAudioTrack(atracks.options[i].value,file.name);
+				}
+			}
 		}, function(err){
 			console.log(err);
 		});
@@ -278,14 +315,14 @@ timeline = new Timeline(target, {
 	width: window.innerWidth,
 	length: 7000,
 	start: 0,
-	end: 240
+	end: 240,
+	multi: false
 });
-//timeline.addTextTrack([], prompt('filename'), "en");
 window.addEventListener('resize',function(){ timeline.width = window.innerWidth; }, false);
 
 // Define the timeline callbacks
 timeline.on('select',function(seg) {
-	cue = seg.cue;
+	curseg = seg;
 	if(!(seg.uid in captions)){
 		captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue);
 	}
@@ -293,12 +330,13 @@ timeline.on('select',function(seg) {
 	updateEditor();
 	editor.style.display = "block";
 });
-timeline.on('unselect',function() {
-	cue = null;
+timeline.on('unselect',function(seg) {
+	if(curseg !== seg) return;
+	curseg = null;
 	editor.style.display = "none";
 });
 timeline.on('update',function(seg) {
-	if(cue === seg.cue && seg.deleted){
+	if(curseg === seg && seg.deleted){
 		editor.style.display = "none";
 	}
 });

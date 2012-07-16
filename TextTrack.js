@@ -29,11 +29,8 @@
 					val = !!val;
 					if(val != active){
 						active = val;
-						if(!active && tl.selectedSegment && tl.selectedSegment.track === this){
-							tl.unselect();
-						}else{
-							tl.renderTrack(this);
-						}
+						if(!active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
+						tl.renderTrack(this);
 						if(this.audioId){ tl.audio[this.audioId].draw(); }
 						tl.updateCurrentSegments();
 					}
@@ -45,7 +42,7 @@
 	
 	Proto = TextTrack.prototype;
 	
-	Proto.add = function(start, end, t, i){
+	Proto.add = function(start, end, t, i, select){
 		var tl = this.tl,
 			seg = new Segment(this, (start instanceof Cue)?start:new Cue(i, start, end, t));
 		
@@ -60,10 +57,11 @@
 			initialEnd:seg.endTime
 		}));
 		tl.renderTrack(this);
-		if(this.active && seg.startTime < this.tl.view.endTime && seg.endTime > this.tl.view.startTime){
+		if(this.active && seg.visible){
 			tl.updateCurrentSegments();
 		}
-		tl.emit('update',seg);
+		tl.emit('update', seg);
+		if(select){ seg.select(); }
 		return seg;
 	};
 	
@@ -103,7 +101,7 @@
 		
 		ctx.restore();
 		
-		this.visibleSegments = this.searchRange(startTime,tl.view.endTime).sort(order);
+		this.visibleSegments = this.segments.filter(function(seg){return seg.visible;}).sort(order);
 		this.visibleSegments.forEach(function(seg){
 			if(seg.selected){ selected = seg; }
 			else{ seg.render(); }
@@ -125,10 +123,10 @@
 		this.track = track;
 		this.cue = cue;
 		this.uid = (segId++).toString(36);
-		this.selected = false;
 		this.move = false;
 		this.resize = false;
 		this.deleted = false;
+		this.selected = false;
 		this.action = null;
 		this.resizeSide = 0;
 
@@ -147,8 +145,29 @@
 				return mark > this.cue.startTime && mark < this.cue.endTime;
 			},enumerable: true
 		},
+		visible: {
+			get: function(){
+				var cue = this.cue,
+					view = this.tl.view;
+				return !this.deleted && cue.startTime < view.endTime && cue.endTime > view.startTime;
+			}, enumerable: true
+		},
 		id: {
-			set: function(id){return this.cue.id = id;},
+			set: function(id){
+				var tl = this.tl,
+					cue = this.cue;
+				if(cue.id === id){ return id; }
+				tl.tracker.addAction(new Timeline.Action("changeid",{
+					id:this.uid,
+					track:this.track.id,
+					initialId:cue.id,
+					finalId:id
+				}));
+				cue.id = id;
+				tl.renderTrack(this.track);
+				tl.emit('update',this);
+				return id;
+			},
 			get: function(){return this.cue.id;},
 			enumerable: true
 		},
@@ -167,7 +186,7 @@
 				var tl = this.tl,
 					cue = this.cue;
 				if(cue.text == t){ return t; }
-				tl.tracker.addAction(new Timeline.Action("update",{
+				tl.tracker.addAction(new Timeline.Action("changetext",{
 					id:this.uid,
 					track:this.track.id,
 					initialText:cue.text,
@@ -182,6 +201,37 @@
 			enumerable: true
 		}
 	});
+	
+	Proto.select = function(){
+		var id, tl = this.tl,
+			trackmap = {};
+		if(this.selected){ return; }
+		this.selected = true;
+		if(this.visible){ trackmap[this.track.id] = this.track; }
+		if(!tl.multi){
+			tl.selectedSegments.forEach(function(seg){
+				seg.selected = false;
+				if(seg.visible){ trackmap[seg.track.id] = seg.track; }
+				tl.emit('unselect',seg);
+			});
+			tl.selectedSegments = [this];
+		}else{
+			tl.selectedSegments.push(this);
+		}
+		for(id in trackmap){
+			tl.renderTrack(trackmap[id]);
+		}
+		tl.emit('select',this);
+	};
+	
+	Proto.unselect = function(){
+		if(!this.selected){ return; }
+		var tl = this.tl;
+		this.selected = false;
+		tl.selectedSegments.splice(tl.selectedSegments.indexOf(this),1);
+		if(this.visible){ tl.renderTrack(this.track); }
+		tl.emit('unselect', this);
+	};
 	
 	Proto.toVTT = function(){
 		return this.deleted?"":WebVTT.serialize(this.cue);
@@ -221,8 +271,8 @@
 				
 		switch(this.tl.currentTool){
 			case Timeline.SELECT:
-				if(this.selected){ this.tl.unselect(); }
-				else{ this.tl.select(this); }
+				if(this.selected){ this.unselect(); }
+				else{ this.select(); }
 				break;
 			case Timeline.MOVE:
 				this.move = true;    
@@ -271,8 +321,7 @@
 					id:this.uid,
 					track:this.track.id
 				}));
-				tl.selectedSegment = null;
-				tl.render();
+				tl.renderTrack(this.track);
 				tl.updateCurrentSegments();
 				tl.emit('update',this);
 				break;

@@ -10,7 +10,7 @@
 		this.tl = tl;
 		this.track = track;
 		this.startx = x;
-		this.endx = 0;
+		this.endx = x;
 	}
 
 	Proto = Placeholder.prototype;
@@ -26,8 +26,6 @@
 		ctx.restore();
 	};
 
-	Proto.containsPoint = function(pos) { return false; };
-
 	Proto.mouseMove = function(pos) {
 		this.endx = pos.x;
 		this.tl.renderTrack(this.track);
@@ -35,17 +33,17 @@
 	};
 
 	Proto.mouseUp = function(pos) {
-		var tl = this.tl,
-			seg;
+		var view = this.tl.view,
+			startx, endx;
 
-		// Create a new segment
 		if(this.startx < pos.x){
-			seg = this.track.add(tl.view.pixelToTime(this.startx), tl.view.pixelToTime(pos.x), "");
+			startx = this.startx;
+			endx = pos.x;
 		}else{
-			seg = this.track.add(tl.view.pixelToTime(pos.x), tl.view.pixelToTime(this.startx), "");
+			startx = pos.x;
+			endx = this.startx;
 		}
-		// Automatically select new segments
-		tl.select(seg);
+		this.track.add(view.pixelToTime(startx), view.pixelToTime(endx), "", "", true);
 	};
 	
 	Timeline.Placeholder = Placeholder;
