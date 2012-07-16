@@ -306,7 +306,20 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 			console.log(err);
 		});
 	};
-	reader.onerror = function(e){alert(e);};
+	reader.onerror = function(evt) {
+		switch(evt.target.error.code) {
+			case evt.target.error.NOT_FOUND_ERR:
+				alert('File Not Found!');
+				break;
+			case evt.target.error.NOT_READABLE_ERR:
+				alert('File is not readable');
+				break;
+			case evt.target.error.ABORT_ERR:
+				break;
+			default:
+				alert('An error occurred reading this file.');
+		}
+	};
 	reader.readAsArrayBuffer(file);
 }, false);
 
