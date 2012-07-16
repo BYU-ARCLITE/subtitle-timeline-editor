@@ -35,7 +35,7 @@
 		var i, boundary, notunique,
 			xhr = this.xhr;
 		
-		do{	boundary = "TimeLineVTT----" + (new Date).getTime();
+		do{	boundary = "TimeLineVTT----" + Date.now();
 			for(notunique = false, i = 0; i < parts.length; i++){
 				if(parts[i].indexOf(boundary) !== -1){
 					notunique = true;
@@ -66,14 +66,45 @@
 			mime = {srt:"text/srt",vtt:"text/vtt"}[suffix];
 			
 		if(!mime){ throw new Error("Unsupported file type."); }
+		if(typeof id === 'string'){ //save a single track
+			track = tl.getTrack(id);
+			if(track){
+				sendParts.call(this,[buildPart.call(this,addSuffix(track.id,suffix),track[serializer](),mime)]);
+			}else{
+				throw new Error("No Such Track");
+			}
+		}else{ //save multiple tracks
+			if(id instanceof Array){
+				sendParts.call(this,
+					id
+					.filter(function(tid){return tl.trackIndices.hasOwnProperty(tid);})
+					.map(function(tid){
+						return buildPart.call(that,addSuffix(tid,suffix),tl.getTrack(tid)[serializer](),mime);
+					})
+				);
+			}else{ //save all tracks
+				sendParts.call(this,
+					tl.tracks.map(function(track){
+						return buildPart.call(that,addSuffix(track.id,suffix),track[serializer](),mime);
+					})
+				);
+			}
+		}
+	};
+	
+	Persistence.prototype.saveLocal = function(type, id) {
+		var track, that = this,
+			tl = this.tl,
+			serializer = "to"+type.toUpperCase(),
+			suffix = type.toLowerCase(),
+			mime = {srt:"text/srt",vtt:"text/vtt"}[suffix];
 			
-		sendParts.call(this,
-			(track = tl.getTrack(id))?
-			[buildPart.call(this,addSuffix(track.id,suffix),track[serializer](),mime)]: //save a single track
-			tl.tracks.map(function(track){	//save all the tracks
-				return buildPart.call(that,addSuffix(track.id,suffix),track[serializer](),mime);
-			})
-		);
+		if(!mime){ throw new Error("Unsupported file type."); }
+		if(typeof id !== 'string'){ throw new Error("No track specified."); }
+		track = tl.getTrack(id);
+		if(!track){ throw new Error("Track does not exist."); }
+		
+		window.open("data:"+mime+";charset=UTF-8,"+encodeURIComponent(track[serializer]()));
 	};
 	
 	Persistence.prototype.saveSuccess = function(data){

@@ -481,6 +481,7 @@ var Timeline = (function(){
 	/** Persistence functions **/
 	
 	Proto.save = function(type, id) { this.persistence.save(type, id); };
+	Proto.saveLocal = function(type, id) { this.persistence.saveLocal(type, id); };
 	Proto.loadTextTrack = function(url) { this.persistence.loadTextTrack(url); };
 	
 	/** Scroll Tool Functions **/

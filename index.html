@@ -101,7 +101,8 @@
 <button id="repb">REPEAT</button>
 <button id="scrb">SCROLL</button>
 <button id="undb"> UNDO </button>
-<button id="savb"> SAVE </button>
+<button id="savs"> Save to Server </button>
+<button id="savl"> Save Locally </button>
 <select id="activetracks" multiple></select>
 <div id="tl"></div>
 
@@ -402,8 +403,15 @@ document.getElementById("scrb").addEventListener('click',function(){
 document.getElementById("undb").addEventListener('click',function(){
 	timeline.tracker.undo();
 },false);
-document.getElementById("savb").addEventListener('click',function(){
-	timeline.save('vtt',prompt('filename'));		
+document.getElementById("savs").addEventListener('click',function(){
+	var i, opt, savable = [];
+	for(i=0;opt=atracks.options[i];i++){
+		if(opt.selected){ savable.push(opt); }
+	}
+	timeline.save('vtt',savable);
+},false);
+document.getElementById("savl").addEventListener('click',function(){
+	timeline.saveLocal('vtt',prompt('Track name:'));
 },false);
 atracks.addEventListener('change',function(){
 	var i, opts = atracks.options,
