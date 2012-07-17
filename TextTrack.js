@@ -22,21 +22,25 @@
 		this.visibleSegments = [];
 		this.audioId = null;
 		this.locked = false;
-		Object.defineProperty(this,'active',{
-			get: function(){ return active; },
-			set: function(val){
-				if(!this.locked){
-					val = !!val;
-					if(val != active){
-						active = val;
-						if(!active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
-						tl.renderTrack(this);
-						if(this.audioId){ tl.audio[this.audioId].draw(); }
-						tl.updateCurrentSegments();
+		this.command = false;
+		Object.defineProperties(this,{
+			active: {
+				get: function(){ return active; },
+				set: function(val){
+					if(!this.locked){
+						val = !!val;
+						if(val != active){
+							active = val;
+							if(!active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
+							tl.renderTrack(this);
+							if(this.audioId){ tl.audio[this.audioId].draw(); }
+							if(!this.command){ tl.updateCurrentSegments(); }
+						}
 					}
+					return active;
 				}
-				return active;
-			}
+			},
+			command: {value: typeof language !== 'string', writable: false, enumerable: true}
 		});
 	}
 	
@@ -85,13 +89,24 @@
 			startTime = tl.view.startTime,
 			ctx = tl.ctx,
 			audio = this.audio,
-			selected = null;
+			selected = null,
+			grd;
 		
 		ctx.save();
 		
 		ctx.translate(0,tl.getTrackTop(this));
 		
-		ctx.fillStyle = ctx.createPattern(tl.images.trackBg, "repeat-x");
+		grd = ctx.createLinearGradient(0,0,0,tl.height);
+		if(this.command){
+			grd.addColorStop(0,tl.colors.ctTop);
+			grd.addColorStop(0.5,tl.colors.ctMid);
+			grd.addColorStop(1,tl.colors.ctBottom);
+		}else{
+			grd.addColorStop(0,tl.colors.ttTop);
+			grd.addColorStop(0.5,tl.colors.ttMid);
+			grd.addColorStop(1,tl.colors.ttBottom);
+		}
+		ctx.fillStyle = grd;
 		ctx.fillRect(0, 0, tl.width, tl.trackHeight);
 		
 		ctx.textBaseline = 'middle';
@@ -102,12 +117,9 @@
 		ctx.restore();
 		
 		this.visibleSegments = this.segments.filter(function(seg){return seg.visible;}).sort(order);
-		this.visibleSegments.forEach(function(seg){
-			if(seg.selected){ selected = seg; }
-			else{ seg.render(); }
-		});
-		//save the selected segment for last so it's always on top
-		selected && selected.render();
+		//save the selected segments for last so they're always on top
+		this.visibleSegments.forEach(function(seg){ seg.selected || seg.render(); });
+		this.visibleSegments.forEach(function(seg){ seg.selected && seg.render(); });
 	};
 	
 	Proto.toVTT = function(){
@@ -395,6 +407,8 @@
 		}
 	}
 	
+	var t_el = document.createElement('span');
+	
 	Proto.render = function() {
 		if(this.deleted)
 			return;
@@ -406,7 +420,7 @@
 			shape = this.getShape(),
 			x = shape.x,
 			y = shape.y,
-			direction, dir, text, t_el;
+			direction, dir, text, obj;
 			
 		// is it on the screen
 		if(x > -shape.width && x < tl.width) {
@@ -450,9 +464,16 @@
 					y = tl.segmentTextPadding;
 				}
 				
-				t_el = document.createElement('span');
-				t_el.innerHTML = this.text;
-				text = t_el.innerText;
+				if(this.track.command){
+					obj = JSON.parse(this.text);
+					text = obj.type;
+					if(obj.value){
+						text+=":"+obj.value
+					}
+				}else{
+					t_el.innerHTML = this.text;
+					text = t_el.innerText;
+				}
 				
 				direction = Ayamel.Text.getDirection(text);
 				tl.canvas.dir = direction;

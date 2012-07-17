@@ -251,16 +251,16 @@ function updateEditor(){
 }
 
 document.getElementById('vttfile').addEventListener('change', function(evt) {
-	timeline.loadTextTrack(evt.target.files[0]);
+	timeline.loadTextTrack(evt.target.files[0], prompt("Language?"));
 }, false);
 
 document.getElementById('tbtn').addEventListener('click', function() {
-	timeline.addTextTrack([], "track"+(t_count++), "en", false);
+	timeline.addTextTrack([], "track"+(t_count++), prompt("Language?"));
 	timeline.render();
 }, false);
 
 document.getElementById('ubtn').addEventListener('click', function() {
-	timeline.loadTextTrack(prompt("Enter URL:"), "track"+(t_count++), "en", false);
+	timeline.loadTextTrack(prompt("Enter URL:"), prompt("Language?"));
 	timeline.render();
 }, false);
 
@@ -354,9 +354,10 @@ timeline.on('update',function(seg) {
 		editor.style.display = "none";
 	}
 });
-timeline.on('jump', function(time) {
-	controls.currentTime = time;
-});
+timeline.on('jump', function(time) { controls.currentTime = time; });
+timeline.on('volumechange', function(vol){ controls.volume = vol; });
+timeline.on('ratechange',function(rate){ controls.playbackRate = rate; });
+timeline.on('pause', function(){ controls.pause(); });
 timeline.on('segments',function(segs){
 	segs.invalid.forEach(function(seg){
 		captions[seg.uid].hide();

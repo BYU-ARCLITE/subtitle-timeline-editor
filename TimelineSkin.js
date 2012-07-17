@@ -42,6 +42,12 @@
 		this.bgMid = obj.bgMid || "#3e3f43";
 		this.bgTop = obj.bgTop || "#292a2d";
 		this.bgBottom = obj.bgBottom || "#292a2d";
+		this.ttMid = obj.ttMid || "rgb(36,37,38)";
+		this.ttTop = obj.ttTop || "rgb(18,19,20)";
+		this.ttBottom = obj.ttBottom || "rgb(28,29,30)";
+		this.ctMid = obj.ctMid || "rgb(66,37,38)";
+		this.ctTop = obj.ctTop || "rgb(48,19,20)";
+		this.ctBottom = obj.ctBottom || "rgb(58,29,30)";
 		this.placeholder = obj.placeholder || "rgba(255, 255, 160, 0.5)";
 		this.timeMarker = obj.timeMarker || "rgba(255, 255, 160, 0.5)";
 		this.abRepeat = obj.abRepeat || "rgba(255, 0, 0, 0.4)";
@@ -73,9 +79,7 @@
 		// slider images
 		sliderLeft: genImage("./images/slider_left.png"),
 		sliderRight: genImage("./images/slider_right.png"),
-		sliderMid: genImage("./images/slider_mid.png"),
-		// track images
-		trackBg: genImage("./images/track_bg.png")
+		sliderMid: genImage("./images/slider_mid.png")
 	};
 	function Images(obj){
 		var img, iname;

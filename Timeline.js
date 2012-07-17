@@ -65,10 +65,12 @@ var Timeline = (function(){
 					}
 					return width;				
 				},enumerable: true
-			},timeMarkerPos: {
-				value: 0, writable: true
-			}
+			},
+			timeMarkerPos: { value: 0, writable: true },
+			lastTime: { value: -1, writable: true }
 		});
+		
+		this.lockTime = -1;
 		
 		this.multi = params.multi;
 		this.selectedSegments = [];
@@ -282,7 +284,7 @@ var Timeline = (function(){
 			oldsegs = this.currentSegments,
 			cursegs = [];
 		this.tracks.forEach(function(track){
-			if(track.active){Array.prototype.push.apply(cursegs,track.searchRange(time,time));}
+			if(track.active && !track.command){Array.prototype.push.apply(cursegs,track.searchRange(time,time));}
 		});
 		this.currentSegments = cursegs;
 		this.emit('segments',{
@@ -292,6 +294,47 @@ var Timeline = (function(){
 			})
 		});
 	};
+	
+	function activateCommands(){
+		var i,j,track,com,pieces,
+			prev = this.lastTime;
+		if(this.timeMarkerPos < prev){ return; }
+		for(i=0;track=this.tracks[i];i++){
+			if(track.active && track.command){
+				for(j=0;com=track.segments[j];j++){
+					if(com.active && !(prev > com.cue.startTime && prev < com.cue.endTime)){
+						pieces = JSON.parse(com.cue.text);
+						switch(pieces.type){
+							case 'jump':
+								this.timeMarkerPos = pieces.value;
+								this.updateCurrentSegments();
+								this.emit('jump', pieces.value);
+								this.emit('timeupdate', pieces.value);
+								activateCommands.call(this);
+								return;
+							case 'volume':
+								this.emit('volumechange', Math.min(Math.max(pieces.value,0),1));
+								break;
+							case 'rate':
+								this.emit('ratechange', pieces.value);
+								break;
+							case 'unlock':
+								if(this.lockTime > -1 && pieces.value > this.lockTime){
+									this.lockTime = pieces.value;
+									this.emit('unlock', pieces.value);
+								}
+								break;
+							case 'pause':
+								this.emit('pause');
+								break;
+							case 'trigger':
+								this.emit('trigger', pieces.value);
+						}
+					}
+				}
+			}
+		}
+	}
 	
 	/** Drawing functions **/
 	
@@ -425,13 +468,21 @@ var Timeline = (function(){
 		currentTime: {
 			set: function(time){
 				if(time == this.timeMarkerPos){ return; }
+				if(this.lockTime > -1 && time > this.lockTime){
+					time = this.lockTime;
+					this.emit('jump',time);
+					this.emit('pause');
+				}
 				if(this.abRepeatOn && time > this.repeatB) {
 					time = this.repeatA;
-					this.emit('jump',this.repeatA);
+					this.emit('jump',time);
 				}
+				
+				this.lastTime = this.timeMarkerPos;
 				this.timeMarkerPos = time;
 				this.updateCurrentSegments();
 				this.emit('timeupdate', time);
+				activateCommands.call(this);
 				
 				if(time < this.view.startTime || time > this.view.endTime) {
 					// Move the view
@@ -482,7 +533,7 @@ var Timeline = (function(){
 	
 	Proto.save = function(type, id) { this.persistence.save(type, id); };
 	Proto.saveLocal = function(type, id) { this.persistence.saveLocal(type, id); };
-	Proto.loadTextTrack = function(url) { this.persistence.loadTextTrack(url); };
+	Proto.loadTextTrack = function(url, language) { this.persistence.loadTextTrack(url, language); };
 	
 	/** Scroll Tool Functions **/
 	
