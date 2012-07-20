@@ -353,7 +353,7 @@ var Timeline = (function(){
 		start = view.startTime;
 		start -= start%increment;
 		end = view.endTime;
-		offset = this.canvas.dir === 'ltr' ? 2 : -2;
+		offset = this.canvas.dir === 'rtl' ? -2 : 2;
 		
 		for (position = this.view.timeToPixel(start); start < end; start += increment, position += pixels) {
 
