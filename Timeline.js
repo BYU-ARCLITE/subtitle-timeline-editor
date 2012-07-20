@@ -159,7 +159,7 @@ var Timeline = (function(){
 	};
 
 	Proto.on = function(name, cb){
-		if(name in this.events){ this.events[name].push(cb); }
+		if(this.events.hasOwnProperty(name)){ this.events[name].push(cb); }
 		else{ this.events[name] = [cb]; }
 	};
 		
@@ -214,11 +214,10 @@ var Timeline = (function(){
 	
 	Proto.removeTextTrack = function(id) {
 		var i,track,aid,loc;
-		if(id in this.trackIndices){
+		if(this.trackIndices.hasOwnProperty(id)){
 			loc = this.trackIndices[id];
 			aid = this.tracks[loc].audioId;
-			if(aid in this.audio){ this.audio[aid].references--; }
-			if(aid in this.audio){ this.audio[aid].references--; }
+			if(this.audio.hasOwnProperty(aid)){ this.audio[aid].references--; }
 			track = this.tracks.splice(loc, 1)[0];
 			delete this.trackIndices[id];
 			
@@ -237,7 +236,7 @@ var Timeline = (function(){
 	
 	Proto.addAudioTrack = function(wave, id) {
 		var track;
-		if(id in this.audio){ throw new Error("Track with that id already loaded."); }
+		if(this.audio.hasOwnProperty(id)){ throw new Error("Track with that id already loaded."); }
 		if(wave instanceof Timeline.AudioTrack){
 			track = wave;
 			id = wave.id;
@@ -248,21 +247,9 @@ var Timeline = (function(){
 		this.render();
 	};
 	
-	Proto.setAudioTrack = function(tid, aid){
-		var track;
-		if(!(tid in this.trackIndices)){ return; }
-		track = this.tracks[this.trackIndices[tid]];
-		if(track.audioId in this.audio){ this.audio[track.audioId].references--; }
-		track.audioId = aid;
-		if(aid in this.audio){
-			this.audio[aid].references++;
-			this.audio[aid].render();
-		}
-	};
-	
 	Proto.removeAudioTrack = function(id){
 		var i, top, ctx, track;
-		if(!(id in this.audio)){ return; }
+		if(!this.audio.hasOwnProperty(id)){ return; }
 		if(this.audio[id].references){
 			top = this.keyHeight+this.trackPadding,
 			ctx = this.octx;
@@ -275,7 +262,31 @@ var Timeline = (function(){
 		}
 		delete this.audio[id];
 	};
+
+	Proto.setAudioTrack = function(tid, aid){
+		var track;
+		if(!this.trackIndices.hasOwnProperty(tid)){ return; }
+		track = this.tracks[this.trackIndices[tid]];
+		if(this.audio.hasOwnProperty(track.audioId)){ this.audio[track.audioId].references--; }
+		track.audioId = aid;
+		if(this.audio.hasOwnProperty(aid)){
+			this.audio[aid].references++;
+			this.audio[aid].render();
+		}
+	};
 	
+	Proto.unsetAudioTrack = function(tid){
+		var track, audio;
+		if(!this.trackIndices.hasOwnProperty(tid)){ return; }
+		track = this.tracks[this.trackIndices[tid]];
+		audio = this.audio[track.audioId];
+		if(audio){
+			track.audioId = null;
+			audio.references--;
+			audio.render();
+		}
+	};
+
 	Proto.updateCurrentSegments = function(){
 		var that = this,
 			time = this.timeMarkerPos,

@@ -9,21 +9,26 @@
 	function Tracker(tl) {
 		this.tl = tl;
 		this.events = [];
+		this.index = -1;
 	}
 
 	Proto = Tracker.prototype;
 	
 	Proto.addAction = function(evt) {
-		this.events.push(evt);
+		this.events[++this.index] = evt;
+		if(this.events.length > this.index+1){
+			this.events.length = this.index;
+		}
+		console.log(this.events,this.index);
 		this.updateDebug();
 	};
 	
 	Proto.undo = function() {
 		var e, s, track;
-		if(this.events.length == 0)
+		if(this.index === -1)
 			return;
 
-		e = this.events.pop();
+		e = this.events[this.index--];
 		track = this.tl.getTrack(e.attributes.track);
 		s = track.getSegment(e.attributes.id);
 		switch(e.type){
@@ -49,9 +54,45 @@
 		this.tl.renderTrack(track);
 		this.tl.emit('update',s);
 		this.tl.updateCurrentSegments();
+		console.log(this.events,this.index);
 		this.updateDebug();
 	};
 
+	Proto.redo = function() {
+		var e, s, track;
+		if(this.index >= this.events.length)
+			return;
+
+		e = this.events[++this.index];
+		track = this.tl.getTrack(e.attributes.track);
+		s = track.getSegment(e.attributes.id);
+		switch(e.type){
+			case "resize":
+			case "move":
+				s.startTime = e.attributes.finalStart;
+				s.endTime = e.attributes.finalEnd;
+				break;
+			case "create":
+				s.deleted = false;
+				break;
+			case "delete":
+				s.deleted = true;
+				break;
+			case "changetext":
+				s.cue.text = e.attributes.finalText;
+				break;
+			case "changeid":
+				s.cue.id = e.attributes.finalId;
+				break;
+		}
+		
+		this.tl.renderTrack(track);
+		this.tl.emit('update',s);
+		this.tl.updateCurrentSegments();
+		console.log(this.events,this.index);
+		this.updateDebug();
+	};
+	
 	// Debug functions
 	Proto.updateDebug = function(text) {
 		if(this.debugElement){

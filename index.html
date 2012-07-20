@@ -101,6 +101,7 @@
 <button id="repb">REPEAT</button>
 <button id="scrb">SCROLL</button>
 <button id="undb"> UNDO </button>
+<button id="redb"> REDO </button>
 <button id="savs"> Save to Server </button>
 <button id="savl"> Save Locally </button>
 <select id="activetracks" multiple></select>
@@ -402,6 +403,9 @@ document.getElementById("scrb").addEventListener('click',function(){
 },false);
 document.getElementById("undb").addEventListener('click',function(){
 	timeline.tracker.undo();
+},false);
+document.getElementById("redb").addEventListener('click',function(){
+	timeline.tracker.redo();
 },false);
 document.getElementById("savs").addEventListener('click',function(){
 	var i, opt, savable = [];
