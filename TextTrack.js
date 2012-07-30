@@ -406,7 +406,7 @@
 			shape = this.getShape(),
 			x = shape.x,
 			y = shape.y,
-			direction, dir, text, t_el;
+			direction, dir, text;
 			
 		// is it on the screen
 		if(x > -shape.width && x < tl.width) {
@@ -450,10 +450,7 @@
 					y = tl.segmentTextPadding;
 				}
 				
-				t_el = document.createElement('span');
-				t_el.innerHTML = this.text;
-				text = t_el.innerText;
-				
+				text = Ayamel.Text.stripHTML(this.text);
 				direction = Ayamel.Text.getDirection(text);
 				tl.canvas.dir = direction;
 				
