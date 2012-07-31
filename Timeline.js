@@ -136,9 +136,8 @@ var Timeline = (function(){
 	Timeline.MOVE = 2;
 	Timeline.CREATE = 3;
 	Timeline.DELETE = 4;
-	Timeline.RESIZE = 5;
-	Timeline.REPEAT = 6;
-	Timeline.SCROLL = 7;
+	Timeline.REPEAT = 5;
+	Timeline.SCROLL = 6;
 	
 	Proto = Timeline.prototype;
 	
@@ -557,7 +556,6 @@ var Timeline = (function(){
 		var i,j,track,seg,shape,
 			cursor = 'pointer';
 		
-	
 		// Check the slider
 		i = this.slider.onHandle(pos);
 		if(i === 1) {
@@ -597,13 +595,13 @@ var Timeline = (function(){
 							cursor = 'select';
 							break track_cursor;
 						case Timeline.MOVE:
-							cursor = 'move';
+							i = seg.getMouseSide(pos);
+							cursor =	i === 1?'resizeR':
+										i === -1?'resizeL':
+										'move';
 							break track_cursor;
 						case Timeline.DELETE:
 							cursor = 'remove';
-							break track_cursor;
-						case Timeline.RESIZE:
-							cursor = (pos.x < shape.x + shape.width/2)?'resizeL':'resizeR';
 							break track_cursor;
 					}
 				}

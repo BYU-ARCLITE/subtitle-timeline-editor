@@ -256,9 +256,29 @@
 	};
 
 	Proto.getMouseSide = function(pos) {
-		// Get the x and width
-		var shape = this.getShape();
-		return (pos.x < shape.x + (shape.width/2))?-1:1;
+		var tl = this.tl,
+			images = tl.images,
+			shape = this.getShape(),
+			x, left, right;
+			
+		if(this.selected){
+			left = images.segmentLeftSel;
+			right = images.segmentRightSel.width;
+		}else if(this.selectable){
+			left = images.segmentLeft;
+			right = images.segmentRight;
+		}else{
+			left = images.segmentLeftDark;
+			right = images.segmentRightDark;
+		}
+		if(shape.width < left.width + right.width){
+			return 0;
+		}else{
+			x = pos.x - shape.x;
+			return	(x < left.width)?-1:
+					(x > shape.width - right.width)?1:
+					0;
+		}
 	};
 
 	// Event handlers
@@ -275,22 +295,14 @@
 				else{ this.select(); }
 				break;
 			case Timeline.MOVE:
-				this.move = true;    
+				this.resizeSide = this.getMouseSide(pos);
+				this.move = true;
 				this.action = new Timeline.Action("move",{
 					id:this.uid,
 					track:this.track.id,
 					initialStart:this.startTime,
 					initialEnd:this.endTime
 				});
-				break;
-			case Timeline.RESIZE:
-				this.action = new Timeline.Action("resize",{
-					id:this.uid,
-					track:this.track.id,
-					initialStart:this.startTime,
-					initialEnd:this.endTime
-				});
-				this.resizeSide = this.getMouseSide(pos);
 		}
 	};
 
@@ -303,7 +315,6 @@
 		switch(tl.currentTool) {
 			case Timeline.MOVE:
 				this.move = false;
-				
 				// Save the move
 				this.action.attributes.finalStart = this.startTime;
 				this.action.attributes.finalEnd = this.endTime;
@@ -324,15 +335,6 @@
 				tl.renderTrack(this.track);
 				tl.updateCurrentSegments();
 				tl.emit('update',this);
-				break;
-			case Timeline.RESIZE:
-				this.resizeSide = 0;
-				// Save the resize
-				this.action.attributes.finalStart = this.startTime;
-				this.action.attributes.finalEnd = this.endTime;
-				tl.tracker.addAction(this.action);
-				tl.emit('update',this);
-				this.track.segments.sort(Segment.order);
 		}
 	};
 
@@ -343,39 +345,32 @@
 		var tl = this.tl,
 			activeStart, newTime, maxStartTime;
 		
-		if(this.move){
-			activeStart = this.active;
-			
-			newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
-			maxStartTime = tl.length - this.startingLength;
-			
-			if(newTime < 0){ newTime = 0; }
-			else if(newTime > maxStartTime){ newTime = maxStartTime; }
-			
-			this.startTime = newTime;
-			this.endTime = newTime + this.startingLength;
-					
-		}else if(this.resizeSide == -1){
-			activeStart = this.active;
-			
-			newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
-			
-			if(newTime < 0){ newTime = 0; }
-			else if(newTime >= this.endTime){ newTime = this.endTime - 10; }
-			
-			this.startTime = newTime;
-					
-		}else if(this.resizeSide == 1){
-			activeStart = this.active;
-			
-			newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x) + this.startingLength;
-			if(newTime <= this.startTime){ newTime = this.startTime + 10; }
-			else if(newTime > tl.length){ newTime = tl.length; }
-			
-			this.endTime = newTime;
-			
-		}else{ return; }
+		if(!this.move){ return; }
 		
+		activeStart = this.active;
+		newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
+		switch(this.resizeSide){
+			case 0:
+				maxStartTime = tl.length - this.startingLength;
+				if(newTime < 0){ newTime = 0; }
+				else if(newTime > maxStartTime){ newTime = maxStartTime; }
+				this.startTime = newTime;
+				this.endTime = newTime + this.startingLength;
+				break;
+			case -1:				
+				if(newTime < 0){ newTime = 0; }
+				else if(newTime >= this.endTime){ newTime = this.endTime - .001; }
+				this.startTime = newTime;
+				break;
+			case 1:
+				newTime += this.startingLength;
+				if(newTime <= this.startTime){ newTime = this.startTime + .001; }
+				else if(newTime > tl.length){ newTime = tl.length; }
+				this.endTime = newTime;
+				break;
+			default:
+				throw new Error("Invalid State");
+		}
 		tl.renderTrack(this.track);
 		if(activeStart != this.active){ tl.updateCurrentSegments(); }
 	};

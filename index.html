@@ -95,7 +95,6 @@
 </div>
 <button id="selb">SELECT</button>
 <button id="movb"> MOVE </button>
-<button id="resb">RESIZE</button>
 <button id="creb">CREATE</button>
 <button id="delb">DELETE</button>
 <button id="repb">REPEAT</button>
@@ -385,9 +384,6 @@ document.getElementById("selb").addEventListener('click',function(){
 },false);
 document.getElementById("movb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.MOVE;
-},false);
-document.getElementById("resb").addEventListener('click',function(){
-	timeline.currentTool = Timeline.RESIZE;
 },false);
 document.getElementById("creb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.CREATE;
