@@ -119,16 +119,17 @@
 	function parseTrackData(data,mime,name,language){
 		var tl = this.tl,
 			cues;
+		if(!mime){ mime = "text/vtt"; }
 		try{
 			switch(mime){
 				case "text/vtt":
-					cues = WebVTT.parse(data);
+					cues = TimedText.WebVTT.parse(data);
 					break;
 				case "text/srt":
-					cues = SRT.parse(data);
+					cues = TimedText.SRT.parse(data);
 					break;
 				default:
-					cues = WebVTT.parse(data);
+					throw "Unsupported mime-type";
 			}
 			
 			tl.addTextTrack(cues, name, language);

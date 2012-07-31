@@ -18,7 +18,7 @@ Setup
 
     
 3.  Create the cues and add them to the timeline  
-	`timeline.addTextTrack(WebVTT.parse(vttdata), "track-id", "en");`  
+	`timeline.addTextTrack(TimedText.WebVTT.parse(vttdata), "track-id", "en");`  
     The arguments are
     *   An array of Cue objects or a TextTrack object
     *   A track name

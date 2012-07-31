@@ -1,17 +1,18 @@
 (function(Timeline){
 	"use strict";
-	var Proto, segId = 0;
 	
 	if(!Timeline){
 		throw new Error("Timeline Uninitialized");
 	}
+	
+	var Proto, segId = 0;
 	
 	function order(a,b){
 		//sort first by start time, then by length
 		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
 	}
 	
-	function TextTrack(tl, cues, id, language){
+	function TextTrack(tl, cues, id, language, type){
 		var active = true,
 			that = this;
 		this.tl = tl;
@@ -22,6 +23,13 @@
 		this.visibleSegments = [];
 		this.audioId = null;
 		this.locked = false;
+		
+		if(typeof type !== 'string'){ this.type = "html"; }
+		else{
+			type = type.toLowerCase();
+			this.type = TimedText.previewers.hasOwnProperty(type)?type:"html";
+		}
+		
 		Object.defineProperty(this,'active',{
 			get: function(){ return active; },
 			set: function(val){
@@ -44,7 +52,7 @@
 	
 	Proto.add = function(start, end, t, i, select){
 		var tl = this.tl,
-			seg = new Segment(this, (start instanceof Cue)?start:new Cue(i, start, end, t));
+			seg = new Segment(this, (start instanceof TimedText.Cue)?start:new TimedText.Cue(i, start, end, t));
 		
 		this.segments.push(seg);
 		this.segments.sort(order);
@@ -234,11 +242,11 @@
 	};
 	
 	Proto.toVTT = function(){
-		return this.deleted?"":WebVTT.serialize(this.cue);
+		return this.deleted?"":TimedText.WebVTT.serialize(this.cue);
 	};
 
 	Proto.toSRT = function(){
-		return this.deleted?"":SRT.serialize(this.cue);
+		return this.deleted?"":TimedText.SRT.serialize(this.cue);
 	};
 
 	// Location computation
@@ -445,7 +453,7 @@
 					y = tl.segmentTextPadding;
 				}
 				
-				text = Ayamel.Text.stripHTML(this.text);
+				text = TimedText.previewers[this.track.type](this.text);
 				direction = Ayamel.Text.getDirection(text);
 				tl.canvas.dir = direction;
 				
