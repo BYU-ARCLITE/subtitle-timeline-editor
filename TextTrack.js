@@ -5,30 +5,26 @@
 		throw new Error("Timeline Uninitialized");
 	}
 	
-	var Proto, segId = 0;
+	var Proto;
 	
 	function order(a,b){
 		//sort first by start time, then by length
 		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
 	}
 	
-	function TextTrack(tl, cues, id, language, type){
+	function TextTrack(tl, cuetrack){
 		var active = true,
 			that = this;
+		if(tl.trackIndices.hasOwnProperty(cuetrack.label)){
+			throw new Error("Track name already in use.");
+		}
 		this.tl = tl;
-		this.id = id;
-		this.language = language;
-		this.segments = cues.map(function(cue){ return new Segment(that, cue); });
+		this.cues = cuetrack;
+		this.segments = cuetrack.cues.map(function(cue){ return new Segment(that, cue); });
 		this.segments.sort(order);
 		this.visibleSegments = [];
 		this.audioId = null;
 		this.locked = false;
-		
-		if(typeof type !== 'string'){ this.type = "html"; }
-		else{
-			type = type.toLowerCase();
-			this.type = TimedText.previewers.hasOwnProperty(type)?type:"html";
-		}
 		
 		Object.defineProperty(this,'active',{
 			get: function(){ return active; },
@@ -40,7 +36,6 @@
 						if(!active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
 						tl.renderTrack(this);
 						if(this.audioId){ tl.audio[this.audioId].draw(); }
-						tl.updateCurrentSegments();
 					}
 				}
 				return active;
@@ -50,10 +45,34 @@
 	
 	Proto = TextTrack.prototype;
 	
+	Object.defineProperties(Proto,{
+		id: {
+			get: function(){ return this.cues.label; },
+			set: function(val){
+				if(tl.trackIndices.hasOwnProperty(val)){
+					throw new Error("Track name already in use.");
+				}
+				return this.cues.label = val;
+			},enumerable: true
+		},
+		language: {
+			get: function(){ return this.cues.language; },
+			set: function(val){ return this.cues.language = val; },
+			enumerable: true
+		},
+		kind: {
+			get: function(){ return this.cues.kind; },
+			set: function(val){ return this.cues.kind = val; },
+			enumerable: true
+		}
+	});
+	
 	Proto.add = function(start, end, t, i, select){
 		var tl = this.tl,
-			seg = new Segment(this, (start instanceof TimedText.Cue)?start:new TimedText.Cue(i, start, end, t));
+			cue = (start instanceof TimedText.Cue)?start:new TimedText.Cue(i, start, end, t),
+			seg = new Segment(this, cue);
 		
+		this.cues.add(cue);
 		this.segments.push(seg);
 		this.segments.sort(order);
 		
@@ -64,12 +83,9 @@
 			initialStart:seg.startTime,
 			initialEnd:seg.endTime
 		}));
-		tl.renderTrack(this);
-		if(this.active && seg.visible){
-			tl.updateCurrentSegments();
-		}
 		tl.emit('update', seg);
 		if(select){ seg.select(); }
+		else if(seg.visible){ tl.renderTrack(this); }
 		return seg;
 	};
 	
@@ -79,13 +95,6 @@
 		for(i=0;i<len;i++){
 			if(segs[i].uid === id){ return segs[i]; }
 		}
-	};
-	
-	Proto.searchRange = function(low, high){
-		//TODO: Higher efficiency binary search
-		return this.segments.filter(function(seg){
-			return !seg.deleted && seg.startTime < high && seg.endTime > low;
-		});
 	};
 
 	Proto.render = function(){
@@ -109,7 +118,7 @@
 		
 		ctx.restore();
 		
-		this.visibleSegments = this.segments.filter(function(seg){return seg.visible;}).sort(order);
+		this.visibleSegments = this.segments.filter(function(seg){return seg.visible;});
 		this.visibleSegments.forEach(function(seg){
 			if(seg.selected){ selected = seg; }
 			else{ seg.render(); }
@@ -118,21 +127,15 @@
 		selected && selected.render();
 	};
 	
-	Proto.toVTT = function(){
-		return "WEBVTT\r\n\r\n"+this.segments.map(function(seg){ return seg.toVTT(); }).join('');
-	};
-	
-	Proto.toSRT = function(){
-		return this.segments.map(function(seg){ return seg.toSRT(); }).join('');
+	Proto.serialize = function(type){
+		return TimedText.serializeTrack(type, this.cues);
 	};
 	
 	function Segment(track, cue) {
 		this.tl = track.tl;
 		this.track = track;
 		this.cue = cue;
-		this.uid = (segId++).toString(36);
 		this.move = false;
-		this.resize = false;
 		this.deleted = false;
 		this.selected = false;
 		this.action = null;
@@ -160,6 +163,7 @@
 				return !this.deleted && cue.startTime < view.endTime && cue.endTime > view.startTime;
 			}, enumerable: true
 		},
+		uid: { get: function(){ return this.cue.uid; }, enumerable: true },
 		id: {
 			set: function(id){
 				var tl = this.tl,
@@ -241,12 +245,8 @@
 		tl.emit('unselect', this);
 	};
 	
-	Proto.toVTT = function(){
-		return this.deleted?"":TimedText.WebVTT.serialize(this.cue);
-	};
-
-	Proto.toSRT = function(){
-		return this.deleted?"":TimedText.SRT.serialize(this.cue);
+	Proto.serialize = function(type){
+		return this.deleted?"":TimedText.serializeCue(type, this.cue);
 	};
 
 	// Location computation
@@ -326,6 +326,7 @@
 				// Save the move
 				this.action.attributes.finalStart = this.startTime;
 				this.action.attributes.finalEnd = this.endTime;
+				this.track.cues.update();
 				tl.tracker.addAction(this.action);
 				tl.emit('update',this);
 				this.track.segments.sort(Segment.order);
@@ -334,6 +335,7 @@
 				// Delete tool
 				this.deleted = true;
 				this.selected = false;
+				this.track.cues.remove(this.cue);
 				
 				// Save the delete
 				tl.tracker.addAction(new Timeline.Action("delete",{
@@ -341,7 +343,6 @@
 					track:this.track.id
 				}));
 				tl.renderTrack(this.track);
-				tl.updateCurrentSegments();
 				tl.emit('update',this);
 		}
 	};
@@ -380,7 +381,7 @@
 				throw new Error("Invalid State");
 		}
 		tl.renderTrack(this.track);
-		if(activeStart != this.active){ tl.updateCurrentSegments(); }
+		if(activeStart != this.active){ this.track.cues.update(); }
 	};
 
 	// Rendering
@@ -453,7 +454,7 @@
 					y = tl.segmentTextPadding;
 				}
 				
-				text = TimedText.previewers[this.track.type](this.text);
+				text = TimedText.textPreviewers[this.track.kind](this.text);
 				direction = Ayamel.Text.getDirection(text);
 				tl.canvas.dir = direction;
 				

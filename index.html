@@ -3,6 +3,7 @@
 <head>
 	<script src="../TimedText/TimedText.js"></script>
 	<script src="../TimedText/Cue.js"></script>
+	<script src="../TimedText/Track.js"></script>
 	<script src="../TimedText/WebVTT.js"></script>
 	<script src="../TimedText/SRT.js"></script>
 	<script src="../Ayamel.js/Ayamel.js"></script>
@@ -252,16 +253,16 @@ function updateEditor(){
 }
 
 document.getElementById('vttfile').addEventListener('change', function(evt) {
-	timeline.loadTextTrack(evt.target.files[0]);
+	timeline.loadTextTrack(evt.target.files[0],'html','en');
 }, false);
 
 document.getElementById('tbtn').addEventListener('click', function() {
-	timeline.addTextTrack([], "track"+(t_count++), "en", false);
+	timeline.addTextTrack(new TimedText.Track([],'html','en',"track"+(t_count++)));
 	timeline.render();
 }, false);
 
 document.getElementById('ubtn').addEventListener('click', function() {
-	timeline.loadTextTrack(prompt("Enter URL:"), "track"+(t_count++), "en", false);
+	timeline.loadTextTrack(prompt("Enter URL:"),'html','en');
 	timeline.render();
 }, false);
 
@@ -358,21 +359,19 @@ timeline.on('update',function(seg) {
 timeline.on('jump', function(time) {
 	controls.currentTime = time;
 });
-timeline.on('segments',function(segs){
-	segs.invalid.forEach(function(seg){
-		captions[seg.uid].hide();
-	});
-	segs.valid.forEach(function(seg){
-		if(!(seg.uid in captions)){
-			captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue);
-		}
-		captions[seg.uid].display(video);
-	});
-});
 timeline.on('addtrack',function(track){
 	var opt = new Option(track.id);
 	opt.selected = true;
 	atracks.add(opt,null);
+	track.cues.on('cues',function(cues){
+		cues.invalid.forEach(function(cue){
+			captions[cue.uid].hide();
+		});
+		cues.valid.forEach(function(cue){
+			if(!(cue.uid in captions)){ captions[cue.uid] = Ayamel.Caption.FromCue(null,null,cue); }
+			captions[cue.uid].display(video);
+		});
+	});
 });
 
 // Bind to the audio events
@@ -407,7 +406,7 @@ document.getElementById("redb").addEventListener('click',function(){
 document.getElementById("savs").addEventListener('click',function(){
 	var i, opt, savable = [];
 	for(i=0;opt=atracks.options[i];i++){
-		if(opt.selected){ savable.push(opt); }
+		if(opt.selected){ savable.push(opt.value); }
 	}
 	timeline.save('vtt',savable);
 },false);

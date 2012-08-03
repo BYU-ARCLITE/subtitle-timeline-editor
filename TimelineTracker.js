@@ -19,7 +19,6 @@
 		if(this.events.length > this.index+1){
 			this.events.length = this.index;
 		}
-		console.log(this.events,this.index);
 		this.updateDebug();
 	};
 	
@@ -32,16 +31,18 @@
 		track = this.tl.getTrack(e.attributes.track);
 		s = track.getSegment(e.attributes.id);
 		switch(e.type){
-			case "resize":
 			case "move":
 				s.startTime = e.attributes.initialStart;
 				s.endTime = e.attributes.initialEnd;
+				s.track.cues.update();
 				break;
 			case "create":
 				s.deleted = true;
+				s.track.cues.remove(s.cue);
 				break;
 			case "delete":
 				s.deleted = false;
+				s.track.cues.add(s.cue);
 				break;
 			case "changetext":
 				s.cue.text = e.attributes.initialText;
@@ -53,8 +54,6 @@
 		
 		this.tl.renderTrack(track);
 		this.tl.emit('update',s);
-		this.tl.updateCurrentSegments();
-		console.log(this.events,this.index);
 		this.updateDebug();
 	};
 
@@ -67,16 +66,18 @@
 		track = this.tl.getTrack(e.attributes.track);
 		s = track.getSegment(e.attributes.id);
 		switch(e.type){
-			case "resize":
 			case "move":
 				s.startTime = e.attributes.finalStart;
 				s.endTime = e.attributes.finalEnd;
+				s.track.cues.update();
 				break;
 			case "create":
 				s.deleted = false;
+				s.track.cues.add(s.cue);
 				break;
 			case "delete":
 				s.deleted = true;
+				s.track.cues.remove(s.cue);
 				break;
 			case "changetext":
 				s.cue.text = e.attributes.finalText;
@@ -88,8 +89,6 @@
 		
 		this.tl.renderTrack(track);
 		this.tl.emit('update',s);
-		this.tl.updateCurrentSegments();
-		console.log(this.events,this.index);
 		this.updateDebug();
 	};
 	

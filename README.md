@@ -54,18 +54,6 @@ Setup
 		// e.g., when timeline.currentTime is set by external code
 		timeline.on('timeupdate', function(time) {});
 
-		// segments is fired whenever the set of segments in an active track overlapping
-		// the time marker changes; it supplies an object containing an array of newly
-		// invalidated and currently valid segments.
-		timeline.on('segments',function(segs){
-			segs.invalid.forEach(function(seg){
-				//hide captions
-			});
-			segs.valid.forEach(function(seg){
-				//display captions
-			});
-		});
-
 		// abRepeatEnabled is fired whenever the AB repeat functionality is turned on
 		timeline.on('abRepeatEnabled',function() {});
 

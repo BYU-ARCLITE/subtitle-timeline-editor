@@ -9,7 +9,7 @@
 var Timeline = (function(){
 	"use strict";
 	var Proto;
-	
+
 	function Timeline(location, params) {
 		if(!(location instanceof HTMLElement)){ throw new Error("Invalid DOM Insertion Point"); }
 		if(!params){ params = {}; }
@@ -22,7 +22,7 @@ var Timeline = (function(){
 			cursors = params.cursors || new Timeline.Cursors({}),
 			width = params.width || location.offsetWidth,
 			length = params.length || 1800;
-			
+
 		Object.defineProperties(this,{
 			fonts: {
 				get: function(){ return fonts; },
@@ -63,48 +63,47 @@ var Timeline = (function(){
 						// Re-render the timeline
 						this.render();
 					}
-					return width;				
+					return width;
 				},enumerable: true
 			},timeMarkerPos: {
 				value: 0, writable: true
 			}
 		});
-		
+
 		this.multi = params.multi;
 		this.selectedSegments = [];
-			
+
 		this.events = {};
 		this.tracks = [];
 		this.audio = {};
 		this.trackIndices = {};
-		
+
 		this.activeElement = null;
-		this.currentSegments = [];
 		this.sliderActive = false;
 		this.scrubActive = false;
-		
+
 		this.slider = new Timeline.Slider(this);
 		this.tracker = new Timeline.Tracker(this);
 		this.persistence = new Timeline.Persistence(this);
 		this.view = new Timeline.View(this, params.start || 0, params.end || 60);
-		
+
 		this.repeatA = null;
 		this.repeatB = null;
 		this.abRepeatOn = false;
-	  
+
 		// Sizing
 		this.height = this.keyHeight + this.trackPadding + this.sliderHeight;
-		
+
 		//cursor & tool selection
 		this.currentTool = Timeline.SELECT;
-		
+
 		//mouse control
 		this.mouseDownPos = {x: 0, y: 0};
 		this.mousePos = {x: 0, y: 0};
 		this.scrollInterval = null;
 		this.renderInterval = null;
 		this.currentCursor = "pointer";
-		
+
 		// Canvas
 		this.canvas = canvas;
 		this.ctx = canvas.getContext('2d');
@@ -114,7 +113,7 @@ var Timeline = (function(){
 		canvas.addEventListener('mouseup', mouseUp.bind(this), false);
 		canvas.addEventListener('mouseout', mouseUp.bind(this), false);
 		canvas.addEventListener('mousedown', mouseDown.bind(this), false);
-		
+
 		this.overlay = overlay;
 		this.octx = overlay.getContext('2d');
 		overlay.width = width;
@@ -128,19 +127,19 @@ var Timeline = (function(){
 		node.appendChild(canvas);
 		node.appendChild(overlay);
 		location.appendChild(node);
-		
+
 		this.render();
 	}
-	
+
 	Timeline.SELECT = 1;
 	Timeline.MOVE = 2;
 	Timeline.CREATE = 3;
 	Timeline.DELETE = 4;
 	Timeline.REPEAT = 5;
 	Timeline.SCROLL = 6;
-	
+
 	Proto = Timeline.prototype;
-	
+
 	// Sizing
 	Proto.trackHeight = 50;
 	Proto.trackPadding = 10;
@@ -149,7 +148,7 @@ var Timeline = (function(){
 	Proto.segmentTextPadding = 5;
 	Proto.keyTop = 0;
 	Proto.keyHeight = 25;
-	
+
 	/** Event Triggers **/
 
 	Proto.emit = function(evt, data){
@@ -161,19 +160,19 @@ var Timeline = (function(){
 		if(this.events.hasOwnProperty(name)){ this.events[name].push(cb); }
 		else{ this.events[name] = [cb]; }
 	};
-		
+
 	/**
 	 * Helper Functions
-	 * 
+	 *
 	 * These functions deal with manipulating the data
-	 * 
+	 *
 	 * Author: Joshua Monson
 	 **/
 
 	Proto.getTrackTop = function(track) {
 		return this.keyHeight + this.trackPadding + (this.trackIndices[track.id] * (this.trackHeight + this.trackPadding));
 	};
-	
+
 	Proto.getTrack = function(id){
 		return this.tracks[this.trackIndices[id]];
 	};
@@ -191,16 +190,14 @@ var Timeline = (function(){
 		return null;
 	};
 
-	Proto.addTextTrack = function(cues, id, language) {
-		var track;
-		if(id in this.trackIndices){ throw new Error("Track with that id already loaded."); }
-		if(cues instanceof Timeline.TextTrack){
-			track = cues;
-			id = track.id;
+	Proto.addTextTrack = function(track) {
+		if(track instanceof Timeline.TextTrack){
+			if(track.id in this.trackIndices){ throw new Error("Track name already in use."); }
 		}else{
-			track = new Timeline.TextTrack(this, cues, id, language);
+			if(track.label in this.trackIndices){ throw new Error("Track name already in use."); }
+			track = new Timeline.TextTrack(this, track);
 		}
-		this.trackIndices[id] = this.tracks.length;
+		this.trackIndices[track.id] = this.tracks.length;
 		this.tracks.push(track);
 
 		// Adjust the height
@@ -210,7 +207,7 @@ var Timeline = (function(){
 		this.render();
 		this.emit("addtrack",track);
 	};
-	
+
 	Proto.removeTextTrack = function(id) {
 		var i,track,aid,loc;
 		if(this.trackIndices.hasOwnProperty(id)){
@@ -219,11 +216,11 @@ var Timeline = (function(){
 			if(this.audio.hasOwnProperty(aid)){ this.audio[aid].references--; }
 			track = this.tracks.splice(loc, 1)[0];
 			delete this.trackIndices[id];
-			
+
 			for(i=loc;track=this.tracks[i];i++){
-				this.trackIndices[track.id] = i;		
+				this.trackIndices[track.id] = i;
 			}
-			
+
 			// Adjust the height
 			this.height -= this.trackHeight + this.trackPadding;
 			this.canvas.height = this.height;
@@ -232,7 +229,7 @@ var Timeline = (function(){
 			this.emit("removetrack",track);
 		}
 	};
-	
+
 	Proto.addAudioTrack = function(wave, id) {
 		var track;
 		if(this.audio.hasOwnProperty(id)){ throw new Error("Track with that id already loaded."); }
@@ -245,7 +242,7 @@ var Timeline = (function(){
 		this.audio[id] = track;
 		this.render();
 	};
-	
+
 	Proto.removeAudioTrack = function(id){
 		var i, top, ctx, track;
 		if(!this.audio.hasOwnProperty(id)){ return; }
@@ -273,7 +270,7 @@ var Timeline = (function(){
 			this.audio[aid].render();
 		}
 	};
-	
+
 	Proto.unsetAudioTrack = function(tid){
 		var track, audio;
 		if(!this.trackIndices.hasOwnProperty(tid)){ return; }
@@ -286,25 +283,8 @@ var Timeline = (function(){
 		}
 	};
 
-	Proto.updateCurrentSegments = function(){
-		var that = this,
-			time = this.timeMarkerPos,
-			oldsegs = this.currentSegments,
-			cursegs = [];
-		this.tracks.forEach(function(track){
-			if(track.active){Array.prototype.push.apply(cursegs,track.searchRange(time,time));}
-		});
-		this.currentSegments = cursegs;
-		this.emit('segments',{
-			valid:cursegs,
-			invalid:oldsegs.filter(function(seg){
-				return seg.deleted || !seg.track.active || seg.startTime > time || seg.endTime < time;
-			})
-		});
-	};
-	
 	/** Drawing functions **/
-	
+
 	Proto.renderBackground = function() {
 		var ctx = this.ctx,
 			grd = ctx.createLinearGradient(0,0,0,this.height);
@@ -319,7 +299,7 @@ var Timeline = (function(){
 		ctx.fillRect(0, 0, this.width, this.height);
 		ctx.restore();
 	};
-	
+
 	Proto.renderKey = function() {
 		var ctx = this.ctx,
 			view = this.view,
@@ -327,7 +307,7 @@ var Timeline = (function(){
 			power, d=0,
 			hours, mins, secs, pixels,
 			start, end, position, offset, increment;
-		
+
 		ctx.save();
 		ctx.font         = this.fonts.keyFont;
 		ctx.textBaseline = 'top';
@@ -348,12 +328,12 @@ var Timeline = (function(){
 				d--;
 			}
 		}
-		
+
 		start = view.startTime;
 		start -= start%increment;
 		end = view.endTime;
 		offset = this.canvas.dir === 'rtl' ? -2 : 2;
-		
+
 		for (position = this.view.timeToPixel(start); start < end; start += increment, position += pixels) {
 
 			// Draw the tick
@@ -367,7 +347,7 @@ var Timeline = (function(){
 			mins = Math.floor(start / 60);
 			hours = Math.floor(mins / 60);
 			mins %= 60;
-			
+
 			ctx.fillText(
 				hours + (mins<10?":0":":") + mins + (secs<10?":0":":") + secs.toFixed(d), position + offset,
 				this.keyTop + 2
@@ -375,7 +355,7 @@ var Timeline = (function(){
 		}
 		ctx.restore();
 	};
-		
+
 	Proto.renderABRepeat = function() {
 		if(this.repeatA != null) {
 			var left = this.view.timeToPixel(this.repeatA),
@@ -387,7 +367,7 @@ var Timeline = (function(){
 			ctx.restore();
 		}
 	};
-	
+
 	Proto.renderTimeMarker = function() {
 		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
 		if(x < -1 || x > this.width){ return; }
@@ -397,12 +377,12 @@ var Timeline = (function(){
 		ctx.fillRect(x, 0, 2, this.height);
 		ctx.restore();
 	};
-	
-	Proto.renderTrack = function(track) {		
+
+	Proto.renderTrack = function(track) {
 		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
-		
+
 		track.render();
-		
+
 		//redo the peice of the timeMarker that we drew over
 		if(x < -1 || x > this.width){ return; }
 		ctx = this.ctx;
@@ -428,9 +408,9 @@ var Timeline = (function(){
 			this.renderInterval = setInterval(this.render.bind(this),1);
 		}
 	};
-	
+
 	/** Time functions **/
-	
+
 	Object.defineProperties(Proto,{
 		currentTime: {
 			set: function(time){
@@ -440,15 +420,15 @@ var Timeline = (function(){
 					this.emit('jump',this.repeatA);
 				}
 				this.timeMarkerPos = time;
-				this.updateCurrentSegments();
+				this.tracks.forEach(function(track){ track.cues.currentTime = time; });
 				this.emit('timeupdate', time);
-				
+
 				if(time < this.view.startTime || time > this.view.endTime) {
 					// Move the view
 					this.view.endTime = time + this.view.length;
 					this.view.startTime = time;
 				}
-				
+
 				this.render();
 				return this.timeMarkerPos;
 			},
@@ -487,15 +467,15 @@ var Timeline = (function(){
 		this.abRepeatOn = false;
 		this.render();
 	};
-	
+
 	/** Persistence functions **/
-	
+
 	Proto.save = function(type, id) { this.persistence.save(type, id); };
 	Proto.saveLocal = function(type, id) { this.persistence.saveLocal(type, id); };
-	Proto.loadTextTrack = function(url) { this.persistence.loadTextTrack(url); };
-	
+	Proto.loadTextTrack = function(url, kind, lang) { this.persistence.loadTextTrack(url, kind, lang); };
+
 	/** Scroll Tool Functions **/
-	
+
 	function autoScroll(){
 		var delta = this.mousePos.x/this.width-.5;
 		if(delta){
@@ -509,7 +489,7 @@ var Timeline = (function(){
 		this.canvas.style.cursor = this.cursors.move;
 		this.scrollInterval = setInterval(autoScroll.bind(this),1);
 	}
-	
+
 	function autoSizeL(){
 		var mx = this.mousePos.x,
 			dx = mx - this.slider.startx;
@@ -518,7 +498,7 @@ var Timeline = (function(){
 			this.render();
 		}
 	}
-	
+
 	function autoSizeR(){
 		var mx = this.mousePos.x,
 			dx = mx - this.slider.endx;
@@ -527,7 +507,7 @@ var Timeline = (function(){
 			this.render();
 		}
 	}
-	
+
 	function initResize(){
 		var diff = this.mouseDownPos.x - this.slider.middle;
 		if(diff < 0){
@@ -540,22 +520,22 @@ var Timeline = (function(){
 			this.scrollInterval = setInterval(autoSizeR.bind(this),1);
 		}
 	}
-	
+
 	/**
 	 * Event Listeners and Callbacks
 	 *
 	 * These listeners include mouseMove, mouseUp, and mouseDown.
 	 * They check the mouse location and active elements and call their mouse listener function.
-	 * 
+	 *
 	 * Author: Joshua Monson
 	 **/
-	 
+
 	function updateCursor(pos) {
 		if(typeof pos !== 'object')
 			return;
 		var i,j,track,seg,shape,
 			cursor = 'pointer';
-		
+
 		// Check the slider
 		i = this.slider.onHandle(pos);
 		if(i === 1) {
@@ -575,7 +555,7 @@ var Timeline = (function(){
 		}else if(this.currentTool === Timeline.SCROLL){
 			cursor =	(this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?'move':
 						(this.mousePos.x < this.slider.middle)?'resizeL':'resizeR';
-		}else 
+		}else
 		track_cursor: // Are we on a track?
 		if(track = this.trackFromPos(pos)){
 			if(!track.active || track.locked){
@@ -612,12 +592,12 @@ var Timeline = (function(){
 			this.canvas.style.cursor = this.cursors[cursor];
 		}
 	}
-	
+
 	function mouseMove(ev) {
 		var i, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
-		
+
 		this.mousePos = pos;
-		
+
 		if(this.scrollInterval){ return; }
 		if(this.scrubActive){
 			i = this.view.pixelToTime(pos.x);
@@ -633,13 +613,13 @@ var Timeline = (function(){
 		}else{
 			updateCursor.call(this,pos);
 		}
-		
+
 		ev.preventDefault();
 	}
 
 	function mouseUp(ev) {
 		var id, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
-		
+
 		if(this.scrubActive){
 			this.scrubActive = false;
 			updateCursor.call(this,pos);
@@ -658,7 +638,7 @@ var Timeline = (function(){
 			this.activeElement.mouseUp(pos);
 			this.activeElement = null;
 		}
-		
+
 		ev.preventDefault();
 	}
 
@@ -668,7 +648,7 @@ var Timeline = (function(){
 
 		this.mouseDownPos = pos;
 		this.mousePos = pos;
-		
+
 		if(pos.y > this.height - this.sliderHeight - this.trackPadding){ // Check the slider
 			if(this.slider.containsPoint(pos)) {
 				this.slider.mouseDown(pos);
@@ -715,9 +695,9 @@ var Timeline = (function(){
 					}
 				}
 		}
-		
+
 		ev.preventDefault();
 	}
-	
+
 	return Timeline;
 }());

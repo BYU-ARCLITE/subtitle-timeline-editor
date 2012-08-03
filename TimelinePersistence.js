@@ -32,24 +32,19 @@
 	}
 	
 	function sendParts(parts){
-		var i, boundary, notunique,
+		var i = 0, boundary,
 			xhr = this.xhr;
 		
-		do{	boundary = "TimeLineVTT----" + Date.now();
-			for(notunique = false, i = 0; i < parts.length; i++){
-				if(parts[i].indexOf(boundary) !== -1){
-					notunique = true;
-					break;
-				}
-			}
-		}while(notunique);
+		do{ boundary = (++i + Date.now()).toString(36); }
+		while(parts.some(function(part){ return part.indexOf(boundary) >= 0; }));
 		
 		xhr.open("POST",this.target,true);
 		xhr.setRequestHeader("Content-type","multipart/form-data; boundary=" + boundary);
+		boundary = "--"+boundary;
 		xhr.send(
-			"--" + boundary + "\r\n"
-			+ parts.join("--" + boundary + "\r\n")
-			+ "--" + boundary + "--" + "\r\n"
+			boundary + "\r\n"
+			+ parts.join(boundary + "\r\n")
+			+ boundary + "--\r\n"
 		);
 	}
 	
@@ -59,37 +54,30 @@
 	}
 	
 	Persistence.prototype.save = function(type, id) {
-		var track, that = this,
-			tl = this.tl,
-			serializer = "to"+type.toUpperCase(),
+		var tl = this.tl,
+			that = this, tracks,			
 			suffix = type.toLowerCase(),
 			mime = {srt:"text/srt",vtt:"text/vtt"}[suffix];
 			
-		if(!mime){ throw new Error("Unsupported file type."); }
+		if(!mime){ throw new Error("Unsupported File Type."); }
 		if(typeof id === 'string'){ //save a single track
-			track = tl.getTrack(id);
-			if(track){
-				sendParts.call(this,[buildPart.call(this,addSuffix(track.id,suffix),track[serializer](),mime)]);
-			}else{
-				throw new Error("No Such Track");
-			}
-		}else{ //save multiple tracks
-			if(id instanceof Array){
-				sendParts.call(this,
-					id
-					.filter(function(tid){return tl.trackIndices.hasOwnProperty(tid);})
-					.map(function(tid){
-						return buildPart.call(that,addSuffix(tid,suffix),tl.getTrack(tid)[serializer](),mime);
-					})
-				);
-			}else{ //save all tracks
-				sendParts.call(this,
-					tl.tracks.map(function(track){
-						return buildPart.call(that,addSuffix(track.id,suffix),track[serializer](),mime);
-					})
-				);
-			}
+			tracks = [tl.getTrack(id)];
+			if(!tracks[0]){ throw new Error("Track Does Not Exist."); }
+		}else if(id instanceof Array){ //save multiple tracks
+			tracks = [];
+			id.forEach(function(tid){
+				if(tl.trackIndices.hasOwnProperty(tid)){
+					tracks.push(tl.getTrack(tid));
+				}
+			});
+		}else{ //save all tracks
+			tracks = tl.tracks;
 		}
+		sendParts.call(this,
+			tracks.map(function(track){
+				return buildPart.call(that,addSuffix(track.id,suffix),track.serialize(mime),mime);
+			})
+		);
 	};
 	
 	Persistence.prototype.saveLocal = function(type, id) {
@@ -99,12 +87,12 @@
 			suffix = type.toLowerCase(),
 			mime = {srt:"text/srt",vtt:"text/vtt"}[suffix];
 			
-		if(!mime){ throw new Error("Unsupported file type."); }
+		if(!mime){ throw new Error("Unsupported File Type."); }
 		if(typeof id !== 'string'){ throw new Error("No track specified."); }
 		track = tl.getTrack(id);
-		if(!track){ throw new Error("Track does not exist."); }
+		if(!track){ throw new Error("Track Does Not Exist."); }
 		
-		window.open("data:"+mime+";charset=UTF-8,"+encodeURIComponent(track[serializer]()));
+		window.open("data:"+mime+";charset=UTF-8,"+encodeURIComponent(track.serialize(mime)));
 	};
 	
 	Persistence.prototype.saveSuccess = function(data){
@@ -116,37 +104,26 @@
 		alert("An error was encountered while saving: " + data);
 	};
 	
-	function parseTrackData(data,mime,name,language){
-		var tl = this.tl,
-			cues;
-		if(!mime){ mime = "text/vtt"; }
+	function parseTrackData(data,mime,kind,lang,name){
+		var tl = this.tl;
 		try{
-			switch(mime){
-				case "text/vtt":
-					cues = TimedText.WebVTT.parse(data);
-					break;
-				case "text/srt":
-					cues = TimedText.SRT.parse(data);
-					break;
-				default:
-					throw "Unsupported mime-type";
-			}
-			
-			tl.addTextTrack(cues, name, language);
-			tl.render();
+			tl.addTextTrack(new TimedText.Track(
+				TimedText.parseFile(mime||"text/vtt", data),
+				kind, lang, name
+			));
 		}catch(e){
-			alert("There was an error loading the track: "+e);
+			alert("There was an error loading the track: " + e.message);
 		}
 	}
 	
-	Persistence.prototype.loadTextTrack = function(url, language){
+	Persistence.prototype.loadTextTrack = function(url, kind, lang){
 		var tl = this.tl,
 			that = this,
 			reader, mime;
 		if(url instanceof File){
 			reader = new FileReader();
 			reader.onload = function(evt) {
-				parseTrackData.call(that, evt.target.result, url.type, url.name, language);
+				parseTrackData.call(that, evt.target.result, url.type, kind, lang, url.name);
 			};
 			reader.onerror = function(e){alert(e);};
 			reader.readAsText(url);
@@ -157,7 +134,7 @@
 					if(reader.status>=200 &&  reader.status<400){
 						parseTrackData.call(that,	reader.responseText,
 													reader.getResponseHeader('content-type'),
-													url.substr(url.lastIndexOf('/')));
+													kind, lang, url.substr(url.lastIndexOf('/')));
 					}else{
 						alert("The track could not be loaded: " + reader.responseText);
 					}
