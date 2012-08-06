@@ -11,6 +11,7 @@
 		this.track = track;
 		this.startx = x;
 		this.endx = x;
+		tl.emit("startcreate", tl.view.pixelToTime(pos.x));
 	}
 
 	Proto = Placeholder.prototype;
@@ -27,8 +28,10 @@
 	};
 
 	Proto.mouseMove = function(pos) {
+		var tl = this.tl;
 		this.endx = pos.x;
-		this.tl.renderTrack(this.track);
+		tl.emit("endcreate", tl.view.pixelToTime(pos.x));
+		tl.renderTrack(this.track);
 		this.render();
 	};
 
@@ -43,7 +46,11 @@
 			startx = pos.x;
 			endx = this.startx;
 		}
-		this.track.add(view.pixelToTime(startx), view.pixelToTime(endx), "", "", true);
+		this.track.add({
+			id: "",
+			startTime: view.pixelToTime(startx),
+			endTime: view.pixelToTime(endx)
+		}, this.tl.autoSelect);
 	};
 	
 	Timeline.Placeholder = Placeholder;

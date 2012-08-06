@@ -43,8 +43,15 @@ var Timeline = (function(){
 			},length: { // In seconds
 				get: function(){ return length; },
 				set: function(val){
+					var vlen, vend;
 					if(val != length){
 						length = val;
+						vend = this.view.endTime;
+						vlen = vend - this.view.startTime;
+						if(length < vend){
+							this.view.endTime = length;
+							this.view.startTime = Math.max(0,length-vlen);
+						}
 						this.render();
 					}
 					return length;
@@ -67,12 +74,16 @@ var Timeline = (function(){
 				},enumerable: true
 			},timeMarkerPos: {
 				value: 0, writable: true
+			},cstack: {
+				value: params.stack || new EditorWidgets.CommandStack()
 			}
 		});
 
-		this.multi = params.multi;
+		this.multi = !!params.multi;
+		this.autoSelect = (typeof params.autoSelect === 'undefined') || !!params.autoSelect;
+		this.currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT;
+		
 		this.selectedSegments = [];
-
 		this.events = {};
 		this.tracks = [];
 		this.audio = {};
@@ -83,8 +94,6 @@ var Timeline = (function(){
 		this.scrubActive = false;
 
 		this.slider = new Timeline.Slider(this);
-		this.tracker = new Timeline.Tracker(this);
-		this.persistence = new Timeline.Persistence(this);
 		this.view = new Timeline.View(this, params.start || 0, params.end || 60);
 
 		this.repeatA = null;
@@ -94,8 +103,6 @@ var Timeline = (function(){
 		// Sizing
 		this.height = this.keyHeight + this.trackPadding + this.sliderHeight;
 
-		//cursor & tool selection
-		this.currentTool = Timeline.SELECT;
 
 		//mouse control
 		this.mouseDownPos = {x: 0, y: 0};
@@ -174,7 +181,7 @@ var Timeline = (function(){
 	};
 
 	Proto.getTrack = function(id){
-		return this.tracks[this.trackIndices[id]];
+		return this.trackIndices.hasOwnProperty(id)?this.tracks[this.trackIndices[id]]:null;
 	};
 
 	Proto.trackFromPos = function(pos) {
@@ -192,9 +199,9 @@ var Timeline = (function(){
 
 	Proto.addTextTrack = function(track) {
 		if(track instanceof Timeline.TextTrack){
-			if(track.id in this.trackIndices){ throw new Error("Track name already in use."); }
+			if(this.trackIndices.hasOwnProperty(track.id)){ throw new Error("Track name already in use."); }
 		}else{
-			if(track.label in this.trackIndices){ throw new Error("Track name already in use."); }
+			if(this.trackIndices.hasOwnProperty(track.label)){ throw new Error("Track name already in use."); }
 			track = new Timeline.TextTrack(this, track);
 		}
 		this.trackIndices[track.id] = this.tracks.length;
@@ -283,6 +290,11 @@ var Timeline = (function(){
 		}
 	};
 
+	Proto.addSegment = function(tid, cue, select){
+		if(!this.trackIndices.hasOwnProperty(tid)){ return; }
+		this.tracks[this.trackIndices[tid]].add(cue, select);
+	};
+	
 	/** Drawing functions **/
 
 	Proto.renderBackground = function() {
@@ -404,6 +416,9 @@ var Timeline = (function(){
 			this.renderABRepeat();
 			this.renderTimeMarker();
 			this.slider.render();
+			if(this.activeElement instanceof Timeline.Placeholder){
+				this.activeElement.render();
+			}
 		}else if(!this.renderInterval){
 			this.renderInterval = setInterval(this.render.bind(this),1);
 		}
@@ -469,10 +484,82 @@ var Timeline = (function(){
 	};
 
 	/** Persistence functions **/
-
-	Proto.save = function(type, id) { this.persistence.save(type, id); };
-	Proto.saveLocal = function(type, id) { this.persistence.saveLocal(type, id); };
-	Proto.loadTextTrack = function(url, kind, lang) { this.persistence.loadTextTrack(url, kind, lang); };
+	
+	function addSuffix(name,suffix){
+		return (name.substr(name.length-suffix.length).toLowerCase() === suffix)?
+				name:name+"."+suffix;
+	}
+	
+	Proto.exportTracks = function(type, id) {
+		var that = this,
+			suffix = type.toLowerCase(),
+			mime = {srt:"text/srt",vtt:"text/vtt"}[suffix];
+			
+		if(!mime){ throw new Error("Unsupported File Type."); }
+		return (function(){
+			var track;
+			if(typeof id === 'string'){ //save a single track
+				track = that.getTrack(id);
+				if(track === null){ throw new Error("Track "+id+" Does Not Exist."); }
+				return [track];
+			}else if(id instanceof Array){ //save multiple tracks
+				return id.map(function(tid){
+					track = that.getTrack(tid);
+					if(track === null){ throw new Error("Track "+tid+" Does Not Exist"); }
+					return track;
+				});
+			}else{ //save all tracks
+				return tl.tracks;
+			}
+		})().map(function(track){
+			return {
+				collection:"tracks",
+				mime: mime,
+				name: addSuffix(track.id,suffix),
+				data: track.serialize(mime)
+			};
+		});
+	};
+	
+	function parseTrackData(data,mime,kind,lang,name){
+		try{
+			this.addTextTrack(new TimedText.Track(
+				TimedText.parseFile(mime||"text/vtt", data),
+				kind, lang, name
+			));
+		}catch(e){
+			alert('There was an error loading the track "'+name+'": '+e.message);
+		}
+	}
+	
+	Proto.loadTextTrack = function(url, kind, lang){
+		var that = this,
+			reader, mime;
+		if(url instanceof File){
+			reader = new FileReader();
+			reader.onload = function(evt) {
+				parseTrackData.call(that, evt.target.result, url.type, kind, lang, url.name);
+			};
+			reader.onerror = function(e){alert(e);};
+			reader.readAsText(url);
+		}else{
+			reader = new XMLHttpRequest();
+			reader.onreadystatechange = function(){
+				if(this.readyState==4){
+					if(this.status>=200 && this.status<400){
+						parseTrackData.call(that,	this.responseText,
+													this.getResponseHeader('content-type'),
+													kind, lang, url.substr(url.lastIndexOf('/')));
+					}else{
+						alert("The track could not be loaded: " + this.responseText);
+					}
+				}
+			};
+			reader.open("GET",url,true);
+			reader.send();
+		}
+	};
+	
 
 	/** Scroll Tool Functions **/
 

@@ -5,7 +5,7 @@
 		throw new Error("Timeline Uninitialized");
 	}
 	
-	var Proto;
+	var TProto, SProto;
 	
 	function order(a,b){
 		//sort first by start time, then by length
@@ -43,9 +43,9 @@
 		});
 	}
 	
-	Proto = TextTrack.prototype;
+	TProto = TextTrack.prototype;
 	
-	Object.defineProperties(Proto,{
+	Object.defineProperties(TProto,{
 		id: {
 			get: function(){ return this.cues.label; },
 			set: function(val){
@@ -67,29 +67,49 @@
 		}
 	});
 	
-	Proto.add = function(start, end, t, i, select){
-		var tl = this.tl,
-			cue = (start instanceof TimedText.Cue)?start:new TimedText.Cue(i, start, end, t),
-			seg = new Segment(this, cue);
+	function recreateSeg(){
+		this.deleted = false;
+		this.track.cues.add(this.cue);
+		this.visible && this.tl.renderTrack(this.track);
+		this.tl.emit('create',this);
+	}
+	
+	function deleteSeg(){
+		var vis = this.visible;
+		this.deleted = true;
+		this.selected = false;
+		this.track.cues.remove(this.cue);
+		vis && this.tl.renderTrack(this.track);
+		this.tl.emit('delete',this);
+	}
+	
+	TProto.add = function(cue, select){
+		var tl = this.tl, seg;
+		
+		if(!(cue instanceof TimedText.Cue)){
+			cue = new TimedText.Cue(cue.id, cue.startTime, cue.endTime, cue.text||"");
+		}
 		
 		this.cues.add(cue);
+		
+		seg = new Segment(this, cue);
 		this.segments.push(seg);
 		this.segments.sort(order);
 		
 		// Save the action
-		tl.tracker.addAction(new Timeline.Action("create",{
-			id:seg.uid,
-			track:this.id,
-			initialStart:seg.startTime,
-			initialEnd:seg.endTime
-		}));
-		tl.emit('update', seg);
+		tl.cstack.push({
+			context: seg,
+			undo: deleteSeg,
+			redo: recreateSeg
+		});
+		
+		tl.emit('create', seg);
 		if(select){ seg.select(); }
 		else if(seg.visible){ tl.renderTrack(this); }
 		return seg;
 	};
 	
-	Proto.getSegment = function(id){
+	TProto.getSegment = function(id){
 		var i, segs = this.segments,
 			len = segs.length;
 		for(i=0;i<len;i++){
@@ -97,7 +117,7 @@
 		}
 	};
 
-	Proto.render = function(){
+	TProto.render = function(){
 		var tl = this.tl,
 			startTime = tl.view.startTime,
 			ctx = tl.ctx,
@@ -127,7 +147,7 @@
 		selected && selected.render();
 	};
 	
-	Proto.serialize = function(type){
+	TProto.serialize = function(type){
 		return TimedText.serializeTrack(type, this.cues);
 	};
 	
@@ -138,17 +158,36 @@
 		this.move = false;
 		this.deleted = false;
 		this.selected = false;
-		this.action = null;
 		this.resizeSide = 0;
-
+		
+		// For undo/redo
+		this.initialStart = 0;
+		this.initialEnd = 0;
+		
 		// For mouse control
 		this.startingPos = 0;
 		this.startingLength = 0;
 	}
 
-	Proto = Segment.prototype;
+	SProto = Segment.prototype;
 	
-	Object.defineProperties(Proto,{
+	function textChangeGenerator(text){
+		return function(){
+			this.cue.text = text;
+			this.tl.renderTrack(this.track);
+			this.tl.emit('textchange',this);
+		};
+	}
+	
+	function idChangeGenerator(id){
+		return function(){
+			this.cue.id = id;
+			this.tl.renderTrack(this.track);
+			this.tl.emit('idchange',this);
+		};
+	}
+	
+	Object.defineProperties(SProto,{
 		selectable: { get: function(){ return !this.track.locked && this.track.active; }, enumerable: true },
 		active: {
 			get: function(){
@@ -169,15 +208,14 @@
 				var tl = this.tl,
 					cue = this.cue;
 				if(cue.id === id){ return id; }
-				tl.tracker.addAction(new Timeline.Action("changeid",{
-					id:this.uid,
-					track:this.track.id,
-					initialId:cue.id,
-					finalId:id
-				}));
+				tl.cstack.push({
+					context:this,
+					undo: idChangeGenerator(cue.id),
+					redo: idChangeGenerator(id)
+				});
 				cue.id = id;
 				tl.renderTrack(this.track);
-				tl.emit('update',this);
+				tl.emit('idchange',this);
 				return id;
 			},
 			get: function(){return this.cue.id;},
@@ -198,15 +236,14 @@
 				var tl = this.tl,
 					cue = this.cue;
 				if(cue.text == t){ return t; }
-				tl.tracker.addAction(new Timeline.Action("changetext",{
-					id:this.uid,
-					track:this.track.id,
-					initialText:cue.text,
-					finalText:t
-				}));
+				tl.cstack.push({
+					context:this,
+					undo: textChangeGenerator(cue.text),
+					redo: textChangeGenerator(t)
+				});
 				cue.text = t;
 				tl.renderTrack(this.track);
-				tl.emit('update',this);
+				tl.emit('textchange',this);
 				return t;
 			},
 			get: function(){return this.cue.text;},
@@ -214,7 +251,7 @@
 		}
 	});
 	
-	Proto.select = function(){
+	SProto.select = function(){
 		var id, tl = this.tl,
 			trackmap = {};
 		if(this.selected){ return; }
@@ -236,7 +273,7 @@
 		tl.emit('select',this);
 	};
 	
-	Proto.unselect = function(){
+	SProto.unselect = function(){
 		if(!this.selected){ return; }
 		var tl = this.tl;
 		this.selected = false;
@@ -245,12 +282,12 @@
 		tl.emit('unselect', this);
 	};
 	
-	Proto.serialize = function(type){
+	SProto.serialize = function(type){
 		return this.deleted?"":TimedText.serializeCue(type, this.cue);
 	};
 
 	// Location computation
-	Proto.getShape = function() {
+	SProto.getShape = function() {
 		var tl = this.tl,
 			x = tl.view.timeToPixel(this.startTime),
 			y = tl.getTrackTop(this.track),
@@ -258,12 +295,12 @@
 		return {x: x, y: y, width: width, height: tl.trackHeight};
 	};
 
-	Proto.containsPoint = function(pos) {
+	SProto.containsPoint = function(pos) {
 		var s = this.getShape();
 		return (pos.x >= s.x && pos.x <= s.x + s.width && pos.y >= s.y && pos.y <= s.y + s.height);
 	};
 
-	Proto.getMouseSide = function(pos) {
+	SProto.getMouseSide = function(pos) {
 		var tl = this.tl,
 			images = tl.images,
 			shape = this.getShape(),
@@ -290,7 +327,7 @@
 	};
 
 	// Event handlers
-	Proto.mouseDown = function(pos) {
+	SProto.mouseDown = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
 			
@@ -305,31 +342,51 @@
 			case Timeline.MOVE:
 				this.resizeSide = this.getMouseSide(pos);
 				this.move = true;
-				this.action = new Timeline.Action("move",{
-					id:this.uid,
-					track:this.track.id,
-					initialStart:this.startTime,
-					initialEnd:this.endTime
-				});
+				this.initialStart = this.startTime;
+				this.initialEnd = this.endTime;
 		}
 	};
-
-	Proto.mouseUp = function(pos) {
+	
+	function moveGenerator(type,start,end){
+		return function(){
+			this.startTime = start;
+			this.endTime = end;
+			this.track.cues.update();
+			this.tl.renderTrack(this.track);
+			this.tl.emit(type,this);
+		};
+	}
+	
+	SProto.mouseUp = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
 		
-		var tl = this.tl;
+		var tl = this.tl,
+			action = {context: this},
+			etype;
 		
 		switch(tl.currentTool) {
 			case Timeline.MOVE:
 				this.move = false;
-				// Save the move
-				this.action.attributes.finalStart = this.startTime;
-				this.action.attributes.finalEnd = this.endTime;
-				this.track.cues.update();
-				tl.tracker.addAction(this.action);
-				tl.emit('update',this);
 				this.track.segments.sort(Segment.order);
+				this.track.cues.update();
+				// Save the move
+				switch(this.resizeSide){
+					case 0:
+						etype = 'move';
+						action.redo = moveGenerator('move',this.startTime,this.endTime);
+						break;
+					case -1:
+						etype = 'resizel';
+						action.redo = moveGenerator('resizel',this.startTime,this.initialEnd);
+						break;
+					case 1:
+						etype = 'resizel';
+						action.redo = moveGenerator('resizel',this.initialStart,this.endTime);
+				}
+				action.undo = moveGenerator(etype,this.initialStart,this.initialEnd);
+				tl.cstack.push(action);
+				tl.emit(etype,this);
 				break;
 			case Timeline.DELETE:
 				// Delete tool
@@ -338,16 +395,17 @@
 				this.track.cues.remove(this.cue);
 				
 				// Save the delete
-				tl.tracker.addAction(new Timeline.Action("delete",{
-					id:this.uid,
-					track:this.track.id
-				}));
+				tl.cstack.push({
+					context: this,
+					redo: deleteSeg,
+					undo: recreateSeg
+				});
 				tl.renderTrack(this.track);
-				tl.emit('update',this);
+				tl.emit('delete',this);
 		}
 	};
 
-	Proto.mouseMove = function(pos) {
+	SProto.mouseMove = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
 		
@@ -365,17 +423,20 @@
 				else if(newTime > maxStartTime){ newTime = maxStartTime; }
 				this.startTime = newTime;
 				this.endTime = newTime + this.startingLength;
+				tl.emit('move',this);
 				break;
 			case -1:				
 				if(newTime < 0){ newTime = 0; }
 				else if(newTime >= this.endTime){ newTime = this.endTime - .001; }
 				this.startTime = newTime;
+				tl.emit('resizel',this);
 				break;
 			case 1:
 				newTime += this.startingLength;
 				if(newTime <= this.startTime){ newTime = this.startTime + .001; }
 				else if(newTime > tl.length){ newTime = tl.length; }
 				this.endTime = newTime;
+				tl.emit('resizer',this);
 				break;
 			default:
 				throw new Error("Invalid State");
@@ -399,7 +460,7 @@
 		}
 	}
 	
-	Proto.render = function() {
+	SProto.render = function() {
 		if(this.deleted)
 			return;
 
