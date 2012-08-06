@@ -308,7 +308,7 @@
 			
 		if(this.selected){
 			left = images.segmentLeftSel;
-			right = images.segmentRightSel.width;
+			right = images.segmentRightSel;
 		}else if(this.selectable){
 			left = images.segmentLeft;
 			right = images.segmentRight;

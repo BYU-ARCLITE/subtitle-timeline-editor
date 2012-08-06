@@ -100,6 +100,7 @@
 <button id="delb">DELETE</button>
 <button id="repb">REPEAT</button>
 <button id="scrb">SCROLL</button>
+<button id="ordb">ORDER</button>
 <button id="undb"> UNDO </button>
 <button id="redb"> REDO </button>
 <button id="savs"> Save to Server </button>
@@ -337,9 +338,7 @@ window.addEventListener('resize',function(){ timeline.width = window.innerWidth;
 // Define the timeline callbacks
 timeline.on('select',function(seg) {
 	curseg = seg;
-	if(!(seg.uid in captions)){
-		captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue);
-	}
+	if(!(seg.uid in captions)){ captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue); }
 	caption = captions[seg.uid];
 	updateEditor();
 	editor.style.display = "block";
@@ -351,6 +350,10 @@ timeline.on('unselect',function(seg) {
 });
 timeline.on('delete',function(seg) {
 	if(curseg === seg){ editor.style.display = "none"; }
+});
+timeline.on('create',function(seg) {
+	if(!(seg.uid in captions)){ captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue); }
+	timeline.currentTool = Timeline.MOVE;
 });
 timeline.on('jump', function(time) {
 	controls.currentTime = time;
@@ -393,6 +396,9 @@ document.getElementById("repb").addEventListener('click',function(){
 document.getElementById("scrb").addEventListener('click',function(){
 	timeline.currentTool = Timeline.SCROLL;		
 },false);
+document.getElementById("ordb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.ORDER;		
+},false);
 document.getElementById("undb").addEventListener('click',function(){
 	timeline.cstack.undo();
 },false);
@@ -412,10 +418,13 @@ document.getElementById("savs").addEventListener('click',saveTracks.bind(null,'a
 document.getElementById("savl").addEventListener('click',saveTracks.bind(null,'file'),false);
 
 atracks.addEventListener('change',function(){
-	var i, opts = atracks.options,
+	var i, track,
+		opts = atracks.options,
 		len = opts.length;
 	for(i=0;i<len;i++){
-		timeline.getTrack(opts[i].value).active = opts[i].selected;
+		track = timeline.getTrack(opts[i].value);
+		track.active = opts[i].selected;
+		track.cues.mode = track.active?'showing':'disabled';
 	}
 },false);
 //need time for images to load

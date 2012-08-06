@@ -11,7 +11,7 @@
 		this.track = track;
 		this.startx = x;
 		this.endx = x;
-		tl.emit("startcreate", tl.view.pixelToTime(pos.x));
+		tl.emit("startcreate", tl.view.pixelToTime(x));
 	}
 
 	Proto = Placeholder.prototype;

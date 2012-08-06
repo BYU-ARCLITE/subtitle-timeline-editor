@@ -90,6 +90,7 @@ var Timeline = (function(){
 		this.trackIndices = {};
 
 		this.activeElement = null;
+		this.activeIndex = -1;
 		this.sliderActive = false;
 		this.scrubActive = false;
 
@@ -138,6 +139,7 @@ var Timeline = (function(){
 		this.render();
 	}
 
+	Timeline.ORDER = 0;
 	Timeline.SELECT = 1;
 	Timeline.MOVE = 2;
 	Timeline.CREATE = 3;
@@ -185,6 +187,10 @@ var Timeline = (function(){
 	};
 
 	Proto.trackFromPos = function(pos) {
+		return this.tracks[this.indexFromPos(pos)]||null;
+	};
+	
+	Proto.indexFromPos = function(pos){
 		var i, bottom,
 			padding = this.trackPadding,
 			height = this.trackHeight,
@@ -192,9 +198,9 @@ var Timeline = (function(){
 		for(i = 0; i < this.tracks.length; i++, top = bottom + padding) {
 			bottom = top + height;
 			if(pos.y >= top && pos.y <= bottom)
-				return this.tracks[i];
+				return i;
 		}
-		return null;
+		return -1;
 	};
 
 	Proto.addTextTrack = function(track) {
@@ -645,12 +651,12 @@ var Timeline = (function(){
 		}else
 		track_cursor: // Are we on a track?
 		if(track = this.trackFromPos(pos)){
-			if(!track.active || track.locked){
+			if(this.currentTool === Timeline.ORDER){
+				cursor = 'order';
+			}else if(!track.active || track.locked){
 				cursor = 'locked';
-				break track_cursor;
-			}
-			if(this.currentTool === Timeline.CREATE){
-				 cursor = 'add';
+			}else if(this.currentTool === Timeline.CREATE){
+				cursor = 'add';
 			}else{
 				//Are we on a segment?
 				//traverse backwards so you get the ones on top
@@ -681,7 +687,8 @@ var Timeline = (function(){
 	}
 
 	function mouseMove(ev) {
-		var i, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
+		var i, active, swap,
+			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
 
 		this.mousePos = pos;
 
@@ -693,6 +700,24 @@ var Timeline = (function(){
 		}else if(this.currentTool == Timeline.REPEAT
 			&& this.repeatA != null && !this.abRepeatOn){
 			this.updateB(pos);
+		}else if(this.currentTool == Timeline.ORDER
+			&& this.activeIndex !== -1){
+			i = this.indexFromPos(pos);
+			if(i !== -1 && i !== this.activeIndex){
+				console.log("swapping",i,this.tracks[i].id,this.activeIndex,this.tracks[this.activeIndex].id);
+				
+				swap = this.tracks[i];
+				active = this.tracks[this.activeIndex];
+				
+				this.tracks[i] = active;	
+				this.tracks[this.activeIndex] = swap;
+				
+				this.trackIndices[swap.id] = this.activeIndex;
+				this.trackIndices[active.id] = i;
+				
+				this.activeIndex = i;
+				this.render(); //could gain efficiency by just copying image segments
+			}
 		}else if(this.sliderActive){
 			this.slider.mouseMove(pos);
 		}else if(this.activeElement){
@@ -721,11 +746,13 @@ var Timeline = (function(){
 			this.slider.mouseUp(pos);
 			this.sliderActive = false;
 			for(id in this.audio){ this.audio[id].redraw(); }
-		}else if(this.activeElement) {
+		}else if(this.activeElement !== null) {
 			this.activeElement.mouseUp(pos);
 			this.activeElement = null;
 		}
-
+		
+		this.activeIndex = -1;
+		
 		ev.preventDefault();
 	}
 
@@ -770,6 +797,10 @@ var Timeline = (function(){
 				break;
 			case Timeline.SCROLL:
 				initScroll.call(this);
+				break;
+			case Timeline.ORDER:
+				this.activeIndex = this.indexFromPos(pos);
+				break;
 			default:
 				// Check all the segments
 				track_loop: for(i=0;track=this.tracks[i];i++) {
