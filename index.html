@@ -200,6 +200,15 @@ function snap_change(){
 	caption.displayed && caption.display(video);
 };
 
+id_el.addEventListener('change', id_change, false);
+size_el.addEventListener('change', size_change, false);
+align_el.addEventListener('change', align_change, false);
+snap_el.addEventListener('change', snap_change, false);
+line_el.addEventListener('change', line_change, false);
+pos_el.addEventListener('change', pos_change, false);
+text_el.addEventListener('DOMCharacterDataModified', text_change, false);
+text_el.addEventListener('DOMSubtreeModified', text_change, false);
+
 function updateEditor(){
 	var cue = curseg.cue;
 	
@@ -207,22 +216,13 @@ function updateEditor(){
 	id_el.value = cue.id;
 	id_el.addEventListener('change', id_change, false);
 	
-	text_el.removeEventListener('DOMCharacterDataModified', text_change, false);
-	text_el.removeEventListener('DOMSubtreeModified', text_change, false);
 	text_el.innerHTML = cue.text;
 	text_el.dir = Ayamel.Text.getDirection(cue.text);
-	text_el.addEventListener('DOMCharacterDataModified', text_change, false);
-	text_el.addEventListener('DOMSubtreeModified', text_change, false);
 	
-	size_el.removeEventListener('change', size_change, false);
 	size_el.value = parseInt(cue.size,10);
-	size_el.addEventListener('change', size_change, false);
 	
-	align_el.removeEventListener('change', align_change, false);
 	align_el.value = cue.align;
-	align_el.addEventListener('change', align_change, false);
 	
-	snap_el.removeEventListener('change', snap_change, false);
 	snap_el.value = cue.snapToLines?(cue.rawLine==='auto'?'auto':'snap'):'percent';
 	if(snap_el.value === "auto"){
 		line_form.style.display = "none";	
@@ -241,15 +241,10 @@ function updateEditor(){
 		}
 		line_form.style.display = "inline";
 	}
-	snap_el.addEventListener('change', snap_change, false);
 	
-	line_el.removeEventListener('change', line_change, false);
 	line_el.value = cue.rawLine;
-	line_el.addEventListener('change', line_change, false);
 	
-	pos_el.removeEventListener('change', pos_change, false);
 	pos_el.value = parseInt(cue.position,10);
-	pos_el.addEventListener('change', pos_change, false);
 }
 
 document.getElementById('vttfile').addEventListener('change', function(evt) {
@@ -257,7 +252,7 @@ document.getElementById('vttfile').addEventListener('change', function(evt) {
 }, false);
 
 document.getElementById('tbtn').addEventListener('click', function() {
-	timeline.addTextTrack(new TimedText.Track([],'html','en',"track"+(t_count++)));
+	timeline.addTextTrack(new TimedText.Track([],'html',"track"+(t_count++),'en'));
 	timeline.render();
 }, false);
 
@@ -347,6 +342,20 @@ timeline.on('unselect',function(seg) {
 	if(curseg !== seg) return;
 	curseg = null;
 	editor.style.display = "none";
+});
+timeline.on('idchange',function(seg) {
+	if(curseg === seg){ id_el.value = seg.id; }
+	if(seg.active){
+		if(!(seg.uid in captions)){ captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue); }
+		captions[seg.uid].display(video);
+	}
+});
+timeline.on('textchange',function(seg) {
+	if(curseg === seg){ text_el.innerHTML = seg.text; }
+	if(seg.active){
+		if(!(seg.uid in captions)){ captions[seg.uid] = Ayamel.Caption.FromCue(null,null,seg.cue); }
+		captions[seg.uid].display(video);
+	}
 });
 timeline.on('delete',function(seg) {
 	if(curseg === seg){ editor.style.display = "none"; }

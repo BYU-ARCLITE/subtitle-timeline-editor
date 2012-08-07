@@ -1,17 +1,17 @@
 (function(Timeline){
 	"use strict";
-	
+
 	if(!Timeline){
 		throw new Error("Timeline Uninitialized");
 	}
-	
+
 	var TProto, SProto;
-	
+
 	function order(a,b){
 		//sort first by start time, then by length
 		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
 	}
-	
+
 	function TextTrack(tl, cuetrack){
 		var active = true,
 			that = this;
@@ -25,7 +25,7 @@
 		this.visibleSegments = [];
 		this.audioId = null;
 		this.locked = false;
-		
+
 		Object.defineProperty(this,'active',{
 			get: function(){ return active; },
 			set: function(val){
@@ -42,9 +42,9 @@
 			}
 		});
 	}
-	
+
 	TProto = TextTrack.prototype;
-	
+
 	Object.defineProperties(TProto,{
 		id: {
 			get: function(){ return this.cues.label; },
@@ -66,49 +66,52 @@
 			enumerable: true
 		}
 	});
-	
+
 	function recreateSeg(){
 		this.deleted = false;
-		this.track.cues.add(this.cue);
+		this.track.cues.addCue(this.cue);
 		this.visible && this.tl.renderTrack(this.track);
 		this.tl.emit('create',this);
 	}
-	
+
 	function deleteSeg(){
-		var vis = this.visible;
+		var i, vis = this.visible,
+			s_segs = this.tl.selectedSegments;
 		this.deleted = true;
 		this.selected = false;
-		this.track.cues.remove(this.cue);
+		i = s_segs.indexOf(this);
+		if(i !== -1){ s_segs.splice(i,1); }
+		this.track.cues.removeCue(this.cue);
 		vis && this.tl.renderTrack(this.track);
 		this.tl.emit('delete',this);
 	}
-	
+
 	TProto.add = function(cue, select){
 		var tl = this.tl, seg;
-		
+
 		if(!(cue instanceof TimedText.Cue)){
 			cue = new TimedText.Cue(cue.id, cue.startTime, cue.endTime, cue.text||"");
 		}
-		
-		this.cues.add(cue);
-		
+
+		this.cues.addCue(cue);
+
 		seg = new Segment(this, cue);
 		this.segments.push(seg);
 		this.segments.sort(order);
-		
+
 		// Save the action
 		tl.cstack.push({
 			context: seg,
 			undo: deleteSeg,
 			redo: recreateSeg
 		});
-		
+
 		tl.emit('create', seg);
 		if(select){ seg.select(); }
 		else if(seg.visible){ tl.renderTrack(this); }
 		return seg;
 	};
-	
+
 	TProto.getSegment = function(id){
 		var i, segs = this.segments,
 			len = segs.length;
@@ -123,21 +126,21 @@
 			ctx = tl.ctx,
 			audio = this.audio,
 			selected = null;
-		
+
 		ctx.save();
-		
+
 		ctx.translate(0,tl.getTrackTop(this));
-		
+
 		ctx.fillStyle = ctx.createPattern(tl.images.trackBg, "repeat-x");
 		ctx.fillRect(0, 0, tl.width, tl.trackHeight);
-		
+
 		ctx.textBaseline = 'middle';
 		ctx.font = tl.fonts.titleFont;
 		ctx.fillStyle = tl.fonts.titleTextColor;
 		ctx.fillText(this.id, tl.width/100, tl.trackHeight/2);
-		
+
 		ctx.restore();
-		
+
 		this.visibleSegments = this.segments.filter(function(seg){return seg.visible;});
 		this.visibleSegments.forEach(function(seg){
 			if(seg.selected){ selected = seg; }
@@ -146,11 +149,11 @@
 		//save the selected segment for last so it's always on top
 		selected && selected.render();
 	};
-	
+
 	TProto.serialize = function(type){
 		return TimedText.serializeTrack(type, this.cues);
 	};
-	
+
 	function Segment(track, cue) {
 		this.tl = track.tl;
 		this.track = track;
@@ -159,18 +162,18 @@
 		this.deleted = false;
 		this.selected = false;
 		this.resizeSide = 0;
-		
+
 		// For undo/redo
 		this.initialStart = 0;
 		this.initialEnd = 0;
-		
+
 		// For mouse control
 		this.startingPos = 0;
 		this.startingLength = 0;
 	}
 
 	SProto = Segment.prototype;
-	
+
 	function textChangeGenerator(text){
 		return function(){
 			this.cue.text = text;
@@ -178,7 +181,7 @@
 			this.tl.emit('textchange',this);
 		};
 	}
-	
+
 	function idChangeGenerator(id){
 		return function(){
 			this.cue.id = id;
@@ -186,7 +189,7 @@
 			this.tl.emit('idchange',this);
 		};
 	}
-	
+
 	Object.defineProperties(SProto,{
 		selectable: { get: function(){ return !this.track.locked && this.track.active; }, enumerable: true },
 		active: {
@@ -250,7 +253,7 @@
 			enumerable: true
 		}
 	});
-	
+
 	SProto.select = function(){
 		var id, tl = this.tl,
 			trackmap = {};
@@ -272,7 +275,7 @@
 		}
 		tl.emit('select',this);
 	};
-	
+
 	SProto.unselect = function(){
 		if(!this.selected){ return; }
 		var tl = this.tl;
@@ -281,7 +284,7 @@
 		if(this.visible){ tl.renderTrack(this.track); }
 		tl.emit('unselect', this);
 	};
-	
+
 	SProto.serialize = function(type){
 		return this.deleted?"":TimedText.serializeCue(type, this.cue);
 	};
@@ -305,7 +308,7 @@
 			images = tl.images,
 			shape = this.getShape(),
 			x, left, right;
-			
+
 		if(this.selected){
 			left = images.segmentLeftSel;
 			right = images.segmentRightSel;
@@ -330,10 +333,10 @@
 	SProto.mouseDown = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
-			
+
 		this.startingPos = this.tl.view.timeToPixel(this.startTime);
 		this.startingLength = this.endTime - this.startTime;
-				
+
 		switch(this.tl.currentTool){
 			case Timeline.SELECT:
 				if(this.selected){ this.unselect(); }
@@ -346,7 +349,7 @@
 				this.initialEnd = this.endTime;
 		}
 	};
-	
+
 	function moveGenerator(type,start,end){
 		return function(){
 			this.startTime = start;
@@ -356,15 +359,15 @@
 			this.tl.emit(type,this);
 		};
 	}
-	
+
 	SProto.mouseUp = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
-		
+
 		var tl = this.tl,
 			action = {context: this},
-			etype;
-		
+			etype, s_segs, i;
+
 		switch(tl.currentTool) {
 			case Timeline.MOVE:
 				this.move = false;
@@ -389,11 +392,14 @@
 				tl.emit(etype,this);
 				break;
 			case Timeline.DELETE:
-				// Delete tool
 				this.deleted = true;
 				this.selected = false;
-				this.track.cues.remove(this.cue);
-				
+				this.track.cues.removeCue(this.cue);
+
+				s_segs = tl.selectedSegments;
+				i = s_segs.indexOf(this);
+				if(i !== -1){ s_segs.splice(i,1); }
+
 				// Save the delete
 				tl.cstack.push({
 					context: this,
@@ -408,12 +414,12 @@
 	SProto.mouseMove = function(pos) {
 		if(this.deleted || !this.selectable)
 			return;
-		
+
 		var tl = this.tl,
 			activeStart, newTime, maxStartTime;
-		
+
 		if(!this.move){ return; }
-		
+
 		activeStart = this.active;
 		newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
 		switch(this.resizeSide){
@@ -425,7 +431,7 @@
 				this.endTime = newTime + this.startingLength;
 				tl.emit('move',this);
 				break;
-			case -1:				
+			case -1:
 				if(newTime < 0){ newTime = 0; }
 				else if(newTime >= this.endTime){ newTime = this.endTime - .001; }
 				this.startTime = newTime;
@@ -446,7 +452,7 @@
 	};
 
 	// Rendering
-	
+
 	function renderImage(shape, imageLeft, imageRight, imageMid) {
 		var ctx = this.tl.ctx;
 		if(shape.width < imageLeft.width + imageRight.width){
@@ -459,7 +465,7 @@
 			ctx.fillRect(imageLeft.width, 0, shape.width - (imageRight.width + imageLeft.width), shape.height);
 		}
 	}
-	
+
 	SProto.render = function() {
 		if(this.deleted)
 			return;
@@ -472,12 +478,12 @@
 			x = shape.x,
 			y = shape.y,
 			direction, dir, text;
-			
+
 		// is it on the screen
 		if(x > -shape.width && x < tl.width) {
 			ctx.save();
 			ctx.translate(x, y);
-			
+
 			renderImage.apply(this, (this.selected)?[
 										shape,
 										images.segmentLeftSel, images.segmentRightSel, images.segmentMidSel
@@ -488,7 +494,7 @@
 										shape,
 										images.segmentLeft, images.segmentRight, images.segmentMid
 									]);
-			
+
 			if(shape.width > 2*tl.segmentTextPadding){
 				// Set the clipping bounds
 				ctx.beginPath();
@@ -498,15 +504,15 @@
 				ctx.lineTo(shape.width - tl.segmentTextPadding, 0);
 				ctx.closePath();
 				ctx.clip();
-				
+
 				ctx.textBaseline = 'top';
-				
+
 				dir = tl.canvas.dir; //save
-				
+
 				if(this.id){
 					direction = Ayamel.Text.getDirection(this.id);
 					tl.canvas.dir = direction;
-					
+
 					ctx.font = fonts.idFont;
 					ctx.fillStyle = fonts.idTextColor;
 					ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
@@ -514,20 +520,20 @@
 				}else{
 					y = tl.segmentTextPadding;
 				}
-				
+
 				text = TimedText.textPreviewers[this.track.kind](this.text);
 				direction = Ayamel.Text.getDirection(text);
 				tl.canvas.dir = direction;
-				
+
 				ctx.font = fonts.segmentFont;
 				ctx.fillStyle = fonts.segmentTextColor;
 				ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
-				
+
 				tl.canvas.dir = dir; //restore
 			}
 			ctx.restore();
 		}
-	};	
-	
+	};
+
 	Timeline.TextTrack = TextTrack;
 }(Timeline));

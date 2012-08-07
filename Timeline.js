@@ -531,7 +531,7 @@ var Timeline = (function(){
 		try{
 			this.addTextTrack(new TimedText.Track(
 				TimedText.parseFile(mime||"text/vtt", data),
-				kind, lang, name
+				kind, name, lang
 			));
 		}catch(e){
 			alert('There was an error loading the track "'+name+'": '+e.message);
