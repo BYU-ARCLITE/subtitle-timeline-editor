@@ -422,9 +422,6 @@ var Timeline = (function(){
 			this.renderABRepeat();
 			this.renderTimeMarker();
 			this.slider.render();
-			if(this.activeElement instanceof Timeline.Placeholder){
-				this.activeElement.render();
-			}
 		}else if(!this.renderInterval){
 			this.renderInterval = setInterval(this.render.bind(this),1);
 		}
@@ -648,37 +645,8 @@ var Timeline = (function(){
 		}else if(this.currentTool === Timeline.SCROLL){
 			cursor =	(this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?'move':
 						(this.mousePos.x < this.slider.middle)?'resizeL':'resizeR';
-		}else
-		track_cursor: // Are we on a track?
-		if(track = this.trackFromPos(pos)){
-			if(this.currentTool === Timeline.ORDER){
-				cursor = 'order';
-			}else if(!track.active || track.locked){
-				cursor = 'locked';
-			}else if(this.currentTool === Timeline.CREATE){
-				cursor = 'add';
-			}else{
-				//Are we on a segment?
-				//traverse backwards so you get the ones on top
-				for(j=track.visibleSegments.length-1;seg=track.visibleSegments[j];j--){
-					if(!seg.containsPoint(pos)){ continue; }
-					shape = seg.getShape();
-					switch(this.currentTool){
-						case Timeline.SELECT:
-							cursor = 'select';
-							break track_cursor;
-						case Timeline.MOVE:
-							i = seg.getMouseSide(pos);
-							cursor =	i === 1?'resizeR':
-										i === -1?'resizeL':
-										'move';
-							break track_cursor;
-						case Timeline.DELETE:
-							cursor = 'remove';
-							break track_cursor;
-					}
-				}
-			}
+		}else if(track = this.trackFromPos(pos)){ // Are we on a track?
+			cursor = (this.currentTool === Timeline.ORDER)?'order':track.getCursor(pos);
 		}
 		if(this.currentCursor != cursor){
 			this.currentCursor = cursor;
@@ -703,9 +671,7 @@ var Timeline = (function(){
 		}else if(this.currentTool == Timeline.ORDER
 			&& this.activeIndex !== -1){
 			i = this.indexFromPos(pos);
-			if(i !== -1 && i !== this.activeIndex){
-				console.log("swapping",i,this.tracks[i].id,this.activeIndex,this.tracks[this.activeIndex].id);
-				
+			if(i !== -1 && i !== this.activeIndex){			
 				swap = this.tracks[i];
 				active = this.tracks[this.activeIndex];
 				
@@ -784,12 +750,6 @@ var Timeline = (function(){
 			this.emit('jump',i);
 			this.currentTime = i;
 		}else switch(this.currentTool){
-			case Timeline.CREATE:
-				track = this.trackFromPos(pos);
-				if(track && track.active && !track.locked){
-					this.activeElement = new Timeline.Placeholder(this, track, pos.x);
-				}
-				break;
 			case Timeline.REPEAT:
 				if(this.abRepeatOn){ this.clearRepeat(); }
 				else if(this.repeatA == null){ this.setA(pos); }
@@ -801,19 +761,10 @@ var Timeline = (function(){
 			case Timeline.ORDER:
 				this.activeIndex = this.indexFromPos(pos);
 				break;
-			default:
-				// Check all the segments
-				track_loop: for(i=0;track=this.tracks[i];i++) {
-					//search backwards 'cause later segments are on top
-					for(j=track.visibleSegments.length-1;seg = track.visibleSegments[j];j--) {
-						if(!seg.containsPoint(pos)) { continue; }
-						this.activeElement = seg;
-						seg.mouseDown(pos);
-						break track_loop;
-					}
-				}
+			default: // Check tracks
+				track = this.trackFromPos(pos);
+				track && track.mouseDown(pos);
 		}
-
 		ev.preventDefault();
 	}
 

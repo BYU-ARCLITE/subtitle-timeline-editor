@@ -5,7 +5,7 @@
 		throw new Error("Timeline Uninitialized");
 	}
 
-	var TProto, SProto;
+	var TProto, SProto, PProto;
 
 	function order(a,b){
 		//sort first by start time, then by length
@@ -24,6 +24,7 @@
 		this.segments.sort(order);
 		this.visibleSegments = [];
 		this.audioId = null;
+		this.placeholder = null;
 		this.locked = false;
 
 		Object.defineProperty(this,'active',{
@@ -90,7 +91,11 @@
 		var tl = this.tl, seg;
 
 		if(!(cue instanceof TimedText.Cue)){
-			cue = new TimedText.Cue(cue.id, cue.startTime, cue.endTime, cue.text||"");
+			cue = new TimedText.Cue(
+				(typeof cue.id === 'undefined')?"":cue.id,
+				cue.startTime, cue.endTime,
+				(typeof cue.text === 'string')?cue.text:""
+			);
 		}
 
 		this.cues.addCue(cue);
@@ -120,12 +125,26 @@
 		}
 	};
 
+	TProto.getCursor = function(pos) {
+		if(typeof pos !== 'object') return;
+		var tl = this.tl,seg,j;
+
+		if(!this.active || this.locked){ return 'locked'; }
+		if(tl.currentTool === Timeline.CREATE){ return 'add'; }
+		
+		//Check segments; traverse backwards so you get the ones on top
+		for(j=this.visibleSegments.length-1;seg=this.visibleSegments[j];j--){
+			if(seg.containsPoint(pos)){	return seg.getCursor(pos); }
+		}
+		return 'pointer';
+	};
+	
 	TProto.render = function(){
 		var tl = this.tl,
 			startTime = tl.view.startTime,
 			ctx = tl.ctx,
 			audio = this.audio,
-			selected = null;
+			selected = [];
 
 		ctx.save();
 
@@ -143,15 +162,33 @@
 
 		this.visibleSegments = this.segments.filter(function(seg){return seg.visible;});
 		this.visibleSegments.forEach(function(seg){
-			if(seg.selected){ selected = seg; }
+			if(seg.selected){ selected.push(seg); }
 			else{ seg.render(); }
 		});
-		//save the selected segment for last so it's always on top
-		selected && selected.render();
+		selected.forEach(function(seg){ seg.render(); });
+		this.placeholder && this.placeholder.render();
 	};
 
 	TProto.serialize = function(type){
 		return TimedText.serializeTrack(type, this.cues);
+	};
+	
+	TProto.mouseDown = function(pos){
+		if(typeof pos !== 'object') return;
+		var tl = this.tl,seg,j;
+		if(tl.currentTool === Timeline.CREATE){
+			if(this.active && !this.locked){
+				this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
+			}
+		}else{	//search backwards 'cause later segments are on top
+			for(j=this.visibleSegments.length-1;seg=this.visibleSegments[j];j--) {
+				if(seg.containsPoint(pos)){
+					tl.activeElement = seg;
+					seg.mouseDown(pos);
+					return;
+				}
+			}
+		}		
 	};
 
 	function Segment(track, cue) {
@@ -254,6 +291,21 @@
 		}
 	});
 
+	SProto.getCursor = function(pos){
+		var i;
+		if(typeof pos !== 'object')	return;
+		switch(this.tl.currentTool){
+			case Timeline.SELECT: return 'select';
+			case Timeline.DELETE: return 'remove';
+			case Timeline.MOVE:
+				i = this.getMouseSide(pos);
+				return	i === 1?'resizeR':
+							i === -1?'resizeL':
+							'move';
+			default: return 'pointer';
+		}
+	};
+	
 	SProto.select = function(){
 		var id, tl = this.tl,
 			trackmap = {};
@@ -535,5 +587,52 @@
 		}
 	};
 
+	function Placeholder(tl, track, x) {
+		this.tl = tl;
+		this.track = track;
+		this.startx = x;
+		this.endx = x;
+		tl.emit("startcreate", tl.view.pixelToTime(x));
+	}
+
+	PProto = Placeholder.prototype;
+	
+	PProto.render = function() {
+		var tl = this.tl,
+			ctx = tl.ctx,
+			top = tl.getTrackTop(this.track);
+		ctx.save();
+		ctx.fillStyle = tl.colors.placeholder;
+		ctx.globalAlpha = .5;
+		ctx.fillRect(this.startx, top, this.endx - this.startx, tl.trackHeight);
+		ctx.restore();
+	};
+
+	PProto.mouseMove = function(pos) {
+		var tl = this.tl;
+		this.endx = pos.x;
+		tl.emit("endcreate", tl.view.pixelToTime(pos.x));
+		tl.renderTrack(this.track);
+	};
+
+	PProto.mouseUp = function(pos) {
+		var view = this.tl.view,
+			startx, endx;
+
+		if(this.startx < pos.x){
+			startx = this.startx;
+			endx = pos.x;
+		}else{
+			startx = pos.x;
+			endx = this.startx;
+		}
+		this.track.placeholder = null;
+		this.track.add({
+			id: "",
+			startTime: view.pixelToTime(startx),
+			endTime: view.pixelToTime(endx)
+		}, this.tl.autoSelect);
+	};
+	
 	Timeline.TextTrack = TextTrack;
 }(Timeline));
