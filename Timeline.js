@@ -512,7 +512,7 @@ var Timeline = (function(){
 					return track;
 				});
 			}else{ //save all tracks
-				return tl.tracks;
+				return that.tracks;
 			}
 		})().map(function(track){
 			return {
@@ -535,13 +535,13 @@ var Timeline = (function(){
 		}
 	}
 	
-	Proto.loadTextTrack = function(url, kind, lang){
+	Proto.loadTextTrack = function(url, kind, lang, name){
 		var that = this,
 			reader, mime;
 		if(url instanceof File){
 			reader = new FileReader();
 			reader.onload = function(evt) {
-				parseTrackData.call(that, evt.target.result, url.type, kind, lang, url.name);
+				parseTrackData.call(that, evt.target.result, url.type, kind, lang, (typeof name === 'string')?name:url.name);
 			};
 			reader.onerror = function(e){alert(e);};
 			reader.readAsText(url);
@@ -552,7 +552,7 @@ var Timeline = (function(){
 					if(this.status>=200 && this.status<400){
 						parseTrackData.call(that,	this.responseText,
 													this.getResponseHeader('content-type'),
-													kind, lang, url.substr(url.lastIndexOf('/')));
+													kind, lang, (typeof name === 'string')?name:url.substr(url.lastIndexOf('/')));
 					}else{
 						alert("The track could not be loaded: " + this.responseText);
 					}
