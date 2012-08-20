@@ -562,7 +562,7 @@
 				dir = tl.canvas.dir; //save
 
 				if(this.id){
-					direction = Ayamel.Text.getDirection(this.id);
+					direction = Ayamel.Text.getDirection(this.id+"");
 					tl.canvas.dir = direction;
 
 					ctx.font = fonts.idFont;
