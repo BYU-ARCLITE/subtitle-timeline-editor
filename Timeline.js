@@ -487,18 +487,12 @@ var Timeline = (function(){
 	};
 
 	/** Persistence functions **/
-	
-	function addSuffix(name,suffix){
-		return (name.substr(name.length-suffix.length).toLowerCase() === suffix)?
-				name:name+"."+suffix;
-	}
-	
-	Proto.exportTracks = function(type, id) {
-		var that = this,
-			suffix = type.toLowerCase(),
-			mime = {srt:"text/srt",vtt:"text/vtt"}[suffix];
+		
+	Proto.exportTracks = function(mime, id) {
+		var that = this;
+		
+		TimedText.checkType(mime);
 			
-		if(!mime){ throw new Error("Unsupported File Type."); }
 		return (function(){
 			var track;
 			if(typeof id === 'string'){ //save a single track
@@ -518,51 +512,23 @@ var Timeline = (function(){
 			return {
 				collection:"tracks",
 				mime: mime,
-				name: addSuffix(track.id,suffix),
+				name: TimedText.addExt(mime,track.id),
 				data: track.serialize(mime)
 			};
 		});
 	};
 	
-	function parseTrackData(data,mime,kind,lang,name){
-		try{
-			this.addTextTrack(new TimedText.Track(
-				TimedText.parseFile(mime||"text/vtt", data),
-				kind, name, lang
-			));
-		}catch(e){
-			alert('There was an error loading the track "'+name+'": '+e.message);
-		}
-	}
-	
 	Proto.loadTextTrack = function(url, kind, lang, name){
-		var that = this,
-			reader, mime;
-		if(url instanceof File){
-			reader = new FileReader();
-			reader.onload = function(evt) {
-				parseTrackData.call(that, evt.target.result, url.type, kind, lang, (typeof name === 'string')?name:url.name);
-			};
-			reader.onerror = function(e){alert(e);};
-			reader.readAsText(url);
-		}else{
-			reader = new XMLHttpRequest();
-			reader.onreadystatechange = function(){
-				if(this.readyState==4){
-					if(this.status>=200 && this.status<400){
-						parseTrackData.call(that,	this.responseText,
-													this.getResponseHeader('content-type'),
-													kind, lang, (typeof name === 'string')?name:url.substr(url.lastIndexOf('/')));
-					}else{
-						alert("The track could not be loaded: " + this.responseText);
-					}
-				}
-			};
-			reader.open("GET",url,true);
-			reader.send();
-		}
+		var params = {
+			kind: kind,
+			lang: lang,
+			name: name,
+			success: Timeline.prototype.addTextTrack.bind(this),
+			error: function(){ alert("There was an error loading the track."); }
+		};
+		params[(url instanceof File)?'file':'url'] = url;
+		TimedText.Track.get(params);
 	};
-	
 
 	/** Scroll Tool Functions **/
 

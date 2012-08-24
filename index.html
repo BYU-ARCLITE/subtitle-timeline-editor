@@ -18,6 +18,7 @@
 	<script src="TextTrack.js"></script>
 	<script src="WaveForm.js"></script>
 	<script src="AudioTrack.js"></script>
+	<script src="Resampler.js"></script>
 </head>
 <style type="text/css">
 	body {
@@ -278,19 +279,18 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 	// Closure to capture the file information.
 	reader.onload = function(evt) {
 		(new webkitAudioContext).decodeAudioData(evt.target.result, function(buffer) {
-			var i,j,frame,chan,
+			var i,j,frame,chan,resampler,
+				rate = 1001,
 				wave = new WaveForm(
-				timeline.width,
-				timeline.trackHeight,
-				1,//buffer.numberOfChannels,
-				buffer.sampleRate/2);
+					timeline.width,
+					timeline.trackHeight,
+					1,rate
+				);
 			console.log("Decoded");
 			chan = buffer.getChannelData(0);
-			frame = new Float32Array(Math.floor(chan.length/2));
-			for(i=0,j=0;i<frame.length;i++,j+=2){
-				frame[i] = (chan[j]+chan[j+1])/2;
-			}
-			console.log("downsampled");
+			resampler = new Resampler(buffer.sampleRate,rate,Math.ceil(chan.length*rate/buffer.sampleRate),1)
+			frame = resampler.exec(chan);
+			console.log("downsampled by ",buffer.sampleRate/rate);
 			wave.addFrame(frame);
 			console.log("loaded");
 			timeline.addAudioTrack(wave,file.name);
@@ -419,7 +419,7 @@ function saveTracks(target){
 	for(i=0;opt=atracks.options[i];i++){
 		if(opt.selected){ savable.push(opt.value); }
 	}
-	EditorWidgets.Save(timeline.exportTracks('vtt',savable),target)
+	EditorWidgets.Save(timeline.exportTracks('text/vtt',savable),target)
 }
 
 document.getElementById("savs").addEventListener('click',saveTracks.bind(null,'ajax/saver.php'),false);
