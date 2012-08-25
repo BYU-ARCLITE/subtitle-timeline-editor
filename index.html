@@ -19,6 +19,8 @@
 	<script src="WaveForm.js"></script>
 	<script src="AudioTrack.js"></script>
 	<script src="Resampler.js"></script>
+	<script src="aurora.js"></script>
+	<script src="mp3.js"></script>
 </head>
 <style type="text/css">
 	body {
@@ -274,52 +276,58 @@ document.getElementById('fbtn').addEventListener('click', function() {
 }, false);
 
 document.getElementById('audiofile').addEventListener('change', function(evt) {
-	var file = evt.target.files[0], // FileList object
-		reader = new FileReader();
-	// Closure to capture the file information.
-	reader.onload = function(evt) {
-		(new webkitAudioContext).decodeAudioData(evt.target.result, function(buffer) {
-			var i,j,frame,chan,resampler,
-				rate = 1001,
-				wave = new WaveForm(
-					timeline.width,
-					timeline.trackHeight,
-					1,rate
-				);
-			console.log("Decoded");
-			chan = buffer.getChannelData(0);
-			resampler = new Resampler(buffer.sampleRate,rate,1)
-			frame = new Float32Array(Math.ceil(chan.length*rate/buffer.sampleRate));
-			resampler.exec(chan,frame);
-			console.log("downsampled by ",buffer.sampleRate/rate);
-			wave.addFrame(frame);
-			console.log("loaded");
-			timeline.addAudioTrack(wave,file.name);
-			for(i=0;i<atracks.options.length;i++){
-				if(atracks.options[i].selected){
-					timeline.setAudioTrack(atracks.options[i].value,file.name);
-				}
-			}
-		}, function(err){
-			console.log(err);
-		});
-	};
-	reader.onerror = function(evt) {
-		switch(evt.target.error.code) {
-			case evt.target.error.NOT_FOUND_ERR:
-				alert('File Not Found!');
-				break;
-			case evt.target.error.NOT_READABLE_ERR:
-				alert('File is not readable');
-				break;
-			case evt.target.error.ABORT_ERR:
-				break;
-			default:
-				alert('An error occurred reading this file.');
+	var bufsize = 10000,
+		rate = 1001,
+		file = evt.target.files[0],
+		reader = Reader.fromFile(evt.target.files[0]),
+		wave = new WaveForm(
+			timeline.width,
+			timeline.trackHeight,
+			1,rate
+		),
+		chan,
+		frame,
+		buffer,
+		channels,
+		resampler;
+
+	timeline.addAudioTrack(wave,file.name);
+	for(i=0;i<atracks.options.length;i++){
+		if(atracks.options[i].selected){
+			timeline.setAudioTrack(atracks.options[i].value,file.name);
 		}
-	};
-	reader.readAsArrayBuffer(file);
+	}
+	
+	reader.on('format', function(data) {
+		resampler = new Resampler(data.sampleRate,rate,1);
+		channels = data.channelsPerFrame;
+		bufsize -= bufsize%channels;
+		buffer = new Float32Array(bufsize);
+		chan = buffer.subarray(0,bufsize/channels);
+		frame = new Float32Array(Math.ceil(bufsize*rate/(data.sampleRate*channels)));
+	});
+	reader.on('ready', function(){
+		var startTime = Date.now(),
+			repeat;
+		repeat = setInterval(function(){
+			var i, j;
+			if(reader.get(buffer) !== 'filled'){
+				clearInterval(repeat);
+				console.log("done: ", Date.now()-startTime);
+			}else{
+				//deinterlace:
+				for(i=0,j=0;j<bufsize;j+=channels){
+					chan[i++] = buffer[j];
+				}
+				resampler.exec(chan,frame);
+				wave.addFrame(frame);
+				timeline.render();
+			}
+		},1);
+	});
+	reader.start();
 }, false);
+
 
 // Create the timeline
 timeline = new Timeline(target, {

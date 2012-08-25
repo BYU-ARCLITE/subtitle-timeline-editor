@@ -6,7 +6,7 @@ var WaveForm = (function(){
 			scalebuf = document.createElement('canvas'),
 			ctx = buffer.getContext('2d'),
 			scalectx = scalebuf.getContext('2d'),
-			audiobuffer = [];
+			audiobuffer = new Float32Array(0);
 		
 		scalebuf.width = buffer.width = width;
 		scalebuf.height = buffer.height = height;
