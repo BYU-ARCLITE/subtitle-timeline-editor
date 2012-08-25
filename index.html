@@ -288,8 +288,9 @@ document.getElementById('audiofile').addEventListener('change', function(evt) {
 				);
 			console.log("Decoded");
 			chan = buffer.getChannelData(0);
-			resampler = new Resampler(buffer.sampleRate,rate,Math.ceil(chan.length*rate/buffer.sampleRate),1)
-			frame = resampler.exec(chan);
+			resampler = new Resampler(buffer.sampleRate,rate,1)
+			frame = new Float32Array(Math.ceil(chan.length*rate/buffer.sampleRate));
+			resampler.exec(chan,frame);
 			console.log("downsampled by ",buffer.sampleRate/rate);
 			wave.addFrame(frame);
 			console.log("loaded");
