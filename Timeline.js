@@ -432,7 +432,7 @@ var Timeline = (function(){
 	Object.defineProperties(Proto,{
 		currentTime: {
 			set: function(time){
-				if(time == this.timeMarkerPos){ return; }
+				if(time == this.timeMarkerPos){ return time; }
 				if(this.abRepeatOn && time > this.repeatB) {
 					time = this.repeatA;
 					this.emit('jump',this.repeatA);
