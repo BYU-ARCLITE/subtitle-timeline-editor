@@ -11,6 +11,7 @@
 	<script src="../Ayamel.js/Caption.js"></script>
 	<script src="../EditorWidgets/CommandStack.js"></script>
 	<script src="../EditorWidgets/Save.js"></script>
+	<script src="../EditorWidgets/LocalFiles.js"></script>
 	<script src="Timeline.js"></script>
 	<script src="Slider.js"></script>
 	<script src="TimelineSkin.js"></script>
@@ -444,9 +445,6 @@ atracks.addEventListener('change',function(){
 		track.cues.mode = track.active?'showing':'disabled';
 	}
 },false);
-//need time for images to load
-setTimeout(function(){timeline.render();},100);
-
 </script>
 
 </body>

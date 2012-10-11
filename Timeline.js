@@ -100,6 +100,7 @@ var Timeline = (function(){
 		this.repeatA = null;
 		this.repeatB = null;
 		this.abRepeatOn = false;
+		this.abRepeatSet = false;
 
 		// Sizing
 		this.height = this.keyHeight + this.trackPadding + this.sliderHeight;
@@ -203,22 +204,44 @@ var Timeline = (function(){
 		return -1;
 	};
 
-	Proto.addTextTrack = function(track) {
+	function swaptracks(n,o){
+		this.tracks[this.trackIndices[n.id]] = n;
+		n.render();
+		this.emit("removetrack",n);
+		this.emit("addtrack",o);
+	}
+	
+	Proto.addTextTrack = function(track,overwrite) {
+		var oldtrack;
 		if(track instanceof Timeline.TextTrack){
-			if(this.trackIndices.hasOwnProperty(track.id)){ throw new Error("Track name already in use."); }
+			if(!overwrite && this.trackIndices.hasOwnProperty(track.id)){ throw new Error("Track name already in use."); }
 		}else{
-			if(this.trackIndices.hasOwnProperty(track.label)){ throw new Error("Track name already in use."); }
+			if(!overwrite && this.trackIndices.hasOwnProperty(track.label)){ throw new Error("Track name already in use."); }
 			track = new Timeline.TextTrack(this, track);
 		}
-		this.trackIndices[track.id] = this.tracks.length;
-		this.tracks.push(track);
-
-		// Adjust the height
-		this.height += this.trackHeight + this.trackPadding;
-		this.canvas.height = this.height;
-		this.overlay.height = this.height;
-		this.render();
-		this.emit("addtrack",track);
+		if(this.trackIndices.hasOwnProperty(track.id)){
+			oldtrack = this.tracks[this.trackIndices[track.id]];
+			this.cstack.push({
+				context: null,
+				undo: swaptracks.bind(this,oldtrack,track),
+				redo: swaptracks.bind(this,track,oldtrack)
+			});
+			swaptracks.call(this,track,oldtrack);
+		}else{
+			this.trackIndices[track.id] = this.tracks.length;
+			this.tracks.push(track);
+			// Adjust the height
+			this.height += this.trackHeight + this.trackPadding;
+			this.canvas.height = this.height;
+			this.overlay.height = this.height;
+			this.render();
+			this.cstack.push({
+				context: this,
+				undo: function(){ this.removeTextTrack(track.id); },
+				redo: function(){ this.addTextTrack(track); }
+			});
+			this.emit("addtrack",track);
+		}
 	};
 
 	Proto.removeTextTrack = function(id) {
@@ -455,35 +478,31 @@ var Timeline = (function(){
 		}
 	});
 
-	Proto.setA = function(pos) {
-		var time = this.view.pixelToTime(pos.x);
-		this.repeatA = time;
-		this.repeatB = time;
-	};
+	function updateABPoints(pos){
+		this[pos.x < this.view.timeToPixel((this.repeatA + this.repeatB) / 2)?'repeatA':'repeatB'] = this.view.pixelToTime(pos.x);
+		this.render();
+	}
+	
+	function resetABPoints(pos){
+		this.repeatB = this.repeatA = this.view.pixelToTime(pos.x);
+	}
 
-	Proto.setB = function(pos) {
-		var t;
-		this.repeatB = this.view.pixelToTime(pos.x);
-		if(this.repeatB < this.repeatA) {
-			t = this.repeatB;
-			this.repeatB = this.repeatA;
-			this.repeatA = t;
+	function checkRepeatOn(tl){
+		var same = (tl.repeatA !== tl.repeatB);
+		if(tl.abRepeatOn !== same){
+			tl.abRepeatOn = same;
+			tl.render();
+			tl.emit(same?'abRepeatDisabled':'abRepeatEnabled');
 		}
-		this.abRepeatOn = true;
-		this.render();
-		this.emit('abRepeatEnabled');
-	};
-
-	Proto.updateB = function(pos) {
-		this.repeatB = this.view.pixelToTime(pos.x);
-		this.render();
-	};
+	}
 
 	Proto.clearRepeat = function() {
 		this.repeatA = null;
 		this.repeatB = null;
 		this.abRepeatOn = false;
+		this.abRepeatSetting = false;
 		this.render();
+		this.emit('abRepeatDisabled');
 	};
 
 	/** Persistence functions **/
@@ -605,9 +624,7 @@ var Timeline = (function(){
 		if(pos.y < this.keyHeight+this.trackPadding) {
 			cursor = 'skip';
 		}else if(this.currentTool === Timeline.REPEAT){
-			if(!this.abRepeatOn){
-				cursor = this.repeatA == null?'repeatA':'repeatB';
-			}
+			cursor = !(this.abRepeatOn || this.abRepeatSet) || pos.x < this.view.timeToPixel((this.repeatA + this.repeatB) / 2)?'repeatA':'repeatB';
 		}else if(this.currentTool === Timeline.SCROLL){
 			cursor =	(this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?'move':
 						(this.mousePos.x < this.slider.middle)?'resizeL':'resizeR';
@@ -631,9 +648,10 @@ var Timeline = (function(){
 			i = this.view.pixelToTime(pos.x);
 			this.emit('jump',i);
 			this.currentTime = i;
-		}else if(this.currentTool == Timeline.REPEAT
-			&& this.repeatA != null && !this.abRepeatOn){
-			this.updateB(pos);
+		}else if(this.currentTool == Timeline.REPEAT && this.abRepeatSet){
+			updateABPoints.call(this,pos);
+			updateCursor.call(this,pos);
+			this.render();
 		}else if(this.currentTool == Timeline.ORDER
 			&& this.activeIndex !== -1){
 			i = this.indexFromPos(pos);
@@ -671,9 +689,9 @@ var Timeline = (function(){
 			clearInterval(this.scrollInterval);
 			this.scrollInterval = null;
 			for(id in this.audio){ this.audio[id].redraw(); }
-		}else if(this.currentTool == Timeline.REPEAT
-			&& !this.abRepeatOn && this.repeatA != this.repeatB) {
-			this.setB(pos);
+		}else if(this.currentTool == Timeline.REPEAT) {
+			this.abRepeatSet = false;
+			checkRepeatOn(this);
 		}else if(this.sliderActive) {
 			this.slider.mouseUp(pos);
 			this.sliderActive = false;
@@ -717,9 +735,8 @@ var Timeline = (function(){
 			this.currentTime = i;
 		}else switch(this.currentTool){
 			case Timeline.REPEAT:
-				if(this.abRepeatOn){ this.clearRepeat(); }
-				else if(this.repeatA == null){ this.setA(pos); }
-				else{ this.setB(pos); }
+				this.abRepeatSet = true;
+				(this.abRepeatOn?updateABPoints:resetABPoints).call(this,pos);
 				break;
 			case Timeline.SCROLL:
 				initScroll.call(this);

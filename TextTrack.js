@@ -15,9 +15,6 @@
 	function TextTrack(tl, cuetrack){
 		var active = true,
 			that = this;
-		if(tl.trackIndices.hasOwnProperty(cuetrack.label)){
-			throw new Error("Track name already in use.");
-		}
 		this.tl = tl;
 		this.cues = cuetrack;
 		this.segments = cuetrack.cues.map(function(cue){ return new Segment(that, cue); });
