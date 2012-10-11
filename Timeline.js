@@ -105,7 +105,6 @@ var Timeline = (function(){
 		// Sizing
 		this.height = this.keyHeight + this.trackPadding + this.sliderHeight;
 
-
 		//mouse control
 		this.mouseDownPos = {x: 0, y: 0};
 		this.mousePos = {x: 0, y: 0};
@@ -122,6 +121,8 @@ var Timeline = (function(){
 		canvas.addEventListener('mouseup', mouseUp.bind(this), false);
 		canvas.addEventListener('mouseout', mouseUp.bind(this), false);
 		canvas.addEventListener('mousedown', mouseDown.bind(this), false);
+		canvas.addEventListener('mousewheel', mouseWheel.bind(this), false);
+		canvas.addEventListener('DOMMouseScroll', mouseWheel.bind(this), false); //Firefox
 
 		this.overlay = overlay;
 		this.octx = overlay.getContext('2d');
@@ -163,7 +164,7 @@ var Timeline = (function(){
 
 	Proto.emit = function(evt, data){
 		var that = this, fns = this.events[evt];
-		fns && fns.forEach(function(cb){ cb.call(that,data); });
+		fns && fns.forEach(function(cb){ try{cb.call(that,data);}catch(e){} });
 	};
 
 	Proto.on = function(name, cb){
@@ -749,6 +750,30 @@ var Timeline = (function(){
 				track && track.mouseDown(pos);
 		}
 		ev.preventDefault();
+	}
+	
+	function mouseWheel(ev) {
+		var i, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
+			delta =  ev.detail?(ev.detail>0?-1:1):(ev.wheelDelta>0?1:-1);
+
+		this.mousePos = pos;
+
+		if(pos.y > this.height - this.sliderHeight - this.trackPadding){ // Check the slider
+			this.slider.middle += delta;
+		}else if(pos.y < this.keyHeight+this.trackPadding) { // Check the key
+			i = Math.min(Math.max(this.currentTime + delta*this.view.zoom,0),this.length);
+			if(i !== this.currentTime){
+				this.emit('jump',i);
+				this.currentTime = i;
+			}
+		}else{ //TODO: center zoom on mouse position
+			delta /= 10;
+			this.view.startTime += delta*(this.view.pixelToTime(pos.x)-this.view.startTime);
+			this.view.endTime += delta*(this.view.pixelToTime(pos.x)-this.view.endTime);
+		}
+		this.render();
+		ev.preventDefault();
+		return false;
 	}
 
 	return Timeline;
