@@ -208,12 +208,12 @@ var Timeline = (function(){
 	function swaptracks(n,o){
 		this.tracks[this.trackIndices[n.id]] = n;
 		n.render();
-		this.emit("removetrack",n);
-		this.emit("addtrack",o);
+		this.cstack.removeEvents(o.id);
+		this.emit("removetrack",o);
+		this.emit("addtrack",n);
 	}
 	
 	Proto.addTextTrack = function(track,overwrite) {
-		var oldtrack;
 		if(track instanceof Timeline.TextTrack){
 			if(!overwrite && this.trackIndices.hasOwnProperty(track.id)){ throw new Error("Track name already in use."); }
 		}else{
@@ -221,13 +221,7 @@ var Timeline = (function(){
 			track = new Timeline.TextTrack(this, track);
 		}
 		if(this.trackIndices.hasOwnProperty(track.id)){
-			oldtrack = this.tracks[this.trackIndices[track.id]];
-			this.cstack.push({
-				context: null,
-				undo: swaptracks.bind(this,oldtrack,track),
-				redo: swaptracks.bind(this,track,oldtrack)
-			});
-			swaptracks.call(this,track,oldtrack);
+			swaptracks.call(this,track,this.tracks[this.trackIndices[track.id]]);
 		}else{
 			this.trackIndices[track.id] = this.tracks.length;
 			this.tracks.push(track);
@@ -236,11 +230,6 @@ var Timeline = (function(){
 			this.canvas.height = this.height;
 			this.overlay.height = this.height;
 			this.render();
-			this.cstack.push({
-				context: this,
-				undo: function(){ this.removeTextTrack(track.id); },
-				redo: function(){ this.addTextTrack(track); }
-			});
 			this.emit("addtrack",track);
 		}
 	};
@@ -263,6 +252,7 @@ var Timeline = (function(){
 			this.canvas.height = this.height;
 			this.overlay.height = this.height;
 			this.render();
+			this.cstack.removeEvents(track.id);
 			this.emit("removetrack",track);
 		}
 	};
@@ -476,6 +466,16 @@ var Timeline = (function(){
 			},
 			get: function(){return this.timeMarkerPos;},
 			enumerable: true
+		},
+		timeCode: {
+			get: function(){
+				var time = this.timeMarkerPos,
+					secs = time % 60,
+					mins = Math.floor(time / 60),
+					hours = Math.floor(mins / 60);
+				mins %= 60;
+				return hours + (mins<10?":0":":") + mins + (secs<10?":0":":") + secs.toFixed(3);
+			},enumerable: true
 		}
 	});
 

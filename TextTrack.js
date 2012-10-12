@@ -47,10 +47,14 @@
 		id: {
 			get: function(){ return this.cues.label; },
 			set: function(val){
+				var tl = this.tl;
 				if(tl.trackIndices.hasOwnProperty(val)){
 					throw new Error("Track name already in use.");
 				}
-				return this.cues.label = val;
+				tl.cstack.renameEvents(this.cues.label,val);
+				this.cues.label = val;
+				tl.render();
+				return val;
 			},enumerable: true
 		},
 		language: {
@@ -103,6 +107,7 @@
 
 		// Save the action
 		tl.cstack.push({
+			file: this.cues.label,
 			context: seg,
 			undo: deleteSeg,
 			redo: recreateSeg
@@ -246,6 +251,7 @@
 					cue = this.cue;
 				if(cue.id === id){ return id; }
 				tl.cstack.push({
+					file: this.track.cues.label,
 					context:this,
 					undo: idChangeGenerator(cue.id),
 					redo: idChangeGenerator(id)
@@ -274,6 +280,7 @@
 					cue = this.cue;
 				if(cue.text == t){ return t; }
 				tl.cstack.push({
+					file: this.track.cues.label,
 					context:this,
 					undo: textChangeGenerator(cue.text),
 					redo: textChangeGenerator(t)
@@ -414,7 +421,7 @@
 			return;
 
 		var tl = this.tl,
-			action = {context: this},
+			action = {file: this.track.cues.label, context: this},
 			etype, s_segs, i;
 
 		switch(tl.currentTool) {
@@ -451,6 +458,7 @@
 
 				// Save the delete
 				tl.cstack.push({
+					file: this.track.cues.label,
 					context: this,
 					redo: deleteSeg,
 					undo: recreateSeg
