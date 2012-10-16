@@ -21,7 +21,8 @@ var Timeline = (function(){
 			images = params.images || new Timeline.Images({}),
 			cursors = params.cursors || new Timeline.Cursors({}),
 			width = params.width || location.offsetWidth,
-			length = params.length || 1800;
+			length = params.length || 1800,
+			abRepeatOn = false;
 
 		Object.defineProperties(this,{
 			fonts: {
@@ -76,6 +77,21 @@ var Timeline = (function(){
 				value: 0, writable: true
 			},cstack: {
 				value: params.stack || new EditorWidgets.CommandStack()
+			},
+			abRepeatSet: {
+				get: function(){ return !(this.repeatA === null || this.repeatB === null); }
+			},
+			abRepeatOn: {
+				get: function(){ return abRepeatOn; },
+				set: function(on){
+					on = this.abRepeatSet && (!!on);
+					if(abRepeatOn !== on){
+						abRepeatOn = on;
+						this.render();
+						this.emit(on?'abRepeatEnabled':'abRepeatDisabled');
+					}
+					return on;
+				}
 			}
 		});
 
@@ -99,8 +115,7 @@ var Timeline = (function(){
 
 		this.repeatA = null;
 		this.repeatB = null;
-		this.abRepeatOn = false;
-		this.abRepeatSet = false;
+		this.abRepeatSetting = false;
 
 		// Sizing
 		this.height = this.keyHeight + this.trackPadding + this.sliderHeight;
@@ -235,7 +250,7 @@ var Timeline = (function(){
 	};
 
 	Proto.removeTextTrack = function(id) {
-		var i,track,aid,loc;
+		var i,t,track,aid,loc;
 		if(this.trackIndices.hasOwnProperty(id)){
 			loc = this.trackIndices[id];
 			aid = this.tracks[loc].audioId;
@@ -243,8 +258,8 @@ var Timeline = (function(){
 			track = this.tracks.splice(loc, 1)[0];
 			delete this.trackIndices[id];
 
-			for(i=loc;track=this.tracks[i];i++){
-				this.trackIndices[track.id] = i;
+			for(i=loc;t=this.tracks[i];i++){
+				this.trackIndices[t.id] = i;
 			}
 
 			// Adjust the height
@@ -389,7 +404,7 @@ var Timeline = (function(){
 	};
 
 	Proto.renderABRepeat = function() {
-		if(this.repeatA != null) {
+		if(this.abRepeatSet) {
 			var left = this.view.timeToPixel(this.repeatA),
 				right = this.view.timeToPixel(this.repeatB),
 				ctx = this.ctx;
@@ -486,24 +501,17 @@ var Timeline = (function(){
 	
 	function resetABPoints(pos){
 		this.repeatB = this.repeatA = this.view.pixelToTime(pos.x);
-	}
-
-	function checkRepeatOn(tl){
-		var same = (tl.repeatA !== tl.repeatB);
-		if(tl.abRepeatOn !== same){
-			tl.abRepeatOn = same;
-			tl.render();
-			tl.emit(same?'abRepeatDisabled':'abRepeatEnabled');
-		}
+		this.emit('abRepeatSet');
 	}
 
 	Proto.clearRepeat = function() {
 		this.repeatA = null;
 		this.repeatB = null;
-		this.abRepeatOn = false;
 		this.abRepeatSetting = false;
-		this.render();
-		this.emit('abRepeatDisabled');
+		//the setter takes care of re-rendering
+		if(this.abRepeatOn){ this.abRepeatOn = false; }
+		else{ this.render(); }
+		this.emit('abRepeatUnset');
 	};
 
 	/** Persistence functions **/
@@ -625,7 +633,7 @@ var Timeline = (function(){
 		if(pos.y < this.keyHeight+this.trackPadding) {
 			cursor = 'skip';
 		}else if(this.currentTool === Timeline.REPEAT){
-			cursor = !(this.abRepeatOn || this.abRepeatSet) || pos.x < this.view.timeToPixel((this.repeatA + this.repeatB) / 2)?'repeatA':'repeatB';
+			cursor = !(this.abRepeatOn || this.abRepeatSetting) || pos.x < this.view.timeToPixel((this.repeatA + this.repeatB) / 2)?'repeatA':'repeatB';
 		}else if(this.currentTool === Timeline.SCROLL){
 			cursor =	(this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?'move':
 						(this.mousePos.x < this.slider.middle)?'resizeL':'resizeR';
@@ -649,7 +657,7 @@ var Timeline = (function(){
 			i = this.view.pixelToTime(pos.x);
 			this.emit('jump',i);
 			this.currentTime = i;
-		}else if(this.currentTool == Timeline.REPEAT && this.abRepeatSet){
+		}else if(this.currentTool == Timeline.REPEAT && this.abRepeatSetting){
 			updateABPoints.call(this,pos);
 			updateCursor.call(this,pos);
 			this.render();
@@ -691,8 +699,8 @@ var Timeline = (function(){
 			this.scrollInterval = null;
 			for(id in this.audio){ this.audio[id].redraw(); }
 		}else if(this.currentTool == Timeline.REPEAT) {
-			this.abRepeatSet = false;
-			checkRepeatOn(this);
+			this.abRepeatSetting = false;
+			this.abRepeatOn = (this.repeatA !== this.repeatB);
 		}else if(this.sliderActive) {
 			this.slider.mouseUp(pos);
 			this.sliderActive = false;
@@ -736,8 +744,8 @@ var Timeline = (function(){
 			this.currentTime = i;
 		}else switch(this.currentTool){
 			case Timeline.REPEAT:
-				this.abRepeatSet = true;
-				(this.abRepeatOn?updateABPoints:resetABPoints).call(this,pos);
+				this.abRepeatSetting = true;
+				(this.abRepeatSet?updateABPoints:resetABPoints).call(this,pos);
 				break;
 			case Timeline.SCROLL:
 				initScroll.call(this);
