@@ -222,12 +222,48 @@
 			this.render();
 		}
 	};
+
+	function moveSegs(movlist){
+		return function(){
+			movlist.forEach(function(rec){
+				rec.seg.startTime = rec.fstart;
+				rec.seg.endTime = rec.fend;
+			});
+			this.tl.render();
+		}
+	}
+	
+	function unmoveSegs(movlist){
+		return function(){
+			movlist.forEach(function(rec){
+				rec.seg.startTime = rec.istart;
+				rec.seg.endTime = rec.iend;
+			});
+			this.tl.render();
+		}
+	}
 	
 	TProto.mouseUp = function(pos){
+		var movlist;
 		if(typeof pos !== 'object'){ return; }
 		if(this.tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
-			this.segments.forEach(function(seg){ seg.move = false; });
+			movlist = this.segments.map(function(seg){
+				seg.move = false;
+				return {
+					seg: seg,
+					istart: seg.initialStart,
+					iend: seg.initialEnd,
+					fstart: seg.startTime,
+					fend: seg.endTime
+				};
+			});
 			//generate undo/redo event
+			this.tl.cstack.push({
+				file: this.cues.label,
+				context: this,
+				undo: unmoveSegs(movlist),
+				redo: moveSegs(movlist)
+			});
 		}
 	};
 
