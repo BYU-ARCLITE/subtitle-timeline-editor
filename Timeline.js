@@ -163,6 +163,7 @@ var Timeline = (function(){
 	Timeline.DELETE = 4;
 	Timeline.REPEAT = 5;
 	Timeline.SCROLL = 6;
+	Timeline.SHIFT = 7;
 
 	Proto = Timeline.prototype;
 
@@ -271,7 +272,19 @@ var Timeline = (function(){
 			this.emit("removetrack",track);
 		}
 	};
-
+	
+	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite) {
+		var track = this.tracks[this.trackIndices[tid]];
+		if(!track){ throw new Error("Track does not exist"); }
+		if(this.trackIndices.hasOwnProperty(name)){
+			if(!overwrite){ throw new Error("Track name already in use."); }
+			this.removeTextTrack(name);
+		}
+		track.cues.kind = kind;
+		track.cues.language = lang;
+		track.id = name; //re-rendering is a side-effect
+	};
+	
 	Proto.addAudioTrack = function(wave, id) {
 		var track;
 		if(this.audio.hasOwnProperty(id)){ throw new Error("Track with that id already loaded."); }
@@ -546,14 +559,15 @@ var Timeline = (function(){
 		});
 	};
 	
-	Proto.loadTextTrack = function(url, kind, lang, name){
-		var params = {
-			kind: kind,
-			lang: lang,
-			name: name,
-			success: Timeline.prototype.addTextTrack.bind(this),
-			error: function(){ alert("There was an error loading the track."); }
-		};
+	Proto.loadTextTrack = function(url, kind, lang, name, overwrite){
+		var that = this,
+			params = {
+				kind: kind,
+				lang: lang,
+				name: name,
+				success: function(t){ that.addTextTrack(t,overwrite); },
+				error: function(){ alert("There was an error loading the track."); }
+			};
 		params[(url instanceof File)?'file':'url'] = url;
 		TimedText.Track.get(params);
 	};
@@ -638,7 +652,9 @@ var Timeline = (function(){
 			cursor =	(this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?'move':
 						(this.mousePos.x < this.slider.middle)?'resizeL':'resizeR';
 		}else if(track = this.trackFromPos(pos)){ // Are we on a track?
-			cursor = (this.currentTool === Timeline.ORDER)?'order':track.getCursor(pos);
+			cursor = 	(this.currentTool === Timeline.ORDER)?'order':
+						(this.currentTool === Timeline.SHIFT)?'move':
+						track.getCursor(pos);
 		}
 		if(this.currentCursor != cursor){
 			this.currentCursor = cursor;
@@ -647,7 +663,7 @@ var Timeline = (function(){
 	}
 
 	function mouseMove(ev) {
-		var i, active, swap,
+		var i, delta, active, swap,
 			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
 
 		this.mousePos = pos;
@@ -755,6 +771,7 @@ var Timeline = (function(){
 				break;
 			default: // Check tracks
 				track = this.trackFromPos(pos);
+				this.activeElement = track;
 				track && track.mouseDown(pos);
 		}
 		ev.preventDefault();

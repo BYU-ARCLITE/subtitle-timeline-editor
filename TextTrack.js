@@ -22,6 +22,7 @@
 		this.visibleSegments = [];
 		this.audioId = null;
 		this.placeholder = null;
+		this.lastPos = null;
 		this.locked = false;
 
 		Object.defineProperty(this,'active',{
@@ -47,11 +48,14 @@
 		id: {
 			get: function(){ return this.cues.label; },
 			set: function(val){
-				var tl = this.tl;
+				var tl = this.tl,
+					oldid = this.cues.label;
 				if(tl.trackIndices.hasOwnProperty(val)){
 					throw new Error("Track name already in use.");
 				}
-				tl.cstack.renameEvents(this.cues.label,val);
+				tl.trackIndices[val] = tl.trackIndices[oldid];
+				delete tl.trackIndices[oldid];
+				tl.cstack.renameEvents(oldid,val);
 				this.cues.label = val;
 				tl.render();
 				return val;
@@ -64,7 +68,11 @@
 		},
 		kind: {
 			get: function(){ return this.cues.kind; },
-			set: function(val){ return this.cues.kind = val; },
+			set: function(val){
+				this.cues.kind = val;
+				this.tl.render();
+				return val;
+			},
 			enumerable: true
 		}
 	});
@@ -142,7 +150,8 @@
 	};
 	
 	TProto.render = function(){
-		var tl = this.tl,
+		var i, seg, segs,
+			tl = this.tl,
 			startTime = tl.view.startTime,
 			ctx = tl.ctx,
 			audio = this.audio,
@@ -161,13 +170,14 @@
 		ctx.fillText(this.id, tl.width/100, tl.trackHeight/2);
 
 		ctx.restore();
-
-		this.visibleSegments = this.segments.filter(function(seg){return seg.visible;});
-		this.visibleSegments.forEach(function(seg){
+		
+		segs = this.segments.filter(function(seg){return seg.visible;});
+		this.visibleSegments = segs;
+		for(i=0;seg=segs[i];i++){
 			if(seg.selected){ selected.push(seg); }
 			else{ seg.render(); }
-		});
-		selected.forEach(function(seg){ seg.render(); });
+		}
+		for(i=0;seg=selected[i];i++){ seg.render(); }
 		this.placeholder && this.placeholder.render();
 	};
 
@@ -176,21 +186,49 @@
 	};
 	
 	TProto.mouseDown = function(pos){
-		if(typeof pos !== 'object') return;
-		var tl = this.tl,seg,j;
+		if(typeof pos !== 'object'){ return; }
+		var tl = this.tl,seg,segs,selected,j;
 		if(tl.currentTool === Timeline.CREATE){
 			if(this.active && !this.locked){
 				this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
 			}
-		}else{	//search backwards 'cause later segments are on top
-			for(j=this.visibleSegments.length-1;seg=this.visibleSegments[j];j--) {
-				if(seg.containsPoint(pos)){
-					tl.activeElement = seg;
-					seg.mouseDown(pos);
-					return;
-				}
+		}else if(tl.currentTool === Timeline.SHIFT){
+			if(this.active && !this.locked){
+				this.segments.forEach(function(seg){ seg.mouseDown(pos); });
 			}
+		}else{	//search backwards 'cause later segments are on top
+			segs = this.visibleSegments;
+			selected = segs.filter(function(seg){ return seg.selected; });
+			find_top: {
+				for(j=selected.length-1;seg=selected[j];j--) {
+					if(seg.containsPoint(pos)){ break find_top; }
+				}
+				for(j=segs.length-1;seg=segs[j];j--) {
+					if(seg.containsPoint(pos)){ break find_top; }
+				}
+				return;
+			}
+			tl.activeElement = seg;
+			seg.mouseDown(pos);
 		}		
+	};
+	
+	TProto.mouseMove = function(pos){
+		var selected;
+		if(typeof pos !== 'object'){ return; }
+		if(this.tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
+			selected = this.segments.filter(function(seg){ return seg.selected; });
+			(selected.length ? selected : this.segments).forEach(function(seg){ seg.mouseMove(pos); });
+			this.render();
+		}
+	};
+	
+	TProto.mouseUp = function(pos){
+		if(typeof pos !== 'object'){ return; }
+		if(this.tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
+			this.segments.forEach(function(seg){ seg.move = false; });
+			//generate undo/redo event
+		}
 	};
 
 	function Segment(track, cue) {
@@ -209,6 +247,8 @@
 		// For mouse control
 		this.startingPos = 0;
 		this.startingLength = 0;
+		
+		this.shape = {};
 	}
 
 	SProto = Segment.prototype;
@@ -346,23 +386,26 @@
 	};
 
 	// Location computation
-	SProto.getShape = function() {
+	SProto.calcShape = function() {
 		var tl = this.tl,
-			x = tl.view.timeToPixel(this.startTime),
-			y = tl.getTrackTop(this.track),
-			width = tl.view.timeToPixel(this.endTime) - x;
-		return {x: x, y: y, width: width, height: tl.trackHeight};
+			x = tl.view.timeToPixel(this.startTime);
+		return (this.shape = {
+			x: x,
+			y: tl.getTrackTop(this.track),
+			width: tl.view.timeToPixel(this.endTime) - x,
+			height: tl.trackHeight
+		});
 	};
 
 	SProto.containsPoint = function(pos) {
-		var s = this.getShape();
+		var s = this.shape;
 		return (pos.x >= s.x && pos.x <= s.x + s.width && pos.y >= s.y && pos.y <= s.y + s.height);
 	};
 
 	SProto.getMouseSide = function(pos) {
 		var tl = this.tl,
 			images = tl.images,
-			shape = this.getShape(),
+			shape = this.shape,
 			x, left, right;
 
 		if(this.selected){
@@ -403,6 +446,11 @@
 				this.move = true;
 				this.initialStart = this.startTime;
 				this.initialEnd = this.endTime;
+				break;
+			case Timeline.SHIFT:
+				this.move = true;
+				this.initialStart = this.startTime;
+				this.initialEnd = this.endTime;
 		}
 	};
 
@@ -427,8 +475,9 @@
 		switch(tl.currentTool) {
 			case Timeline.MOVE:
 				this.move = false;
-				this.track.segments.sort(Segment.order);
+				this.track.segments.sort(order);
 				this.track.cues.update();
+				this.track.render();
 				// Save the move
 				switch(this.resizeSide){
 					case 0:
@@ -479,32 +528,41 @@
 
 		activeStart = this.active;
 		newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
-		switch(this.resizeSide){
-			case 0:
-				maxStartTime = tl.length - this.startingLength;
-				if(newTime < 0){ newTime = 0; }
-				else if(newTime > maxStartTime){ newTime = maxStartTime; }
-				this.startTime = newTime;
-				this.endTime = newTime + this.startingLength;
-				tl.emit('move',this);
-				break;
-			case -1:
-				if(newTime < 0){ newTime = 0; }
-				else if(newTime >= this.endTime){ newTime = this.endTime - .001; }
-				this.startTime = newTime;
-				tl.emit('resizel',this);
-				break;
-			case 1:
-				newTime += this.startingLength;
-				if(newTime <= this.startTime){ newTime = this.startTime + .001; }
-				else if(newTime > tl.length){ newTime = tl.length; }
-				this.endTime = newTime;
-				tl.emit('resizer',this);
-				break;
-			default:
-				throw new Error("Invalid State");
+		if(tl.currentTool === Timeline.SHIFT){
+			maxStartTime = tl.length - this.startingLength;
+			if(newTime < 0){ newTime = 0; }
+			else if(newTime > maxStartTime){ newTime = maxStartTime; }
+			this.startTime = newTime;
+			this.endTime = newTime + this.startingLength;
+			tl.emit('move',this);
+		}else{
+			switch(this.resizeSide){
+				case 0:
+					maxStartTime = tl.length - this.startingLength;
+					if(newTime < 0){ newTime = 0; }
+					else if(newTime > maxStartTime){ newTime = maxStartTime; }
+					this.startTime = newTime;
+					this.endTime = newTime + this.startingLength;
+					tl.emit('move',this);
+					break;
+				case -1:
+					if(newTime < 0){ newTime = 0; }
+					else if(newTime >= this.endTime){ newTime = this.endTime - .001; }
+					this.startTime = newTime;
+					tl.emit('resizel',this);
+					break;
+				case 1:
+					newTime += this.startingLength;
+					if(newTime <= this.startTime){ newTime = this.startTime + .001; }
+					else if(newTime > tl.length){ newTime = tl.length; }
+					this.endTime = newTime;
+					tl.emit('resizer',this);
+					break;
+				default:
+					throw new Error("Invalid State");
+			}
+			tl.renderTrack(this.track);
 		}
-		tl.renderTrack(this.track);
 		if(activeStart != this.active){ this.track.cues.update(); }
 	};
 
@@ -516,8 +574,8 @@
 			ctx.drawImage(imageLeft, 0, 0, shape.width/2, shape.height);
 			ctx.drawImage(imageRight, shape.width/2, 0, shape.width, shape.height);
 		}else{
-			ctx.drawImage(imageLeft, 0, 0);
-			ctx.drawImage(imageRight, shape.width - imageRight.width, 0);
+			ctx.drawImage(imageLeft, 0, 0, imageLeft.width, shape.height);
+			ctx.drawImage(imageRight, shape.width - imageRight.width, 0, imageRight.width, shape.height);
 			ctx.fillStyle = ctx.createPattern(imageMid, "repeat-x");
 			ctx.fillRect(imageLeft.width, 0, shape.width - (imageRight.width + imageLeft.width), shape.height);
 		}
@@ -531,7 +589,7 @@
 			images = tl.images,
 			fonts = tl.fonts,
 			ctx = tl.ctx,
-			shape = this.getShape(),
+			shape = this.calcShape(),
 			x = shape.x,
 			y = shape.y,
 			direction, dir, text;
@@ -624,6 +682,8 @@
 		var view = this.tl.view,
 			startx, endx;
 
+		this.track.placeholder = null;
+		if(this.startx === pos.x){ return; }
 		if(this.startx < pos.x){
 			startx = this.startx;
 			endx = pos.x;
@@ -631,7 +691,6 @@
 			startx = pos.x;
 			endx = this.startx;
 		}
-		this.track.placeholder = null;
 		this.track.add({
 			id: "",
 			startTime: view.pixelToTime(startx),

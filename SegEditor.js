@@ -32,10 +32,13 @@
 		this.templates = templates;
 	}
 	
-	SegEditor.prototype.open = function(seg){
-		var kind = seg.track.kind,
-			template = this.templates[(this.templates.hasOwnProperty(kind))?kind:'subtitles'];
-		return EditorWidgets.Template.Dialog(template.title, template.text, template.config, template.cb.bind(null,seg));
+	SegEditor.prototype.open = function(seg,pos){
+		var key, kind = seg.track.kind,
+			template = this.templates[(this.templates.hasOwnProperty(kind))?kind:'subtitles'],
+			config = {};
+		for(key in template.config){ config[key] = template.config[key]; }
+		for(key in pos){ config[key] = pos[key]; }		
+		return EditorWidgets.Template.Dialog(template.title, template.text, config, template.cb.bind(null,seg));
 	};
 	
 	Timeline.SegEditor = SegEditor;
