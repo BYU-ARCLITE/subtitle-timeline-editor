@@ -343,6 +343,7 @@
 		switch(this.tl.currentTool){
 			case Timeline.SELECT: return 'select';
 			case Timeline.DELETE: return 'remove';
+			case Timeline.SPLIT: return 'split';
 			case Timeline.MOVE:
 				i = this.getMouseSide(pos);
 				return	i === 1?'resizeR':
@@ -648,7 +649,7 @@
 		ctx.drawImage(imageRight, shape.width - imageRight.width, 0, imageRight.width, shape.height);
 		if(shape.width > imageRight.width + imageLeft.width){
 			ctx.fillStyle = ctx.createPattern(imageMid, "repeat-x");
-			ctx.fillRect(imageLeft.width, 0, shape.width - (imageRight.width + imageLeft.width), shape.height);
+			ctx.fillRect(imageLeft.width - 1, 0, shape.width - (imageRight.width + imageLeft.width) + 1, shape.height);
 		}
 	}
 
