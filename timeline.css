@@ -1,0 +1,101 @@
+/*.tl-context-menu {
+	background: #F9F9F9;
+	box-shadow: 0 0 12px rgba( 0, 0, 0, .3 );
+	border: 1px solid #ccc;
+	display: block;
+	position: absolute;
+	top: 0; left: 0;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	min-width: 100px;
+}
+.tl-context-menu li {
+	position: relative;
+}
+.tl-context-menu li:hover {
+	background: #444;
+}
+.tl-context-menu a {
+	color: #444;
+	display: inline-block;
+	padding-left: 2px;
+	text-decoration: none;
+	width: 85%;
+}
+.tl-context-menu li:hover a {
+	color: #f9f9f9;
+}
+
+ul.menu ul {
+	display: none;
+}
+
+ul.menu li:hover > ul {
+	display: block;
+}*/
+
+.tl-context-menu {
+	box-shadow: 0px 0px 9px rgba(0,0,0,0.15);
+	padding: 0 20px;
+	border-radius: 10px;
+	display: inline-table;
+	margin: 0; padding: 0; border: 0;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.tl-context-menu li:hover > ul {
+	display: block;
+}
+
+.tl-context-menu ul {
+	left: 100%; top:-1px;
+	display: none;
+}
+
+.tl-menu-right ul {
+	right: 100% !important;
+	left: auto !important;
+}
+
+.tl-context-menu, .tl-context-menu ul {
+	position: absolute; 
+	list-style: none;
+	background: #5f6975;
+	border-radius: 0px;
+	padding: 0;
+	margin: 0;
+}
+
+.tl-context-menu:after, .tl-context-menu ul:after {
+	content: ""; clear: both; display: block;
+}
+
+.tl-context-menu li {
+	float: none; 
+	border-top: 1px solid #6b727c;
+	border-bottom: 1px solid #575f6a; position: relative;
+}
+.tl-context-menu li:hover {
+	background: #4b545f;
+	background: linear-gradient(top, #4f5964 0%, #5f6975 40%);
+	background: -moz-linear-gradient(top, #4f5964 0%, #5f6975 40%);
+	background: -webkit-linear-gradient(top, #4f5964 0%,#5f6975 40%);
+}
+
+.tl-context-menu li a {
+	display: block; padding: 25px 40px;
+	color: #757575; text-decoration: none;
+	padding: 1px 4px 1px 4px;
+	color: #fff;
+}
+	
+.tl-context-menu li a:hover {
+	background: #4b545f;
+	color: #fff;
+}
+
+	
+
+	
