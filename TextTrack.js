@@ -16,7 +16,7 @@
 		var active = true,
 			that = this;
 		this.tl = tl;
-		this.cues = cuetrack;
+		this.textTrack = cuetrack;
 		this.segments = cuetrack.cues.map(function(cue){ return new Segment(that, cue); });
 		this.segments.sort(order);
 		this.visibleSegments = [];
@@ -46,30 +46,30 @@
 
 	Object.defineProperties(TProto,{
 		id: {
-			get: function(){ return this.cues.label; },
+			get: function(){ return this.textTrack.label; },
 			set: function(val){
 				var tl = this.tl,
-					oldid = this.cues.label;
+					oldid = this.textTrack.label;
 				if(tl.trackIndices.hasOwnProperty(val)){
 					throw new Error("Track name already in use.");
 				}
 				tl.trackIndices[val] = tl.trackIndices[oldid];
 				delete tl.trackIndices[oldid];
 				tl.cstack.renameEvents(oldid,val);
-				this.cues.label = val;
+				this.textTrack.label = val;
 				tl.render();
 				return val;
 			},enumerable: true
 		},
 		language: {
-			get: function(){ return this.cues.language; },
-			set: function(val){ return this.cues.language = val; },
+			get: function(){ return this.textTrack.language; },
+			set: function(val){ return this.textTrack.language = val; },
 			enumerable: true
 		},
 		kind: {
-			get: function(){ return this.cues.kind; },
+			get: function(){ return this.textTrack.kind; },
 			set: function(val){
-				this.cues.kind = val;
+				this.textTrack.kind = val;
 				this.tl.render();
 				return val;
 			},
@@ -79,7 +79,7 @@
 
 	function recreateSeg(){
 		this.deleted = false;
-		this.track.cues.addCue(this.cue);
+		this.track.textTrack.addCue(this.cue);
 		this.visible && this.tl.renderTrack(this.track);
 		this.tl.emit('create',this);
 	}
@@ -91,7 +91,7 @@
 		this.selected = false;
 		i = s_segs.indexOf(this);
 		if(i !== -1){ s_segs.splice(i,1); }
-		this.track.cues.removeCue(this.cue);
+		this.track.textTrack.removeCue(this.cue);
 		vis && this.tl.renderTrack(this.track);
 		this.tl.emit('delete',this);
 	}
@@ -99,15 +99,14 @@
 	TProto.add = function(cue, select){
 		var tl = this.tl, seg;
 
-		if(!(cue instanceof TimedText.Cue)){
-			cue = new TimedText.Cue(
-				(typeof cue.id === 'undefined')?"":cue.id,
+		if(!(cue instanceof TextTrackCue)){
+			cue = new TextTrackCue(
 				cue.startTime, cue.endTime,
 				(typeof cue.text === 'string')?cue.text:""
 			);
 		}
 
-		this.cues.addCue(cue);
+		this.textTrack.addCue(cue);
 
 		seg = new Segment(this, cue);
 		this.segments.push(seg);
@@ -115,7 +114,7 @@
 
 		// Save the action
 		tl.cstack.push({
-			file: this.cues.label,
+			file: this.textTrack.label,
 			context: seg,
 			undo: deleteSeg,
 			redo: recreateSeg
@@ -182,12 +181,25 @@
 	};
 
 	TProto.serialize = function(type){
-		return TimedText.serializeTrack(type, this.cues);
+		return TimedText.serializeTrack(type, this.textTrack);
+	};
+	
+	TProto.segFromPos = function(pos){
+		var j, seg, 
+			segs = this.visibleSegments,
+			selected = segs.filter(function(seg){ return seg.selected; });
+		for(j=selected.length-1;seg=selected[j];j--) {
+			if(seg.containsPoint(pos)){ return seg; }
+		}
+		for(j=segs.length-1;seg=segs[j];j--) {
+			if(seg.containsPoint(pos)){ return seg; }
+		}
+		return null;
 	};
 	
 	TProto.mouseDown = function(pos){
 		if(typeof pos !== 'object'){ return; }
-		var tl = this.tl,seg,segs,selected,j;
+		var tl = this.tl, seg;
 		if(tl.currentTool === Timeline.CREATE){
 			if(this.active && !this.locked){
 				this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
@@ -197,73 +209,27 @@
 				this.segments.forEach(function(seg){ seg.mouseDown(pos); });
 			}
 		}else{	//search backwards 'cause later segments are on top
-			segs = this.visibleSegments;
-			selected = segs.filter(function(seg){ return seg.selected; });
-			find_top: {
-				for(j=selected.length-1;seg=selected[j];j--) {
-					if(seg.containsPoint(pos)){ break find_top; }
-				}
-				for(j=segs.length-1;seg=segs[j];j--) {
-					if(seg.containsPoint(pos)){ break find_top; }
-				}
-				return;
+			seg = this.segFromPos(pos);
+			if(seg !== null){
+				tl.activeElement = seg;
+				seg.mouseDown(pos);
 			}
-			tl.activeElement = seg;
-			seg.mouseDown(pos);
 		}		
 	};
 	
 	TProto.mouseMove = function(pos){
-		var selected;
 		if(typeof pos !== 'object'){ return; }
 		if(this.tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
-			selected = this.segments.filter(function(seg){ return seg.selected; });
-			(selected.length ? selected : this.segments).forEach(function(seg){ seg.mouseMove(pos); });
+			this.segments.forEach(function(seg){ seg.mouseMove(pos); });
 			this.render();
 		}
 	};
-
-	function moveSegs(movlist){
-		return function(){
-			movlist.forEach(function(rec){
-				rec.seg.startTime = rec.fstart;
-				rec.seg.endTime = rec.fend;
-			});
-			this.tl.render();
-		}
-	}
-	
-	function unmoveSegs(movlist){
-		return function(){
-			movlist.forEach(function(rec){
-				rec.seg.startTime = rec.istart;
-				rec.seg.endTime = rec.iend;
-			});
-			this.tl.render();
-		}
-	}
 	
 	TProto.mouseUp = function(pos){
-		var movlist;
 		if(typeof pos !== 'object'){ return; }
 		if(this.tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
-			movlist = this.segments.map(function(seg){
-				seg.move = false;
-				return {
-					seg: seg,
-					istart: seg.initialStart,
-					iend: seg.initialEnd,
-					fstart: seg.startTime,
-					fend: seg.endTime
-				};
-			});
+			this.segments.forEach(function(seg){ seg.move = false; });
 			//generate undo/redo event
-			this.tl.cstack.push({
-				file: this.cues.label,
-				context: this,
-				undo: unmoveSegs(movlist),
-				redo: moveSegs(movlist)
-			});
 		}
 	};
 
@@ -327,7 +293,7 @@
 					cue = this.cue;
 				if(cue.id === id){ return id; }
 				tl.cstack.push({
-					file: this.track.cues.label,
+					file: this.track.textTrack.label,
 					context:this,
 					undo: idChangeGenerator(cue.id),
 					redo: idChangeGenerator(id)
@@ -356,7 +322,7 @@
 					cue = this.cue;
 				if(cue.text == t){ return t; }
 				tl.cstack.push({
-					file: this.track.cues.label,
+					file: this.track.textTrack.label,
 					context:this,
 					undo: textChangeGenerator(cue.text),
 					redo: textChangeGenerator(t)
@@ -416,19 +382,115 @@
 		if(this.visible){ tl.renderTrack(this.track); }
 		tl.emit('unselect', this);
 	};
+	
+	SProto.del = function(){
+		var i, tl = this.tl,
+			s_segs = tl.selectedSegments;
+			
+		this.track.textTrack.removeCue(this.cue);
+		this.deleted = true;
 
+		i = s_segs.indexOf(this);
+		if(i !== -1){ s_segs.splice(i,1); }
+
+		// Save the delete
+		tl.cstack.push({
+			file: this.track.textTrack.label,
+			context: this,
+			redo: deleteSeg,
+			undo: recreateSeg
+		});
+		tl.renderTrack(this.track);
+		tl.emit('delete',this);
+	};
+
+	function resplitSeg(s1,s2,stime){
+		var tl = this.tl;
+			
+		this.textTrack.addCue(s2.cue);
+		s2.deleted = false;
+		
+		s1.cue.endTime = stime;
+
+		if(s1.visible || s2.visible){ tl.renderTrack(this); }
+		tl.emit('split',s1,s2);
+	}
+	
+	function unsplitSeg(s1,s2){
+		var i, tl = this.tl,
+			s_segs = tl.selectedSegments;
+			
+		this.textTrack.removeCue(s2.cue);
+		s2.deleted = true;
+
+		i = s_segs.indexOf(s2);
+		if(i !== -1){ s_segs.splice(i,1); }
+		
+		s1.cue.endTime = s2.cue.endTime;
+
+		if(s1.visible){ this.tl.renderTrack(this); }
+		this.tl.emit('merge',s1,s2);	
+	}
+	
+	SProto.split = function(pos){
+		var cp, seg,
+			tl = this.tl,
+			stime = tl.view.pixelToTime(pos.x),
+			track = this.track,
+			cue = this.cue;
+			
+		cp = new TextTrackCue(stime+.001, cue.endTime, cue.text);		
+		cp.snapToLines = cue.snapToLines;
+		cp.pauseOnExit = cue.pauseOnExit;
+		
+		cue.endTime = stime;
+		
+		track.textTrack.addCue(cp);
+		seg = new Segment(track, cp);
+		track.segments.push(seg);
+		track.segments.sort(order);
+		
+		// Save the split
+		tl.cstack.push({
+			file: track.textTrack.label,
+			redo: resplitSeg.bind(track,this,seg,stime),
+			undo: unsplitSeg.bind(track,this,seg)
+		});
+		tl.renderTrack(track);
+		tl.emit('split',this,seg);
+	};
+	
 	SProto.serialize = function(type){
 		return this.deleted?"":TimedText.serializeCue(type, this.cue);
 	};
 
+	function handleWidths(seg, images){
+		return seg.selected?{
+			left:images.segmentLeftSel.width,
+			right:images.segmentRightSel.width
+		}:seg.selectable?{
+			left:images.segmentLeft.width,
+			right:images.segmentRight.width
+		}:{
+			left:images.segmentLeftDark.width,
+			right:images.segmentRightDark.width
+		};
+	}
+	
 	// Location computation
 	SProto.calcShape = function() {
-		var tl = this.tl,
-			x = tl.view.timeToPixel(this.startTime);
+		var x, tl = this.tl,
+			shape = this.shape,
+			xl = tl.view.timeToPixel(this.startTime),
+			xr = tl.view.timeToPixel(this.endTime),
+			mid = (xl+xr)/2,
+			hwidth = handleWidths(this, tl.images);
+		
+		x = Math.min(xl,mid-hwidth.left-1);
 		return (this.shape = {
 			x: x,
 			y: tl.getTrackTop(this.track),
-			width: tl.view.timeToPixel(this.endTime) - x,
+			width: Math.max(xr,mid+hwidth.right+1) - x,
 			height: tl.trackHeight
 		});
 	};
@@ -439,29 +501,15 @@
 	};
 
 	SProto.getMouseSide = function(pos) {
-		var tl = this.tl,
+		var x, tl = this.tl,
 			images = tl.images,
 			shape = this.shape,
-			x, left, right;
-
-		if(this.selected){
-			left = images.segmentLeftSel;
-			right = images.segmentRightSel;
-		}else if(this.selectable){
-			left = images.segmentLeft;
-			right = images.segmentRight;
-		}else{
-			left = images.segmentLeftDark;
-			right = images.segmentRightDark;
-		}
-		if(shape.width < left.width + right.width){
-			return 0;
-		}else{
-			x = pos.x - shape.x;
-			return	(x < left.width)?-1:
-					(x > shape.width - right.width)?1:
-					0;
-		}
+			hwidth = handleWidths(this, tl.images);
+			
+		x = pos.x - shape.x;
+		return	(x < hwidth.left)?-1:
+				(x > shape.width - hwidth.right)?1:
+				0;
 	};
 
 	// Event handlers
@@ -487,6 +535,10 @@
 				this.move = true;
 				this.initialStart = this.startTime;
 				this.initialEnd = this.endTime;
+				break;
+			case Timeline.SPLIT:
+				this.split(pos);
+				break;
 		}
 	};
 
@@ -494,7 +546,7 @@
 		return function(){
 			this.startTime = start;
 			this.endTime = end;
-			this.track.cues.update();
+			this.track.textTrack.activeCues.refreshCues();
 			this.tl.renderTrack(this.track);
 			this.tl.emit(type,this);
 		};
@@ -505,14 +557,14 @@
 			return;
 
 		var tl = this.tl,
-			action = {file: this.track.cues.label, context: this},
+			action = {file: this.track.textTrack.label, context: this},
 			etype, s_segs, i;
 
 		switch(tl.currentTool) {
 			case Timeline.MOVE:
 				this.move = false;
 				this.track.segments.sort(order);
-				this.track.cues.update();
+				this.track.textTrack.activeCues.refreshCues();
 				this.track.render();
 				// Save the move
 				switch(this.resizeSide){
@@ -533,23 +585,7 @@
 				tl.emit(etype,this);
 				break;
 			case Timeline.DELETE:
-				this.deleted = true;
-				this.selected = false;
-				this.track.cues.removeCue(this.cue);
-
-				s_segs = tl.selectedSegments;
-				i = s_segs.indexOf(this);
-				if(i !== -1){ s_segs.splice(i,1); }
-
-				// Save the delete
-				tl.cstack.push({
-					file: this.track.cues.label,
-					context: this,
-					redo: deleteSeg,
-					undo: recreateSeg
-				});
-				tl.renderTrack(this.track);
-				tl.emit('delete',this);
+				this.del()
 		}
 	};
 
@@ -599,19 +635,18 @@
 			}
 			tl.renderTrack(this.track);
 		}
-		if(activeStart != this.active){ this.track.cues.update(); }
+		if(activeStart != this.active){
+			this.track.textTrack.activeCues.refreshCues();
+		}
 	};
 
 	// Rendering
 
 	function renderImage(shape, imageLeft, imageRight, imageMid) {
 		var ctx = this.tl.ctx;
-		if(shape.width < imageLeft.width + imageRight.width){
-			ctx.drawImage(imageLeft, 0, 0, shape.width/2, shape.height);
-			ctx.drawImage(imageRight, shape.width/2, 0, shape.width, shape.height);
-		}else{
-			ctx.drawImage(imageLeft, 0, 0, imageLeft.width, shape.height);
-			ctx.drawImage(imageRight, shape.width - imageRight.width, 0, imageRight.width, shape.height);
+		ctx.drawImage(imageLeft, 0, 0, imageLeft.width, shape.height);
+		ctx.drawImage(imageRight, shape.width - imageRight.width, 0, imageRight.width, shape.height);
+		if(shape.width > imageRight.width + imageLeft.width){
 			ctx.fillStyle = ctx.createPattern(imageMid, "repeat-x");
 			ctx.fillRect(imageLeft.width, 0, shape.width - (imageRight.width + imageLeft.width), shape.height);
 		}
@@ -728,7 +763,6 @@
 			endx = this.startx;
 		}
 		this.track.add({
-			id: "",
 			startTime: view.pixelToTime(startx),
 			endTime: view.pixelToTime(endx)
 		}, this.tl.autoSelect);

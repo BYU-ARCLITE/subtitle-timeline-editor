@@ -22,7 +22,8 @@ var Timeline = (function(){
 			cursors = params.cursors || new Timeline.Cursors({}),
 			width = params.width || location.offsetWidth,
 			length = params.length || 1800,
-			abRepeatOn = false;
+			abRepeatOn = false,
+			that = this;
 
 		Object.defineProperties(this,{
 			fonts: {
@@ -126,7 +127,10 @@ var Timeline = (function(){
 		this.scrollInterval = null;
 		this.renderInterval = null;
 		this.currentCursor = "pointer";
-
+		
+		//context menu
+		this.activeMenu = null;
+		
 		// Canvas
 		this.canvas = canvas;
 		this.ctx = canvas.getContext('2d');
@@ -138,6 +142,13 @@ var Timeline = (function(){
 		canvas.addEventListener('mousedown', mouseDown.bind(this), false);
 		canvas.addEventListener('mousewheel', mouseWheel.bind(this), false);
 		canvas.addEventListener('DOMMouseScroll', mouseWheel.bind(this), false); //Firefox
+		canvas.addEventListener('contextmenu', contextMenu.bind(this), false);
+		document.addEventListener('click', function(){
+			if(that.activeMenu){
+				that.activeMenu.parentNode.removeChild(that.activeMenu);
+				that.activeMenu = null;
+			}
+		},false);
 
 		this.overlay = overlay;
 		this.octx = overlay.getContext('2d');
@@ -164,6 +175,7 @@ var Timeline = (function(){
 	Timeline.REPEAT = 5;
 	Timeline.SCROLL = 6;
 	Timeline.SHIFT = 7;
+	Timeline.SPLIT = 8;
 
 	Proto = Timeline.prototype;
 
@@ -175,7 +187,92 @@ var Timeline = (function(){
 	Proto.segmentTextPadding = 5;
 	Proto.keyTop = 0;
 	Proto.keyHeight = 25;
-
+	
+	Proto.mainMenuOptions = [
+		{label:"Editing",submenu:[
+			{label:"Undo",
+				condition:function(){return this.cstack.undoDepth > 0; },
+				action:function(){ this.cstack.undo(); }},
+			{label:"Redo",
+				condition:function(){return this.cstack.redoDepth > 0; },
+				action:function(){ this.cstack.redo(); }},
+			{label:"Tools",submenu:[
+				{label:"Select",action:function(){ this.currentTool = Timeline.SELECT; }},
+				{label:"Move",action:function(){ this.currentTool = Timeline.MOVE; }},
+				{label:"Add",action:function(){ this.currentTool = Timeline.CREATE; }},
+				{label:"Split",action:function(){ this.currentTool = Timeline.SPLIT; }},
+				{label:"Delete",action:function(){ this.currentTool = Timeline.DELETE; }},
+				{label:"Shift",action:function(){ this.currentTool = Timeline.SHIFT; }}
+			]}
+		]},
+		{label:"Navigation",submenu:[
+			{label:"Repeat Tool",action:function(){ this.currentTool = Timeline.REPEAT; }},
+			{label:"Scroll Tool",action:function(){ this.currentTool = Timeline.ORDER; }},
+			{label:"Order Tool",action:function(){ this.currentTool = Timeline.ORDER; }},
+			{label:"Zoom In",action:function(pos){
+				this.view.startTime += (this.view.pixelToTime(pos.x)-this.view.startTime)/2;
+				this.view.endTime += (this.view.pixelToTime(pos.x)-this.view.endTime)/2;
+				this.render();
+			}},
+			{label:"Zoom Out",action:function(pos){
+				this.view.startTime -= (this.view.pixelToTime(pos.x)-this.view.startTime)/2;
+				this.view.endTime -= (this.view.pixelToTime(pos.x)-this.view.endTime)/2;
+				this.render();
+			}}
+		]},
+		{label:"AB Repeat",submenu:[
+			{label:"Enable",
+				condition:function(){return this.abRepeatSet && !this.abRepeatOn; },
+				action:function(){ this.abRepeatOn = true; }},
+			{label:"Disable",
+				condition:function(){return this.abRepeatOn; },
+				action:function(){ this.abRepeatOn = false; }},
+			{label:"Clear",
+				condition:function(){return this.abRepeatSet; },
+				action:function(){ this.clearRepeat(); }},
+			{label:"Set Repeat Point",action:function(pos){
+				this.abRepeatSetting = true;
+				(this.abRepeatSet?updateABPoints:resetABPoints).call(this,pos);
+			}}
+		]}
+	];
+	
+	Proto.trackMenuOptions = [
+		{label:"Track",submenu:[
+			{label:"Lock",
+				condition:function(pos){ return !this.trackFromPos(pos).locked; },
+				action:function(pos){ this.trackFromPos(pos).locked = true; }},
+			{label:"Unlock",
+				condition:function(pos){ return this.trackFromPos(pos).locked; },
+				action:function(pos){ this.trackFromPos(pos).locked = false; }},
+			{label:"Activate",
+				condition:function(pos){
+					var track = this.trackFromPos(pos);
+					return !(track.locked || track.active);
+				},
+				action:function(pos){ this.trackFromPos(pos).active = true; }},
+			{label:"Deactivate",
+				condition:function(pos){
+					var track = this.trackFromPos(pos);
+					return !track.locked && track.active;
+				},
+				action:function(pos){ this.trackFromPos(pos).active = false; }}
+		]}
+	];
+	
+	Proto.segMenuOptions = [
+		{label:"Segment",submenu:[
+			{label:"Select",
+				condition:function(pos){ return !this.segFromPos(pos).selected; },
+				action:function(pos){ this.segFromPos(pos).select(); }},
+			{label:"Unselect",
+				condition:function(pos){ return this.segFromPos(pos).selected; },
+				action:function(pos){ this.segFromPos(pos).unselect(); }},
+			{label:"Split", action:function(pos){ this.segFromPos(pos).split(pos); }},
+			{label:"Delete", action:function(pos){ this.segFromPos(pos).del(); }}
+		]}
+	];
+	
 	/** Event Triggers **/
 
 	Proto.emit = function(evt, data){
@@ -188,6 +285,50 @@ var Timeline = (function(){
 		else{ this.events[name] = [cb]; }
 	};
 
+	/** Context menu functions*/
+	
+	function clickMenu(action,pos){
+		if(this.activeMenu){
+			this.activeMenu.parentNode.removeChild(this.activeMenu);
+			this.activeMenu = null;
+		}
+		action.call(this,pos);
+	}
+	
+	function buildLevel(that, opts, pos){
+		var menu = document.createElement('ul');
+		opts.forEach(function(opt){
+			if(opt.condition && !opt.condition.call(that,pos)){ return; }
+			var li = document.createElement('li');
+			li.innerHTML = "<a>"+opt.label+"</a>";
+			(opt.submenu instanceof Array) &&
+				li.appendChild(buildLevel(that, opt.submenu, pos));
+			opt.action &&
+				li.addEventListener('click',clickMenu.bind(that,opt.action,pos),false);
+			menu.appendChild(li);
+		});
+		return menu;
+	}
+	
+	Proto.showMenu = function(options,pos){
+		var that = this,
+			cvs = this.canvas,
+			top = (pos.y + cvs.offsetTop),
+			left = (pos.x + cvs.offsetLeft),
+			menu = buildLevel(this,options,pos);
+		if(top < cvs.offsetHeight/2){ menu.style.top = top + "px"; }
+		else{ menu.style.bottom = (cvs.offsetHeight-top) + "px"; }
+		if(left < cvs.offsetWidth/2){
+			menu.className = "tl-context-menu";
+			menu.style.left = left + 2 + "px";
+		}else{
+			menu.className = "tl-context-menu tl-menu-right";
+			menu.style.right = (cvs.offsetWidth-left) + "px";
+		}
+		cvs.parentNode.appendChild(menu);
+		this.activeMenu = menu;
+	};
+	
 	/**
 	 * Helper Functions
 	 *
@@ -206,6 +347,12 @@ var Timeline = (function(){
 
 	Proto.trackFromPos = function(pos) {
 		return this.tracks[this.indexFromPos(pos)]||null;
+	};
+	
+	Proto.segFromPos = function(pos) {
+		var track = this.tracks[this.indexFromPos(pos)];
+		if(!track){ return null; }
+		return track.segFromPos(pos);
 	};
 	
 	Proto.indexFromPos = function(pos){
@@ -280,8 +427,8 @@ var Timeline = (function(){
 			if(!overwrite){ throw new Error("Track name already in use."); }
 			this.removeTextTrack(name);
 		}
-		track.cues.kind = kind;
-		track.cues.language = lang;
+		track.textTrack.kind = kind;
+		track.textTrack.language = lang;
 		track.id = name; //re-rendering is a side-effect
 	};
 	
@@ -474,19 +621,25 @@ var Timeline = (function(){
 	Object.defineProperties(Proto,{
 		currentTime: {
 			set: function(time){
+				var timewidth;
 				if(time == this.timeMarkerPos){ return time; }
 				if(this.abRepeatOn && time > this.repeatB) {
 					time = this.repeatA;
 					this.emit('jump',this.repeatA);
 				}
 				this.timeMarkerPos = time;
-				this.tracks.forEach(function(track){ track.cues.currentTime = time; });
+				this.tracks.forEach(function(track){ track.textTrack.currentTime = time; });
 				this.emit('timeupdate', time);
 
-				if(time < this.view.startTime || time > this.view.endTime) {
-					// Move the view
-					this.view.endTime = time + this.view.length;
-					this.view.startTime = time;
+				//move the view
+				if(time < this.view.startTime){
+					timewidth = this.view.length/4;
+					this.view.endTime = time + timewidth;
+					this.view.startTime = time - 3*timewidth;
+				}else if(time > this.view.endTime) {
+					timewidth = this.view.length/4;
+					this.view.endTime = time + 3*timewidth;
+					this.view.startTime = time - timewidth;
 				}
 
 				this.render();
@@ -564,12 +717,12 @@ var Timeline = (function(){
 			params = {
 				kind: kind,
 				lang: lang,
-				name: name,
+				label: name,
 				success: function(t){ that.addTextTrack(t,overwrite); },
 				error: function(){ alert("There was an error loading the track."); }
 			};
 		params[(url instanceof File)?'file':'url'] = url;
-		TimedText.Track.get(params);
+		TextTrack.get(params);
 	};
 
 	/** Scroll Tool Functions **/
@@ -705,11 +858,16 @@ var Timeline = (function(){
 	}
 
 	function mouseUp(ev) {
+		if(ev.button > 0){ return; }
 		var id, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
 
 		if(this.scrubActive){
 			this.scrubActive = false;
 			updateCursor.call(this,pos);
+		}else if(this.sliderActive) {
+			this.slider.mouseUp(pos);
+			this.sliderActive = false;
+			for(id in this.audio){ this.audio[id].redraw(); }
 		}else if(this.scrollInterval){
 			clearInterval(this.scrollInterval);
 			this.scrollInterval = null;
@@ -717,10 +875,6 @@ var Timeline = (function(){
 		}else if(this.currentTool == Timeline.REPEAT) {
 			this.abRepeatSetting = false;
 			this.abRepeatOn = (this.repeatA !== this.repeatB);
-		}else if(this.sliderActive) {
-			this.slider.mouseUp(pos);
-			this.sliderActive = false;
-			for(id in this.audio){ this.audio[id].redraw(); }
 		}else if(this.activeElement !== null) {
 			this.activeElement.mouseUp(pos);
 			this.activeElement = null;
@@ -732,9 +886,15 @@ var Timeline = (function(){
 	}
 
 	function mouseDown(ev) {
+		if(ev.button > 0){ return; }
 		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
-			track,seg,i,j;
-
+			track,i;
+		
+		if(this.activeMenu){
+			this.activeMenu.parentNode.removeChild(this.activeMenu);
+			this.activeMenu = null;
+		}
+		
 		this.mouseDownPos = pos;
 		this.mousePos = pos;
 
@@ -778,9 +938,15 @@ var Timeline = (function(){
 	}
 	
 	function mouseWheel(ev) {
-		var i, pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
+		var i, that = this,
+			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
 			delta =  ev.detail?(ev.detail>0?-1:1):(ev.wheelDelta>0?1:-1);
 
+		if(this.activeMenu){
+			this.activeMenu.parentNode.removeChild(this.activeMenu);
+			this.activeMenu = null;
+		}
+			
 		this.mousePos = pos;
 
 		if(pos.y > this.height - this.sliderHeight - this.trackPadding){ // Check the slider
@@ -791,14 +957,33 @@ var Timeline = (function(){
 				this.emit('jump',i);
 				this.currentTime = i;
 			}
-		}else{ //TODO: center zoom on mouse position
+		}else{
 			delta /= 10;
 			this.view.startTime += delta*(this.view.pixelToTime(pos.x)-this.view.startTime);
 			this.view.endTime += delta*(this.view.pixelToTime(pos.x)-this.view.endTime);
 		}
 		this.render();
+		Object.keys(this.audio).forEach(function(key){ that.audio[key].redraw(); });
 		ev.preventDefault();
 		return false;
+	}
+	
+	function contextMenu(ev) {
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
+			seg, track = this.trackFromPos(pos),
+			opts = this.mainMenuOptions;
+
+		if(this.activeMenu){
+			this.activeMenu.parentNode.removeChild(this.activeMenu);
+			this.activeMenu = null;
+		}
+		if(track){
+			opts = this.trackMenuOptions.concat(opts);
+			seg = track.segFromPos(pos);
+			if(seg){ opts = this.segMenuOptions.concat(opts); }
+		}
+		this.showMenu(opts,pos);
+		ev.preventDefault();
 	}
 
 	return Timeline;
