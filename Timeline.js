@@ -298,14 +298,24 @@ var Timeline = (function(){
 		action.call(this,pos);
 	}
 	
+	function checkMenuSize(){
+		this.classList.remove('tl-menu-up');
+		if(this.getBoundingClientRect().bottom > window.innerHeight){
+			this.classList.add('tl-menu-up');
+		}
+	}
+	
 	function buildLevel(that, opts, pos){
 		var menu = document.createElement('ul');
 		opts.forEach(function(opt){
 			if(opt.condition && !opt.condition.call(that,pos)){ return; }
-			var li = document.createElement('li');
+			var ul, li = document.createElement('li');
 			li.innerHTML = "<a>"+opt.label+"</a>";
-			(opt.submenu instanceof Array) &&
-				li.appendChild(buildLevel(that, opt.submenu, pos));
+			if(opt.submenu instanceof Array){
+				ul = buildLevel(that, opt.submenu, pos);
+				li.appendChild(ul);
+				li.addEventListener('mouseover',checkMenuSize.bind(ul),false);
+			}
 			opt.action &&
 				li.addEventListener('click',clickMenu.bind(that,opt.action,pos),false);
 			menu.appendChild(li);
@@ -319,8 +329,7 @@ var Timeline = (function(){
 			top = (pos.y + cvs.offsetTop),
 			left = (pos.x + cvs.offsetLeft),
 			menu = buildLevel(this,options,pos);
-		if(top < cvs.offsetHeight/2){ menu.style.top = top + "px"; }
-		else{ menu.style.bottom = (cvs.offsetHeight-top) + "px"; }
+			
 		if(left < cvs.offsetWidth/2){
 			menu.className = "tl-context-menu";
 			menu.style.left = left + 2 + "px";
@@ -328,7 +337,13 @@ var Timeline = (function(){
 			menu.className = "tl-context-menu tl-menu-right";
 			menu.style.right = (cvs.offsetWidth-left) + "px";
 		}
+		
+		menu.style.top = top + "px";
 		cvs.parentNode.appendChild(menu);
+		if(menu.getBoundingClientRect().bottom > window.innerHeight){
+			menu.style.top = 'auto';
+			menu.style.bottom = (cvs.offsetHeight-top) + "px";
+		}
 		this.activeMenu = menu;
 	};
 	
