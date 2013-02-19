@@ -97,7 +97,7 @@ var Timeline = (function(){
 		});
 
 		this.multi = !!params.multi;
-		this.autoSelect = (typeof params.autoSelect === 'undefined') || !!params.autoSelect;
+		this.autoSelect = !!params.autoSelect;
 		this.currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT;
 		
 		this.selectedSegments = [];
@@ -239,6 +239,9 @@ var Timeline = (function(){
 	
 	Proto.trackMenuOptions = [
 		{label:"Track",submenu:[
+			{label:"Merge Selected",
+				condition:function(pos){ return !this.trackFromPos(pos).locked; },
+				action:function(pos){ this.trackFromPos(pos).mergeSelected(); }},
 			{label:"Lock",
 				condition:function(pos){ return !this.trackFromPos(pos).locked; },
 				action:function(pos){ this.trackFromPos(pos).locked = true; }},
@@ -337,6 +340,14 @@ var Timeline = (function(){
 	 * Author: Joshua Monson
 	 **/
 
+	Proto.timeInView = function(time){
+		return time < this.view.endTime && time > this.view.startTime;
+	};
+	
+	Proto.spanInView = function(start, end){
+		return start < this.view.endTime && end > this.view.startTime;
+	};
+	
 	Proto.getTrackTop = function(track) {
 		return this.keyHeight + this.trackPadding + (this.trackIndices[track.id] * (this.trackHeight + this.trackPadding));
 	};
@@ -586,16 +597,31 @@ var Timeline = (function(){
 	};
 
 	Proto.renderTrack = function(track) {
-		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
+		var left, right,
+			ctx = this.ctx,
+			height = this.trackHeight,
+			top = this.getTrackTop(track),
+			x = this.view.timeToPixel(this.timeMarkerPos)-1;
 
 		track.render();
-
-		//redo the peice of the timeMarker that we drew over
-		if(x < -1 || x > this.width){ return; }
-		ctx = this.ctx;
 		ctx.save();
-		ctx.fillStyle = this.colors.timeMarker;
-		ctx.fillRect(x, this.getTrackTop(track), 2, this.trackHeight);
+		{
+			//redo the peice of the abRepeat that we drew over
+			if(this.abRepeatSet){
+				left = this.view.timeToPixel(this.repeatA);
+				right = this.view.timeToPixel(this.repeatB);
+				if(right >= 0 || left <= this.width){
+					ctx.fillStyle = this.colors[this.abRepeatOn?'abRepeat':'abRepeatLight'];
+					ctx.fillRect(left, top, right-left, height);
+				}
+			}
+			
+			//redo the peice of the timeMarker that we drew over
+			if(x >=0 || x <= this.width){
+				ctx.fillStyle = this.colors.timeMarker;
+				ctx.fillRect(x, top, 2, height);
+			}
+		}
 		ctx.restore();
 	};
 

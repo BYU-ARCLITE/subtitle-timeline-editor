@@ -148,6 +148,65 @@
 		return 'pointer';
 	};
 	
+	function remerge(segs,mseg,text){
+		var tl = this.tl, that = this;
+		segs.forEach(function(seg){
+			seg.deleted = true;
+			that.textTrack.removeCue(seg.cue);
+		});
+		mseg.cue.text = text;
+		mseg.cue.endTime = segs[segs.length-1].endTime;
+		if(mseg.visible){ tl.renderTrack(this); }
+		tl.emit('merge',mseg,segs);
+	}
+	
+	function unmerge(segs,mseg,text,end){
+		var tl = this.tl, that = this, visible = false;
+		segs.forEach(function(seg){
+			seg.deleted = false;
+			that.textTrack.addCue(seg.cue);
+			visible |= seg.visible;
+		});
+		mseg.cue.text = text;
+		mseg.cue.endTime = end;
+		if(mseg.visible || visible){ tl.renderTrack(this); }
+		tl.emit('unmerge',mseg,segs);
+	}
+	
+	TProto.mergeSelected = function(){
+		var i, seg, mseg, oldend, oldtext, newtext,
+			that = this, tl = this.tl,
+			s_segs = tl.selectedSegments,
+			selected = s_segs.filter(function(seg){return seg.track === that;});
+		
+		if(selected.length === 0){ return; }
+		
+		selected.sort(order);
+		newtext = selected.map(function(seg){ return seg.text; }).join('');
+		
+		mseg = selected.shift();
+		oldend = mseg.endTime;
+		mseg.cue.endTime = selected[selected.length-1].endTime;
+		oldtext = mseg.text;
+		mseg.cue.text = newtext;
+		
+		selected.forEach(function(seg){
+			seg.deleted = true;
+			seg.selected = false;
+			that.textTrack.removeCue(seg.cue);
+			s_segs.splice(s_segs.indexOf(seg),1);
+		});
+		
+		tl.renderTrack(this);
+		tl.cstack.push({
+			file: this.textTrack.label,
+			context: this,
+			redo: remerge.bind(this,selected,mseg,newtext),
+			undo: unmerge.bind(this,selected,mseg,oldtext,oldend)
+		});
+		tl.emit('merge',mseg,selected);
+	};
+	
 	TProto.render = function(){
 		var i, seg, segs,
 			tl = this.tl,
@@ -199,14 +258,16 @@
 	
 	TProto.mouseDown = function(pos){
 		if(typeof pos !== 'object'){ return; }
-		var tl = this.tl, seg;
+		var tl = this.tl, seg, selected;
 		if(tl.currentTool === Timeline.CREATE){
 			if(this.active && !this.locked){
 				this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
 			}
 		}else if(tl.currentTool === Timeline.SHIFT){
 			if(this.active && !this.locked){
-				this.segments.forEach(function(seg){ seg.mouseDown(pos); });
+				selected = this.segments.filter(function(seg){ return seg.selected; });
+				if(selected.length < 2){ selected = this.segments; }
+				selected.forEach(function(seg){ seg.mouseDown(pos); });
 			}
 		}else{	//search backwards 'cause later segments are on top
 			seg = this.segFromPos(pos);
@@ -225,11 +286,31 @@
 		}
 	};
 	
+	function reshift(selected,delta){
+		var tl = this.tl;
+		selected.forEach(function(seg){
+			seg.startTime += delta;
+			seg.endTime += delta;
+		});
+		tl.renderTrack(this);
+		tl.emit('shift',selected,delta);
+	}
+	
 	TProto.mouseUp = function(pos){
+		var selected, delta, tl = this.tl;
 		if(typeof pos !== 'object'){ return; }
-		if(this.tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
-			this.segments.forEach(function(seg){ seg.move = false; });
-			//generate undo/redo event
+		if(tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
+			selected = this.segments.filter(function(seg){ return seg.selected; });
+			if(selected.length < 2){ selected = this.segments; }
+			selected.forEach(function(seg){ seg.move = false; });
+			delta = selected[0].startTime - selected[0].initialStart;
+			tl.cstack.push({
+				file: this.textTrack.label,
+				context: this,
+				redo: reshift.bind(this,selected,delta),
+				undo: reshift.bind(this,selected,-delta)
+			});
+			tl.emit('shift',selected,delta);
 		}
 	};
 
@@ -338,17 +419,17 @@
 	});
 
 	SProto.getCursor = function(pos){
-		var i;
 		if(typeof pos !== 'object')	return;
 		switch(this.tl.currentTool){
 			case Timeline.SELECT: return 'select';
 			case Timeline.DELETE: return 'remove';
 			case Timeline.SPLIT: return 'split';
 			case Timeline.MOVE:
-				i = this.getMouseSide(pos);
-				return	i === 1?'resizeR':
+				return (function(i){
+					return	i === 1?'resizeR':
 							i === -1?'resizeL':
 							'move';
+				}(this.getMouseSide(pos)));
 			default: return 'pointer';
 		}
 	};
