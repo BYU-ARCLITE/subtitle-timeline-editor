@@ -302,7 +302,7 @@
 		if(tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
 			selected = this.segments.filter(function(seg){ return seg.selected; });
 			if(selected.length < 2){ selected = this.segments; }
-			selected.forEach(function(seg){ seg.move = false; });
+			selected.forEach(function(seg){ seg.moving = false; });
 			delta = selected[0].startTime - selected[0].initialStart;
 			tl.cstack.push({
 				file: this.textTrack.label,
@@ -318,7 +318,7 @@
 		this.tl = track.tl;
 		this.track = track;
 		this.cue = cue;
-		this.move = false;
+		this.moving = false;
 		this.deleted = false;
 		this.selected = false;
 		this.resizeSide = 0;
@@ -609,12 +609,12 @@
 				break;
 			case Timeline.MOVE:
 				this.resizeSide = this.getMouseSide(pos);
-				this.move = true;
+				this.moving = true;
 				this.initialStart = this.startTime;
 				this.initialEnd = this.endTime;
 				break;
 			case Timeline.SHIFT:
-				this.move = true;
+				this.moving = true;
 				this.initialStart = this.startTime;
 				this.initialEnd = this.endTime;
 				break;
@@ -624,47 +624,45 @@
 		}
 	};
 
-	function moveGenerator(type,start,end){
+	function moveGenerator(start,end){
 		return function(){
 			this.startTime = start;
 			this.endTime = end;
 			this.track.textTrack.activeCues.refreshCues();
-			this.tl.renderTrack(this.track);
-			this.tl.emit(type,this);
+			if(this.visible){ this.tl.renderTrack(this.track); }
+			this.tl.emit("move",this);
 		};
 	}
-
+	
+	SProto.move = function(start,end){
+		var redo = moveGenerator(start,end);
+		this.tl.cstack.push({
+			context: this,
+			file: this.track.textTrack.label,
+			undo: moveGenerator(this.startTime,this.endTime),
+			redo: redo
+		});
+		redo.call(this);
+	};
+	
 	SProto.mouseUp = function(pos) {
+		var tl = this.tl, track = this.track;
 		if(this.deleted || !this.selectable)
 			return;
-
-		var tl = this.tl,
-			action = {file: this.track.textTrack.label, context: this},
-			etype, s_segs, i;
-
 		switch(tl.currentTool) {
 			case Timeline.MOVE:
-				this.move = false;
-				this.track.segments.sort(order);
-				this.track.textTrack.activeCues.refreshCues();
-				this.track.render();
+				this.moving = false;
+				track.segments.sort(order);
+				track.textTrack.activeCues.refreshCues();
+				track.render();
 				// Save the move
-				switch(this.resizeSide){
-					case 0:
-						etype = 'move';
-						action.redo = moveGenerator('move',this.startTime,this.endTime);
-						break;
-					case -1:
-						etype = 'resizel';
-						action.redo = moveGenerator('resizel',this.startTime,this.initialEnd);
-						break;
-					case 1:
-						etype = 'resizel';
-						action.redo = moveGenerator('resizel',this.initialStart,this.endTime);
-				}
-				action.undo = moveGenerator(etype,this.initialStart,this.initialEnd);
-				tl.cstack.push(action);
-				tl.emit(etype,this);
+				tl.cstack.push({
+					context: this,
+					file: track.textTrack.label,
+					redo: moveGenerator(this.startTime,this.endTime),
+					undo: moveGenerator(this.initialStart,this.initialEnd)
+				});
+				tl.emit("move",this);
 				break;
 			case Timeline.DELETE:
 				this.del()
@@ -678,7 +676,7 @@
 		var tl = this.tl,
 			activeStart, newTime, maxStartTime;
 
-		if(!this.move){ return; }
+		if(!this.moving){ return; }
 
 		activeStart = this.active;
 		newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
