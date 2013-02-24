@@ -109,53 +109,67 @@ var CaptionEditor = (function(){
 		}
 	}
 	
-	function makeCapDialog(cue,editor){
+	function makeCapDialog(outernode,cue,editor){
 		return EditorWidgets.Template.Dialog("Edit Caption",editCapTemplate,{
-			cue_line: function(root){
-				this.value = parseInt(cue.line,10);
-				this.addEventListener('change',function(){
-					cue.line = cue.snapToLines?this.valueAsNumber:this.value+"%";
-					editor.renderer &&  editor.renderer.refreshLayout();
-				},false);
-			},cue_pos: function(root){
-				this.value = parseInt(cue.position,10);
-				this.addEventListener('change',function(){
-					cue.position = this.value+"%";
-					editor.renderer && editor.renderer.refreshLayout();
-				},false);
-			},cue_size: function(root){
-				this.value = parseInt(cue.size,10);
-				this.addEventListener('change',function(){
-					cue.size = this.value+"%";
-					editor.renderer && editor.renderer.refreshLayout();
-				},false);
-			},cue_align: function(root){
-				this.value = cue.align;
-				this.addEventListener('change',function(){
-					cue.align = this.value;
-					editor.renderer && editor.renderer.refreshLayout();
-				},false);
-			}
-		},function(root, attrs){
-			var snapval = cue.snapToLines?(cue.line==='auto'?'auto':'snap'):'percent',
-				line_form = attrs.line_form,
-				cue_line = attrs.cue_line;
-			updateLineEditor(line_form,cue_line,snapval);
-			attrs.cue_snap.value = snapval;
-			attrs.cue_snap.addEventListener('change',function(){
-				switch(this.value){
-				case "auto":
-					cue.line = "auto";
-					break;
-				case "percent":
-					cue.line = cue.line==='auto'?"100%":"0%";
-					break;
-				case "snap":
-					cue.line = cue.line==='auto'?-1:0;
-					break;
+			parent: outernode,
+			root: {
+				finalize: function(root, attrs){
+					var snapval = cue.snapToLines?(cue.line==='auto'?'auto':'snap'):'percent',
+						line_form = attrs.line_form,
+						cue_line = attrs.cue_line;
+					updateLineEditor(line_form,cue_line,snapval);
+					attrs.cue_snap.value = snapval;
+					attrs.cue_snap.addEventListener('change',function(){
+						switch(this.value){
+						case "auto":
+							cue.line = "auto";
+							break;
+						case "percent":
+							cue.line = cue.line==='auto'?"100%":"0%";
+							break;
+						case "snap":
+							cue.line = cue.line==='auto'?-1:0;
+							break;
+						}
+						updateLineEditor(line_form,cue_line,this.value);
+					},false);
 				}
-				updateLineEditor(line_form,cue_line,this.value);
-			},false);
+			},
+			elements: {
+				cue_line: {
+					init: function(root){ this.value = parseInt(cue.line,10); },
+					events: {
+						change: function(){
+							cue.line = cue.snapToLines?this.valueAsNumber:this.value+"%";
+							editor.renderer &&  editor.renderer.refreshLayout();
+						}
+					}
+				},cue_pos: {
+					init: function(root){ this.value = parseInt(cue.position,10); },
+					events: {
+						change: function(){
+							cue.position = this.value+"%";
+							editor.renderer && editor.renderer.refreshLayout();
+						}
+					}
+				},cue_size: {
+					init: function(root){ this.value = parseInt(cue.size,10); },
+					events: {
+						change: function(){
+							cue.size = this.value+"%";
+							editor.renderer && editor.renderer.refreshLayout();
+						}
+					}
+				},cue_align: {
+					init: function(root){ this.value = cue.align; },
+					events: {
+						change: function(){
+							cue.align = this.value;
+							editor.renderer && editor.renderer.refreshLayout();
+						}
+					}
+				}
+			}
 		});
 	}
 	
@@ -196,12 +210,14 @@ var CaptionEditor = (function(){
 			return node;
 		},
 		captions: function(cue){
-			var node = document.createElement('div'),
+			var outernode = document.createElement('div'),
+				node = document.createElement('div'),
 				editor = this, cstack = this.cstack,
-				dialog = null;
+				dialog = makeCapDialog(outernode,cue,this);
 			
 			node.contentEditable = 'true'; 
-			node.style.border = "1px solid silver";
+			node.style.height = "100%";
+			node.style.width = "100%";
 			node.appendChild(cue.getCueAsHTML(true));
 			node.addEventListener('keydown',function(e){
 				e = e||window.event;
@@ -214,10 +230,7 @@ var CaptionEditor = (function(){
 						if(e.ctrlKey){ e.preventDefault(); }
 				}
 			},false);
-			node.addEventListener("focus",function(){
-				if(dialog){ return; }
-				dialog = makeCapDialog(cue,editor);
-			},false);
+			node.addEventListener("focus", dialog.show.bind(dialog), false);
 			if(cstack instanceof EditorWidgets.CommandStack){
 				node.addEventListener('input',function(){
 					var newtext = HTML2VTT(node.childNodes,true);
@@ -231,7 +244,10 @@ var CaptionEditor = (function(){
 					editor.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
 				},false);
 			}
-			return node;
+			
+			outernode.style.border = "1px solid silver";
+			outernode.appendChild(node);
+			return outernode;
 		}
 	};
 	
