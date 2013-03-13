@@ -128,7 +128,7 @@
 	Proto.render = function() {
 		var tl = this.tl,
 			images = tl.images,
-			ctx = tl.ctx,
+			ctx = tl.context,
 			start = this.startx,
 			end = this.endx - tl.sliderHandleWidth;
 		

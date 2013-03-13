@@ -57,66 +57,69 @@
 	
 	Timeline.TrackMenu = function(timeline){
 		return [
-			{label:"Track",submenu:[
-				{label:"Merge Selected",
-					condition:function(pos){ return !this.trackFromPos(pos).locked; },
-					action:function(pos){ this.trackFromPos(pos).mergeSelected(); }},
-				{label:"Lock",
-					condition:function(pos){ return !this.trackFromPos(pos).locked; },
-					action:function(pos){ this.trackFromPos(pos).locked = true; }},
-				{label:"Unlock",
-					condition:function(pos){ return this.trackFromPos(pos).locked; },
-					action:function(pos){ this.trackFromPos(pos).locked = false; }},
-				{label:"Activate",
-					condition:function(pos){
-						var track = this.trackFromPos(pos);
-						return !(track.locked || track.active);
-					},
-					action:function(pos){ this.trackFromPos(pos).active = true; }},
-				{label:"Deactivate",
-					condition:function(pos){
-						var track = this.trackFromPos(pos);
-						return !track.locked && track.active;
-					},
-					action:function(pos){ this.trackFromPos(pos).active = false; }},
-				{label:"Set Audio",
-					condition: function(pos){ return Reader && WaveForm && Resampler && !this.trackFromPos(pos).locked; },
-					submenu: {
-						forEach: function(f){
-							f({label: "From Disk",
-								action: function(pos){
-									var tl = this,
-										f = document.createElement('input');
-									f.type = "file";
-									f.addEventListener('change',function(evt){
-										var file = evt.target.files[0];
-										addWaveToTimeline.call(tl,Reader.fromFile(file),file.name,tl.trackFromPos(pos));
-									});
-									f.click();	
-								}
-							});
-							f({label: "From URL",
-								action: function(pos){
-									var tl = this,
-										url = prompt("URL of Audio File:","http://"),
-										name_match = /\/([^\/]+)$/.exec(url);
-									addWaveToTimeline.call(
-										tl,
-										Reader.fromURL(url),
-										name_match[1],
-										tl.trackFromPos(pos)
-									);
-								}
-							});
-							Object.keys(timeline.audio).forEach(function(key){
-								f({label: key,
-									action: function(pos){ this.setAudioTrack(this.trackFromPos(pos).id,key); }
+			{label:"Merge Selected",
+				condition:function(pos){ return !this.trackFromPos(pos).locked; },
+				action:function(pos){ this.trackFromPos(pos).mergeSelected(); }},
+			{label:"Lock",
+				condition:function(pos){ return !this.trackFromPos(pos).locked; },
+				action:function(pos){ this.trackFromPos(pos).locked = true; }},
+			{label:"Unlock",
+				condition:function(pos){ return this.trackFromPos(pos).locked; },
+				action:function(pos){ this.trackFromPos(pos).locked = false; }},
+			{label:"Activate",
+				condition:function(pos){
+					var track = this.trackFromPos(pos);
+					return !(track.locked || track.active);
+				},
+				action:function(pos){ this.trackFromPos(pos).active = true; }},
+			{label:"Deactivate",
+				condition:function(pos){
+					var track = this.trackFromPos(pos);
+					return !track.locked && track.active;
+				},
+				action:function(pos){ this.trackFromPos(pos).active = false; }},
+			{label:"Remove",
+				action:function(pos){
+					var track = this.trackFromPos(pos);
+					if(!confirm("Are You Sure You Want To Remove "+track.id+"?")){ return; }
+					this.removeTextTrack(track.id);
+				}},
+			{label:"Set Audio",
+				condition: function(pos){ return Reader && WaveForm && Resampler && !this.trackFromPos(pos).locked; },
+				submenu: {
+					forEach: function(f){
+						f({label: "From Disk",
+							action: function(pos){
+								var tl = this,
+									f = document.createElement('input');
+								f.type = "file";
+								f.addEventListener('change',function(evt){
+									var file = evt.target.files[0];
+									addWaveToTimeline.call(tl,Reader.fromFile(file),file.name,tl.trackFromPos(pos));
 								});
+								f.click();	
+							}
+						});
+						f({label: "From URL",
+							action: function(pos){
+								var tl = this,
+									url = prompt("URL of Audio File:","http://"),
+									name_match = /\/([^\/]+)$/.exec(url);
+								addWaveToTimeline.call(
+									tl,
+									Reader.fromURL(url),
+									name_match[1],
+									tl.trackFromPos(pos)
+								);
+							}
+						});
+						Object.keys(timeline.audio).forEach(function(key){
+							f({label: key,
+								action: function(pos){ this.setAudioTrack(this.trackFromPos(pos).id,key); }
 							});
-						}
-					}}
-				]
-			}
+						});
+					}
+				}}
 		];
 	}
 	
@@ -175,20 +178,17 @@
 	
 	Timeline.SegMenu = function(timeline){
 		return [
-			{label:"Segment",submenu:[
-				{label:"Select",
-					condition:function(pos){ return !this.segFromPos(pos).selected; },
-					action:function(pos){ this.segFromPos(pos).select(); }},
-				{label:"Unselect",
-					condition:function(pos){ return this.segFromPos(pos).selected; },
-					action:function(pos){ this.segFromPos(pos).unselect(); }},
-				{label:"Split", action:function(pos){ this.segFromPos(pos).split(pos); }},
-				{label:"Delete", action:function(pos){ this.segFromPos(pos).del(); }},
-				{label:"Match Repeat",
-					condition:function(pos){ return this.abRepeatSet; },
-					action:function(pos){ this.segFromPos(pos).move(this.repeatA,this.repeatB); }}
-				]
-			}
+			{label:"Select",
+				condition:function(pos){ return !this.segFromPos(pos).selected; },
+				action:function(pos){ this.segFromPos(pos).select(); }},
+			{label:"Unselect",
+				condition:function(pos){ return this.segFromPos(pos).selected; },
+				action:function(pos){ this.segFromPos(pos).unselect(); }},
+			{label:"Split", action:function(pos){ this.segFromPos(pos).split(pos); }},
+			{label:"Delete", action:function(pos){ this.segFromPos(pos).del(); }},
+			{label:"Match Repeat",
+				condition:function(pos){ return this.abRepeatSet; },
+				action:function(pos){ this.segFromPos(pos).move(this.repeatA,this.repeatB); }}
 		];
 	};
 	

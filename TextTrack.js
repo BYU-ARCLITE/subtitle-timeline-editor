@@ -12,7 +12,8 @@
 		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
 	}
 
-	function TextTrack(tl, cuetrack){
+	//TODO: Fix behavior for locked and disabled states
+	function TlTextTrack(tl, cuetrack){
 		var active = true,
 			that = this;
 		this.tl = tl;
@@ -42,7 +43,7 @@
 		});
 	}
 
-	TProto = TextTrack.prototype;
+	TProto = TlTextTrack.prototype;
 
 	Object.defineProperties(TProto,{
 		id: {
@@ -50,6 +51,7 @@
 			set: function(val){
 				var tl = this.tl,
 					oldid = this.textTrack.label;
+				if(oldid == val){ return oldid; }
 				if(tl.trackIndices.hasOwnProperty(val)){
 					throw new Error("Track name already in use.");
 				}
@@ -77,6 +79,16 @@
 		}
 	});
 
+	TProto.cloneTimeCodes = function(kind,lang,name){
+		var ntt = new TextTrack(kind,name,lang);
+		ntt.cues.loadCues(this.textTrack.cues.map(function(cue){
+			return new TextTrackCue(cue.startTime,cue.endTime,"");
+		}));
+		ntt.readyState = TextTrack.LOADED;
+		ntt.mode = "showing";
+		return new TlTextTrack(this.tl,ntt);
+	};
+	
 	function recreateSeg(){
 		this.deleted = false;
 		this.track.textTrack.addCue(this.cue);
@@ -208,11 +220,9 @@
 	};
 	
 	TProto.render = function(){
-		var i, seg, segs,
+		var segs,
 			tl = this.tl,
-			startTime = tl.view.startTime,
 			ctx = tl.ctx,
-			audio = this.audio,
 			selected = [];
 
 		ctx.save();
@@ -231,11 +241,11 @@
 		
 		segs = this.segments.filter(function(seg){return seg.visible;});
 		this.visibleSegments = segs;
-		for(i=0;seg=segs[i];i++){
+		segs.forEach(function(seg){
 			if(seg.selected){ selected.push(seg); }
 			else{ seg.render(); }
-		}
-		for(i=0;seg=selected[i];i++){ seg.render(); }
+		});
+		selected.forEach(function(seg){ seg.render(); });
 		this.placeholder && this.placeholder.render();
 	};
 
@@ -848,5 +858,5 @@
 		}, this.tl.autoSelect);
 	};
 	
-	Timeline.TextTrack = TextTrack;
+	Timeline.TextTrack = TlTextTrack;
 }(Timeline));

@@ -15,6 +15,7 @@ var Timeline = (function(){
 		if(!params){ params = {}; }
 		var canvas = document.createElement('canvas'),
 			overlay = document.createElement('canvas'),
+			cache = document.createElement('canvas'),
 			node = document.createElement('div'),
 			fonts = params.fonts || new Timeline.Fonts({}),
 			colors = params.colors || new Timeline.Colors({}),
@@ -66,6 +67,7 @@ var Timeline = (function(){
 						width = +val;
 						canvas.width = width;
 						overlay.width = width;
+						cache.width = width;
 						for(id in this.audio){
 							this.audio[id].width = width;
 						}
@@ -136,7 +138,7 @@ var Timeline = (function(){
 		
 		// Canvas
 		this.canvas = canvas;
-		this.ctx = canvas.getContext('2d');
+		this.context = canvas.getContext('2d');
 		canvas.width = width;
 		canvas.height = this.height;
 		canvas.addEventListener('mousemove', mouseMove.bind(this), false);
@@ -162,6 +164,11 @@ var Timeline = (function(){
 		overlay.style.left = 0;
 		overlay.style.pointerEvents = "none";
 
+		this.cache = cache;
+		this.ctx = cache.getContext('2d');
+		cache.width = width;
+		cache.height = this.height;
+		
 		node.style.position = "relative";
 		node.appendChild(canvas);
 		node.appendChild(overlay);
@@ -261,6 +268,35 @@ var Timeline = (function(){
 		}
 		this.activeMenu = menu;
 	};
+
+	Proto.addMenuItem = function(type,path,action,condition){
+		var that = this, optname, idx, opt,
+			sequence = path.split('.'),
+			submenu = type==="main"?this.mainMenuOptions
+					:type==="track"?this.trackMenuOptions
+					:type==="seg"?this.segMenuOptions
+					:null;
+		
+		if(!submenu){ throw new Error("Invalid Menu Type"); }
+		if(!sequence.length){ throw new Error("No Path"); }		
+		if(typeof action !== 'function'){ throw new Error("No Action Function"); }
+		
+		opt = {submenu:submenu};
+		do{	if(!opt.hasOwnProperty('submenu')){ opt.submenu = []; }
+			submenu = opt.submenu;
+			optname = sequence.shift();
+			for(idx = 0; opt = submenu[idx] && opt.label != optname; idx++){}
+			if(idx === submenu.length){
+				opt = {label:optname};
+				submenu.push(opt);
+			}
+		}while(sequence.length);
+		
+		opt.action = action;
+		if(typeof condition === 'function'){
+			opt.condition = condition;
+		}	
+	};
 	
 	/**
 	 * Helper Functions
@@ -331,6 +367,7 @@ var Timeline = (function(){
 			this.height += this.trackHeight + this.trackPadding;
 			this.canvas.height = this.height;
 			this.overlay.height = this.height;
+			this.cache.height = this.height;
 			this.render();
 			this.emit("addtrack",track);
 		}
@@ -353,22 +390,47 @@ var Timeline = (function(){
 			this.height -= this.trackHeight + this.trackPadding;
 			this.canvas.height = this.height;
 			this.overlay.height = this.height;
+			this.cache.height = this.height;
 			this.render();
 			this.cstack.removeEvents(track.id);
 			this.emit("removetrack",track);
 		}
 	};
 	
+	Proto.cloneTimeCodes = function(tid, kind, lang, name, overwrite) {
+		if(this.trackIndices.hasOwnProperty(name)){
+			if(!overwrite){ throw new Error("Track name already in use."); }
+		}
+		var track = this.tracks[this.trackIndices[tid]];
+		if(!track){ throw new Error("Track does not exist"); }
+		track = track.cloneTimeCodes(kind, lang, name);
+		if(this.trackIndices.hasOwnProperty(name)){
+			swaptracks.call(this,track,this.tracks[this.trackIndices[name]]);
+		}else{
+			this.trackIndices[name] = this.tracks.length;
+			this.tracks.push(track);
+			// Adjust the height
+			this.height += this.trackHeight + this.trackPadding;
+			this.canvas.height = this.height;
+			this.overlay.height = this.height;
+			this.cache.height = this.height;
+			this.render();
+			this.emit("addtrack",track);
+		}
+	};
+	
 	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite) {
 		var track = this.tracks[this.trackIndices[tid]];
 		if(!track){ throw new Error("Track does not exist"); }
-		if(this.trackIndices.hasOwnProperty(name)){
+		if(name != track.id && this.trackIndices.hasOwnProperty(name)){
 			if(!overwrite){ throw new Error("Track name already in use."); }
 			this.removeTextTrack(name);
 		}
+		//avoid side-effects of settint track properties directly
 		track.textTrack.kind = kind;
 		track.textTrack.language = lang;
-		track.id = name; //re-rendering is a side-effect
+		track.textTrack.label = name;
+		this.render();
 	};
 	
 	Proto.addAudioTrack = function(wave, id) {
@@ -514,10 +576,8 @@ var Timeline = (function(){
 		}
 	};
 
-	Proto.renderTimeMarker = function() {
-		var ctx, x = this.view.timeToPixel(this.timeMarkerPos)-1;
-		if(x < -1 || x > this.width){ return; }
-		ctx = this.ctx
+	Proto.renderTimeMarker = function(x) {
+		var ctx = this.context;
 		ctx.save();
 		ctx.fillStyle = this.colors.timeMarker;
 		ctx.fillRect(x, 0, 2, this.height);
@@ -525,48 +585,55 @@ var Timeline = (function(){
 	};
 
 	Proto.renderTrack = function(track) {
-		var left, right,
-			ctx = this.ctx,
+		var left, right, ctx,
 			height = this.trackHeight,
 			top = this.getTrackTop(track),
 			x = this.view.timeToPixel(this.timeMarkerPos)-1;
 
 		track.render();
-		ctx.save();
-		{
-			//redo the peice of the abRepeat that we drew over
-			if(this.abRepeatSet){
-				left = this.view.timeToPixel(this.repeatA);
-				right = this.view.timeToPixel(this.repeatB);
-				if(right >= 0 || left <= this.width){
-					ctx.fillStyle = this.colors[this.abRepeatOn?'abRepeat':'abRepeatLight'];
-					ctx.fillRect(left, top, right-left, height);
-				}
-			}
-			
-			//redo the peice of the timeMarker that we drew over
-			if(x >=0 || x <= this.width){
-				ctx.fillStyle = this.colors.timeMarker;
-				ctx.fillRect(x, top, 2, height);
+		//redo the peice of the abRepeat that we drew over
+		if(this.abRepeatSet){
+			left = this.view.timeToPixel(this.repeatA);
+			right = this.view.timeToPixel(this.repeatB);
+			if(right >= 0 || left <= this.width){
+				ctx = this.ctx;
+				ctx.save();
+				ctx.fillStyle = this.colors[this.abRepeatOn?'abRepeat':'abRepeatLight'];
+				ctx.fillRect(left, top, right-left, height);
+				ctx.restore();
 			}
 		}
-		ctx.restore();
+		ctx = this.context;
+		ctx.drawImage(this.cache,0,top,this.width,height,0,top,this.width,height);
+		//redo the peice of the timeMarker that we drew over
+		if(x >= 0 || x <= this.width){
+			ctx.save();
+			ctx.fillStyle = this.colors.timeMarker;
+			ctx.fillRect(x, top, 2, height);
+			ctx.restore();
+		}
 	};
 
-	Proto.render = function() {
-		var aid, audio;
+	Proto.render = function(stable) {
+		var aid, audio, x;
 		if(this.images.complete){
 			clearInterval(this.renderInterval);
 			this.renderInterval = null;
-			this.renderBackground();
-			this.renderKey();
-			this.tracks.forEach(function(track){ track.render(); });
-			for(aid in this.audio){ this.audio[aid].render(); }
-			this.renderABRepeat();
-			this.renderTimeMarker();
+			if(!stable){
+				this.renderBackground();
+				this.renderKey();
+				this.tracks.forEach(function(track){ track.render(); });
+				for(aid in this.audio){ this.audio[aid].render(); }
+				this.renderABRepeat();
+				this.context.drawImage(this.cache,0,0);
+			}
+			x = this.view.timeToPixel(this.timeMarkerPos)-1;
+			if(x > -1 && x < this.width){
+				this.renderTimeMarker(x);
+			}
 			this.slider.render();
 		}else if(!this.renderInterval){
-			this.renderInterval = setInterval(this.render.bind(this),1);
+			this.renderInterval = setInterval(this.render.bind(this,stable),1);
 		}
 	};
 
@@ -575,15 +642,12 @@ var Timeline = (function(){
 	Object.defineProperties(Proto,{
 		currentTime: {
 			set: function(time){
-				var timewidth;
+				var timewidth, x, stable = false;
 				if(time == this.timeMarkerPos){ return time; }
 				if(this.abRepeatOn && time > this.repeatB) {
 					time = this.repeatA;
 					this.emit('jump',this.repeatA);
 				}
-				this.timeMarkerPos = time;
-				this.tracks.forEach(function(track){ track.textTrack.currentTime = time; });
-				this.emit('timeupdate', time);
 
 				//move the view
 				if(time < this.view.startTime){
@@ -594,10 +658,19 @@ var Timeline = (function(){
 					timewidth = this.view.length/4;
 					this.view.endTime = time + 3*timewidth;
 					this.view.startTime = time - timewidth;
+				}else{
+					stable = true;
+					x = this.view.timeToPixel(this.timeMarkerPos)-1;
+					if(x > -1 && x < this.width){ //erase old time marker
+						this.context.drawImage(this.cache,x,0,2,this.height,x,0,2,this.height);
+					}
 				}
-
-				this.render();
-				return this.timeMarkerPos;
+					
+				this.timeMarkerPos = time;
+				this.tracks.forEach(function(track){ track.textTrack.currentTime = time; });
+				this.emit('timeupdate', time);
+				this.render(stable);
+				return time;
 			},
 			get: function(){return this.timeMarkerPos;},
 			enumerable: true
@@ -941,9 +1014,9 @@ var Timeline = (function(){
 			this.activeMenu = null;
 		}
 		if(track){
-			opts = this.trackMenuOptions.concat(opts);
+			opts = [{label:"Track",submenu:this.trackMenuOptions}].concat(opts);
 			seg = track.segFromPos(pos);
-			if(seg){ opts = this.segMenuOptions.concat(opts); }
+			if(seg){ opts = [{label:"Segment",submenu:this.segMenuOptions}].concat(opts); }
 		}
 		this.showMenu(opts,pos);
 		ev.preventDefault();
