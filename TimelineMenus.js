@@ -66,18 +66,6 @@
 			{label:"Unlock",
 				condition:function(pos){ return this.trackFromPos(pos).locked; },
 				action:function(pos){ this.trackFromPos(pos).locked = false; }},
-			{label:"Activate",
-				condition:function(pos){
-					var track = this.trackFromPos(pos);
-					return !(track.locked || track.active);
-				},
-				action:function(pos){ this.trackFromPos(pos).active = true; }},
-			{label:"Deactivate",
-				condition:function(pos){
-					var track = this.trackFromPos(pos);
-					return !track.locked && track.active;
-				},
-				action:function(pos){ this.trackFromPos(pos).active = false; }},
 			{label:"Remove",
 				action:function(pos){
 					var track = this.trackFromPos(pos);
@@ -136,17 +124,11 @@
 		
 		this.addAudioTrack(wave,name);
 		this.setAudioTrack(track.id,name);
-		
-		initAudioReader(
-			reader,10000/*bufsize*/,rate,
-			function(frame){
-				wave.addFrame(frame);
-				tl.renderTrack(track);
-			}
-		);
+		console.log("Initializing Audio Decoder");
+		initAudioReader(reader,10000/*bufsize*/,rate,wave);
 	}
 	
-	function initAudioReader(reader,bufsize,rate,cb) {
+	function initAudioReader(reader,bufsize,rate,wave) {
 		var chan, frame, buffer, channels, resampler;
 		reader.on('format', function(data) {
 			resampler = new Resampler(data.sampleRate,rate,1);
@@ -162,14 +144,13 @@
 				var i, j;
 				if(reader.get(buffer) !== 'filled'){
 					clearInterval(repeat);
-					//console.log("done: ", Date.now()-startTime);
 				}else{
 					//deinterlace:
 					for(i=0,j=0;j<bufsize;j+=channels){
 						chan[i++] = buffer[j];
 					}
 					resampler.exec(chan,frame);
-					cb(frame);
+					wave.addFrame(frame); //addFrame emits redraw
 				}
 			},1);
 		});

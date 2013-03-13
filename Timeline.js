@@ -604,6 +604,7 @@ var Timeline = (function(){
 			}
 		}
 		ctx = this.context;
+		//This copy is expensive; need to make it faster!
 		ctx.drawImage(this.cache,0,top,this.width,height,0,top,this.width,height);
 		//redo the peice of the timeMarker that we drew over
 		if(x >= 0 || x <= this.width){

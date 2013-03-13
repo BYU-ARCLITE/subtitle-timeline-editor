@@ -31,24 +31,26 @@
 	};
 	
 	Proto.draw = function(){
-		var i, track,
+		var id = this.id,
 			tl = this.tl,
+			buffer = this.wave.buffer,
 			width = tl.width,
 			height = tl.trackHeight,
 			padding = tl.trackPadding,
 			top = tl.keyHeight + padding,
-			ctx = tl.octx,
-			wave = this.wave;
-			
+			ctx = tl.octx;
+		
+		if(!this.references){ return; }
+		
 		ctx.save();
 		ctx.globalAlpha = .5;
-		for(i=0;track=tl.tracks[i];i++){
-			ctx.clearRect(0, top, width, height);
-			if(track.active && track.audioId === this.id){
-				ctx.drawImage(wave.buffer, 0, top);
+		tl.tracks.forEach(function(track){
+			if(track.audioId === id){
+				ctx.clearRect(0, top, width, height);
+				if(!track.locked){ ctx.drawImage(buffer, 0, top); }
 			}
 			top += height + padding;
-		}
+		});
 		ctx.restore();
 	};
 	

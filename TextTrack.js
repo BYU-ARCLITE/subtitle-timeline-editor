@@ -12,9 +12,8 @@
 		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
 	}
 
-	//TODO: Fix behavior for locked and disabled states
 	function TlTextTrack(tl, cuetrack){
-		var active = true,
+		var locked = false,
 			that = this;
 		this.tl = tl;
 		this.textTrack = cuetrack;
@@ -24,21 +23,18 @@
 		this.audioId = null;
 		this.placeholder = null;
 		this.lastPos = null;
-		this.locked = false;
 
-		Object.defineProperty(this,'active',{
-			get: function(){ return active; },
+		Object.defineProperty(this,'locked',{
+			get: function(){ return locked; },
 			set: function(val){
-				if(!this.locked){
-					val = !!val;
-					if(val != active){
-						active = val;
-						if(!active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
-						tl.renderTrack(this);
-						if(this.audioId){ tl.audio[this.audioId].draw(); }
-					}
+				val = !!val;
+				if(val !== locked){
+					locked = val;
+					if(active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
+					tl.renderTrack(this);
+					if(this.audioId){ tl.audio[this.audioId].draw(); }
 				}
-				return active;
+				return locked;
 			}
 		});
 	}
@@ -150,7 +146,7 @@
 		if(typeof pos !== 'object') return;
 		var tl = this.tl,seg,j;
 
-		if(!this.active || this.locked){ return 'locked'; }
+		if(this.locked){ return 'locked'; }
 		if(tl.currentTool === Timeline.CREATE){ return 'add'; }
 		
 		//Check segments; traverse backwards so you get the ones on top
@@ -267,18 +263,14 @@
 	};
 	
 	TProto.mouseDown = function(pos){
-		if(typeof pos !== 'object'){ return; }
+		if(typeof pos !== 'object' || this.locked){ return; }
 		var tl = this.tl, seg, selected;
 		if(tl.currentTool === Timeline.CREATE){
-			if(this.active && !this.locked){
-				this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
-			}
+			this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
 		}else if(tl.currentTool === Timeline.SHIFT){
-			if(this.active && !this.locked){
-				selected = this.segments.filter(function(seg){ return seg.selected; });
-				if(selected.length < 2){ selected = this.segments; }
-				selected.forEach(function(seg){ seg.mouseDown(pos); });
-			}
+			selected = this.segments.filter(function(seg){ return seg.selected; });
+			if(selected.length < 2){ selected = this.segments; }
+			selected.forEach(function(seg){ seg.mouseDown(pos); });
 		}else{	//search backwards 'cause later segments are on top
 			seg = this.segFromPos(pos);
 			if(seg !== null){
@@ -289,8 +281,8 @@
 	};
 	
 	TProto.mouseMove = function(pos){
-		if(typeof pos !== 'object'){ return; }
-		if(this.tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
+		if(typeof pos !== 'object' || this.locked){ return; }
+		if(this.tl.currentTool === Timeline.SHIFT){
 			this.segments.forEach(function(seg){ seg.mouseMove(pos); });
 			this.render();
 		}
@@ -308,8 +300,8 @@
 	
 	TProto.mouseUp = function(pos){
 		var selected, delta, tl = this.tl;
-		if(typeof pos !== 'object'){ return; }
-		if(tl.currentTool === Timeline.SHIFT && this.active && !this.locked){
+		if(typeof pos !== 'object' || this.locked){ return; }
+		if(tl.currentTool === Timeline.SHIFT){
 			selected = this.segments.filter(function(seg){ return seg.selected; });
 			if(selected.length < 2){ selected = this.segments; }
 			selected.forEach(function(seg){ seg.moving = false; });
@@ -363,7 +355,7 @@
 	}
 
 	Object.defineProperties(SProto,{
-		selectable: { get: function(){ return !this.track.locked && this.track.active; }, enumerable: true },
+		selectable: { get: function(){ return !this.track.locked; }, enumerable: true },
 		active: {
 			get: function(){
 				var mark = this.tl.timeMarkerPos;
@@ -680,16 +672,12 @@
 	};
 
 	SProto.mouseMove = function(pos) {
-		if(this.deleted || !this.selectable)
-			return;
-
+		if(this.deleted || !this.selectable || !this.moving){ return; }
 		var tl = this.tl,
-			activeStart, newTime, maxStartTime;
+			activeStart = this.active,
+			newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x),
+			maxStartTime;
 
-		if(!this.moving){ return; }
-
-		activeStart = this.active;
-		newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
 		if(tl.currentTool === Timeline.SHIFT){
 			maxStartTime = tl.length - this.startingLength;
 			if(newTime < 0){ newTime = 0; }
