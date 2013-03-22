@@ -132,9 +132,9 @@ var Timeline = (function(){
 		
 		//context menu
 		this.activeMenu = null;
-		this.mainMenuOptions = Timeline.MainMenu(this);
-		this.trackMenuOptions = Timeline.TrackMenu(this);
-		this.segMenuOptions = Timeline.SegMenu(this);
+		this.mainMenuOptions = Timeline.MainMenu.slice();
+		this.trackMenuOptions = Timeline.TrackMenu.slice();
+		this.segMenuOptions = Timeline.SegMenu.slice();
 		
 		// Canvas
 		this.canvas = canvas;
@@ -213,9 +213,10 @@ var Timeline = (function(){
 	/** Context menu functions*/
 	
 	function clickMenu(action,pos){
-		if(this.activeMenu){
-			this.activeMenu.parentNode.removeChild(this.activeMenu);
-			this.activeMenu = null;
+		var tl = this.timeline;
+		if(tl.activeMenu){
+			tl.activeMenu.parentNode.removeChild(tl.activeMenu);
+			tl.activeMenu = null;
 		}
 		action.call(this,pos);
 	}
@@ -227,30 +228,34 @@ var Timeline = (function(){
 		}
 	}
 	
-	function buildLevel(that, opts, pos){
+	function buildLevel(pos, opts, that){
 		var menu = document.createElement('ul');
 		opts.forEach(function(opt){
-			if(opt.condition && !opt.condition.call(that,pos)){ return; }
+			if(opt.condition && !opt.condition.call(this,pos)){ return; }
 			var ul, li = document.createElement('li');
 			li.innerHTML = "<a>"+opt.label+"</a>";
 			if(opt.submenu && (typeof opt.submenu.forEach === 'function')){
-				ul = buildLevel(that, opt.submenu, pos);
+				ul = buildLevel(pos, opt.submenu, that);
 				li.appendChild(ul);
 				li.addEventListener('mouseover',checkMenuSize.bind(ul),false);
 			}
 			opt.action &&
-				li.addEventListener('click',clickMenu.bind(that,opt.action,pos),false);
+				li.addEventListener('click',clickMenu.bind(this,opt.action,pos),false);
 			menu.appendChild(li);
-		});
+		},that);
 		return menu;
 	}
 	
 	Proto.showMenu = function(options,pos){
-		var that = this,
-			cvs = this.canvas,
+		var cvs = this.canvas,
 			top = (pos.y + cvs.offsetTop),
 			left = (pos.x + cvs.offsetLeft),
-			menu = buildLevel(this,options,pos);
+			track = this.trackFromPos(pos),
+			menu = buildLevel(pos,options,{
+				timeline: this,
+				track: track,
+				segment: track.segFromPos(pos)
+			});
 			
 		if(left < cvs.offsetWidth/2){
 			menu.className = "tl-context-menu";
@@ -482,7 +487,7 @@ var Timeline = (function(){
 		if(audio){
 			track.audioId = null;
 			audio.references--;
-			audio.render();
+			this.octx.clearRect(0, this.getTrackTop(track), this.width, this.trackHeight);
 		}
 	};
 
@@ -643,7 +648,7 @@ var Timeline = (function(){
 	Object.defineProperties(Proto,{
 		currentTime: {
 			set: function(time){
-				var timewidth, x, stable = false;
+				var x, stable = false;
 				if(time == this.timeMarkerPos){ return time; }
 				if(this.abRepeatOn && time > this.repeatB) {
 					time = this.repeatA;
@@ -652,13 +657,9 @@ var Timeline = (function(){
 
 				//move the view
 				if(time < this.view.startTime){
-					timewidth = this.view.length/4;
-					this.view.endTime = time + timewidth;
-					this.view.startTime = time - 3*timewidth;
+					this.view.center(time - this.view.length/4);
 				}else if(time > this.view.endTime) {
-					timewidth = this.view.length/4;
-					this.view.endTime = time + 3*timewidth;
-					this.view.startTime = time - timewidth;
+					this.view.center(time + this.view.length/4);
 				}else{
 					stable = true;
 					x = this.view.timeToPixel(this.timeMarkerPos)-1;

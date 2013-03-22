@@ -53,6 +53,11 @@
 						}
 					}
 				},enumerable: true
+			},
+			center: {
+				value: function(time){
+					this.move(time - (this.startTime + this.length/2));
+				},enumerable: true
 			}
 		});
 	

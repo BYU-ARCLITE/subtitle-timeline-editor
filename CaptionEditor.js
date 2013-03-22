@@ -1,5 +1,6 @@
 var CaptionEditor = (function(){
 	var getSelection = (window.getSelection || document.getSelection || document.selection.createRange),
+		MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver,
 		editCapTemplate = '<table style="text-align:center;border: 1px solid black;">\
 		<tr><td><label>Alignment:</label></td><td><label>Positioning:</label></td></tr>\
 		<tr><td>\
@@ -44,16 +45,56 @@ var CaptionEditor = (function(){
 			case "b":
 			case "ruby":
 			case "rt":
-				return "<"+tag+">"+HTML2VTT(node.childNodes)+"</"+tag+">";
+				return "<"+tag+">"+HTML2VTT(node.childNodes,sanitize)+"</"+tag+">";
 			case "span":
 				switch(node['data-cuetag']){
 				case "V": return "<v "+node['data-voice']+">"+HTML2VTT(node.childNodes,sanitize)+"</v>";
 				case "C": return "<c."+node.className.replace(/ /g,'.')+">"+HTML2VTT(node.childNodes,sanitize)+"</c>";
 				case "LANG": return "<lang "+node.lang+">"+HTML2VTT(node.childNodes,sanitize)+"</lang>";
-				default: return "";
+				default: return HTML2VTT(node.childNodes,sanitize); //ignore unrecognized tags
 				}
 			}
 		}).join('');
+	}
+	
+	//strip out any html that could not have been generated from VTT
+	function formatHTMLInput(nodeList) {
+		return [].forEach.call(nodeList,function(node){
+			var tag, frag;
+			if(node.parentNode === null){ return; }
+			if(node.nodeType === Node.TEXT_NODE){ return; }
+			if(node.nodeType === Node.ELEMENT_NODE){
+				tag = node.nodeName.toLowerCase();
+				outer: switch(tag){
+				case "i":
+					frag = document.createElement('i');
+					if(node["data-target"] === "timestamp"){
+						frag["data-target"] = "timestamp";
+						frag["data-timestamp"] = node["data-timestamp"];
+						frag["data-seconds"] = node["data-seconds"];
+					}
+					break;
+				case "br": case "u": case "b": case "ruby": case "rt":
+					frag = document.createElement(tag);
+					break;
+				case "span":
+					switch(node['data-cuetag']){
+					case "V": case "C": case "LANG":
+						frag = document.createElement(tag);
+						frag["data-cuetag"] = node["data-cuetag"];
+						break outer;
+					}
+				default:
+					frag = document.createDocumentFragment();
+					break;
+				}
+			}
+			if(node.childNodes.length){
+				formatHTMLInput(node.childNodes);
+				[].forEach.call(node.childNodes,function(cnode){ frag.appendChild(cnode); });
+			}
+			node.parentNode.replaceChild(frag,node);
+		});
 	}
 
 	function genTextChange(text, editor){
@@ -219,7 +260,7 @@ var CaptionEditor = (function(){
 		editor.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
 	}
 	
-	function editorKeyDown(cue,editor,cstack,e){
+	function editorKeyDown(cue,editor,cstack,observer,e){
 		var selection, range, anchor, text, focusNode, offset, frag;
 		e = e||window.event;
 		switch(e.keyCode){
@@ -237,6 +278,7 @@ var CaptionEditor = (function(){
 				focusNode = document.createTextNode(text.substr(offset));
 				frag.appendChild(focusNode);
 				anchor.parentNode.replaceChild(frag,anchor);
+				observer.takeRecords();
 				
 				//refresh the display
 				editorInput.call(this,cue,editor,cstack);
@@ -260,34 +302,46 @@ var CaptionEditor = (function(){
 		}
 	}
 	
+	function mutationCB(cue,editor,cstack,mutations,observer){
+		mutations.forEach(function(mutation){
+			if(mutation.type === 'childList' && mutation.addedNodes){
+				formatHTMLInput(mutation.addedNodes);
+			}
+		});
+		editorInput.call(this,cue,editor,cstack);
+		observer.takeRecords();
+	}
+	
 	CaptionEditor.kinds = {
 		subtitles: function(cue){
 			var node = document.createElement('div'),
-				editor = this, cstack = this.cstack;
+				editor = this, cstack = this.cstack,
+				observer = new MutationObserver(mutationCB.bind(node,cue,editor,cstack));
 			
 			//THIS IS WHERE TO STICK IN CK EDITOR OR WHATEVER
 			
 			node.contentEditable = 'true'; 
 			node.style.border = "1px solid silver";
 			node.appendChild(cue.getCueAsHTML(true));
-			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,cstack),false);
-			node.addEventListener('input',editorInput.bind(node,cue,editor,cstack),false);
+			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,cstack,observer),false);
+			
+			observer.observe(node,{subtree:true,childList:true,characterData:true});
+			
 			return {node:node};
 		},
 		captions: function(cue){
-			var outernode = document.createElement('div'),
-				node = document.createElement('div'),
+			var node = document.createElement('div'),
 				editor = this, cstack = this.cstack,
-				dialog = makeCapDialog(cue,this);
+				dialog = makeCapDialog(cue,this),
+				observer = new MutationObserver(mutationCB.bind(node,cue,editor,cstack));
 			
-			node.contentEditable = 'true'; 
-			node.style.height = "100%";
-			node.style.width = "100%";
+			node.contentEditable = 'true';
 			node.style.border = "1px solid silver";
 			node.appendChild(cue.getCueAsHTML(true));
-			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,cstack),false);
-			node.addEventListener('input',editorInput.bind(node,cue,editor,cstack),false);
+			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,cstack,observer),false);
 			node.addEventListener("focus", dialog.show.bind(dialog), false);
+			
+			observer.observe(node,{subtree:true,childList:true,characterData:true});
 			
 			return {node:node,cleanup:dialog.close.bind(dialog)};
 		}

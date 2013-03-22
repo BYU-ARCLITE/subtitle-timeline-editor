@@ -144,16 +144,13 @@
 
 	TProto.getCursor = function(pos) {
 		if(typeof pos !== 'object') return;
-		var tl = this.tl,seg,j;
+		var seg;
 
 		if(this.locked){ return 'locked'; }
-		if(tl.currentTool === Timeline.CREATE){ return 'add'; }
+		if(this.tl.currentTool === Timeline.CREATE){ return 'add'; }
 		
-		//Check segments; traverse backwards so you get the ones on top
-		for(j=this.visibleSegments.length-1;seg=this.visibleSegments[j];j--){
-			if(seg.containsPoint(pos)){	return seg.getCursor(pos); }
-		}
-		return 'pointer';
+		seg = this.segFromPos(pos);
+		return seg?seg.getCursor(pos):'pointer';
 	};
 	
 	function remerge(segs,mseg,text){
@@ -253,11 +250,12 @@
 		var j, seg, 
 			segs = this.visibleSegments,
 			selected = segs.filter(function(seg){ return seg.selected; });
+		//search backwards 'cause later segments are on top
 		for(j=selected.length-1;seg=selected[j];j--) {
 			if(seg.containsPoint(pos)){ return seg; }
 		}
 		for(j=segs.length-1;seg=segs[j];j--) {
-			if(seg.containsPoint(pos)){ return seg; }
+			if(!seg.selected && seg.containsPoint(pos)){ return seg; }
 		}
 		return null;
 	};
@@ -271,7 +269,7 @@
 			selected = this.segments.filter(function(seg){ return seg.selected; });
 			if(selected.length < 2){ selected = this.segments; }
 			selected.forEach(function(seg){ seg.mouseDown(pos); });
-		}else{	//search backwards 'cause later segments are on top
+		}else{
 			seg = this.segFromPos(pos);
 			if(seg !== null){
 				tl.activeElement = seg;
