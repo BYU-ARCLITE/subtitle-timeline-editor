@@ -58,43 +58,47 @@ var CaptionEditor = (function(){
 	}
 	
 	//strip out any html that could not have been generated from VTT
-	function formatHTMLInput(nodeList) {
-		return [].forEach.call(nodeList,function(node){
-			var tag, frag;
-			if(node.parentNode === null){ return; }
-			if(node.nodeType === Node.TEXT_NODE){ return; }
-			if(node.nodeType === Node.ELEMENT_NODE){
-				tag = node.nodeName.toLowerCase();
-				outer: switch(tag){
-				case "i":
-					frag = document.createElement('i');
-					if(node["data-target"] === "timestamp"){
-						frag["data-target"] = "timestamp";
-						frag["data-timestamp"] = node["data-timestamp"];
-						frag["data-seconds"] = node["data-seconds"];
-					}
-					break;
-				case "br": case "u": case "b": case "ruby": case "rt":
+	function formatHTMLInput(node) {
+		var tag, frag;
+		if(node.parentNode === null){ return null; }
+		if(node.nodeType === Node.TEXT_NODE){ return node; }
+		if(node.nodeType === Node.ELEMENT_NODE){
+			tag = node.nodeName.toLowerCase();
+			outer: switch(tag){
+			case "i":
+				frag = document.createElement('i');
+				if(node["data-target"] === "timestamp"){
+					frag["data-target"] = "timestamp";
+					frag["data-timestamp"] = node["data-timestamp"];
+					frag["data-seconds"] = node["data-seconds"];
+				}
+				break;
+			case "br": case "u": case "b": case "ruby": case "rt":
+				frag = document.createElement(tag);
+				break;
+			case "span":
+				switch(node['data-cuetag']){
+				case "V": case "C": case "LANG":
 					frag = document.createElement(tag);
-					break;
-				case "span":
-					switch(node['data-cuetag']){
-					case "V": case "C": case "LANG":
-						frag = document.createElement(tag);
-						frag["data-cuetag"] = node["data-cuetag"];
-						break outer;
-					}
+					frag["data-cuetag"] = node["data-cuetag"];
+					break outer;
+				}
+			default:
+				switch(node.childNodes.length){
+				case 1:
+					return formatHTMLInput(node.firstChild);
+				case 0:
+					return null;
 				default:
 					frag = document.createDocumentFragment();
-					break;
 				}
 			}
-			if(node.childNodes.length){
-				formatHTMLInput(node.childNodes);
-				[].forEach.call(node.childNodes,function(cnode){ frag.appendChild(cnode); });
-			}
-			node.parentNode.replaceChild(frag,node);
+		}
+		[].slice.call(node.childNodes).forEach(function(cnode){
+			var nnode = formatHTMLInput(cnode);
+			if(nnode){ frag.appendChild(nnode); }
 		});
+		return frag;
 	}
 
 	function genTextChange(text, editor){
@@ -303,11 +307,51 @@ var CaptionEditor = (function(){
 	}
 	
 	function mutationCB(cue,editor,cstack,mutations,observer){
+		var last, focus, range, selection, nnodes = []
 		mutations.forEach(function(mutation){
 			if(mutation.type === 'childList' && mutation.addedNodes){
-				formatHTMLInput(mutation.addedNodes);
+				nnodes.push.apply(nnodes,[].filter.call(mutation.addedNodes,function(anode){
+					return !nnodes.some(function(nnode){ return nnode.contains(anode); });
+				}));
 			}
 		});
+		nnodes.forEach(function(node){
+			var cpos, nnode = formatHTMLInput(node);
+			if(nnode){
+				if(nnode !== node){ node.parentNode.replaceChild(nnode,node); }
+			}else{ node.parentNode.removeChild(node); }
+		});
+		
+		/*
+		if(!nnodes.length){ return; }
+		nnodes.forEach(function(node){
+			var cpos, nnode = formatHTMLInput(node);
+			if(nnode){
+				if(nnode !== node){ node.parentNode.replaceChild(nnode,node); }
+				cpos = last?last.compareDocumentPosition(nnode):Node.DOCUMENT_POSITION_PRECEDING;
+				if(cpos & Node.DOCUMENT_POSITION_CONTAINED_BY){ throw new Error("Filtering Failed."); }
+				if(cpos & Node.DOCUMENT_POSITION_PRECEDING){
+					last = (nnode.nodeType === Node.DOCUMENT_FRAGMENT_NODE)?nnode.lastChild:nnode;
+				}
+			}else{ node.parentNode.removeChild(node); }
+		});
+		
+		if(last){ //ARG! Why doesn't it work?
+			//reset the caret
+			if(last.nodeType === Node.TEXT_NODE){ focus = last; }
+			else{
+				focus = document.createTextNode("");
+				last.parentNode.insertBefore(focus, last.nextSibling);
+			}
+			range = document.createRange();
+			range.setStart(focus,0);
+			range.setEnd(focus,0);
+			
+			selection = getSelection();
+			selection.removeAllRanges();
+			selection.addRange(range);
+		}
+		*/
 		editorInput.call(this,cue,editor,cstack);
 		observer.takeRecords();
 	}

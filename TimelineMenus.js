@@ -48,7 +48,7 @@
 				condition:function(){return this.timeline.abRepeatSet; },
 				action:function(){ this.timeline.clearRepeat(); }},
 			{label:"Set Repeat Point",action:function(pos){
-				(this.timeline.abRepeatSet?updateABPoints:resetABPoints).call(this,pos);
+				(this.timeline.abRepeatSet?updateABPoints:resetABPoints).call(this.timeline,pos);
 			}}
 		]}
 	];
@@ -67,7 +67,7 @@
 			action:function(){
 				var track = this.track;
 				if(!confirm("Are You Sure You Want To Remove "+track.id+"?")){ return; }
-				this.removeTextTrack(track.id);
+				this.timeline.removeTextTrack(track.id);
 			}},
 		{label:"Set Audio",
 			condition: function(){ return Reader && WaveForm && Resampler && !this.track.locked; },

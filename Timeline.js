@@ -168,10 +168,16 @@ var Timeline = (function(){
 		this.ctx = cache.getContext('2d');
 		cache.width = width;
 		cache.height = this.height;
+		cache.style.position = "absolute";
+		cache.style.top = 0;
+		cache.style.left = 0;
+		cache.style.pointerEvents = "none";
+		cache.style.visibility = "hidden";
 		
 		node.style.position = "relative";
 		node.appendChild(canvas);
 		node.appendChild(overlay);
+		node.appendChild(cache);
 		location.appendChild(node);
 
 		this.render();
@@ -254,7 +260,7 @@ var Timeline = (function(){
 			menu = buildLevel(pos,options,{
 				timeline: this,
 				track: track,
-				segment: track.segFromPos(pos)
+				segment: track && track.segFromPos(pos)
 			});
 			
 		if(left < cvs.offsetWidth/2){

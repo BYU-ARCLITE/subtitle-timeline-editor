@@ -743,6 +743,7 @@
 
 		// is it on the screen
 		if(x > -shape.width && x < tl.width) {
+			dir = tl.cache.dir;
 			ctx.save();
 			ctx.translate(x, y);
 
@@ -769,11 +770,9 @@
 
 				ctx.textBaseline = 'top';
 
-				dir = tl.canvas.dir; //save
-
 				if(this.id){
 					direction = Ayamel.Text.getDirection(this.id+"");
-					tl.canvas.dir = direction;
+					tl.cache.dir = direction;
 
 					ctx.font = fonts.idFont;
 					ctx.fillStyle = fonts.idTextColor;
@@ -785,15 +784,14 @@
 
 				text = TimedText.textPreviewers[this.track.kind](this.text);
 				direction = Ayamel.Text.getDirection(text);
-				tl.canvas.dir = direction;
+				tl.cache.dir = direction;
 
 				ctx.font = fonts.segmentFont;
 				ctx.fillStyle = fonts.segmentTextColor;
 				ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
-
-				tl.canvas.dir = dir; //restore
 			}
 			ctx.restore();
+			tl.cache.dir = dir;
 		}
 	};
 
