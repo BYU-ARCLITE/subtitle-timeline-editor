@@ -433,9 +433,13 @@ var Timeline = (function(){
 	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite) {
 		var track = this.tracks[this.trackIndices[tid]];
 		if(!track){ throw new Error("Track does not exist"); }
-		if(name != track.id && this.trackIndices.hasOwnProperty(name)){
-			if(!overwrite){ throw new Error("Track name already in use."); }
-			this.removeTextTrack(name);
+		if(name != track.id){
+			if(this.trackIndices.hasOwnProperty(name)){
+				if(!overwrite){ throw new Error("Track name already in use."); }
+				this.removeTextTrack(name);
+			}
+			this.trackIndices[name] = this.trackIndices[track.id];
+			delete this.trackIndices[track.id];
 		}
 		//avoid side-effects of settint track properties directly
 		track.textTrack.kind = kind;
