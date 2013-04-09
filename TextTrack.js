@@ -178,38 +178,43 @@
 		tl.emit('unmerge',mseg,segs);
 	}
 	
-	TProto.mergeSelected = function(){
-		var i, seg, mseg, oldend, oldtext, newtext,
-			that = this, tl = this.tl,
-			s_segs = tl.selectedSegments,
-			selected = s_segs.filter(function(seg){return seg.track === that;});
+	function merge(list){
+		var that = this,
+			tl = this.tl,
+			ssegs = tl.selectedSegments,
+			mseg, oldend, oldtext, newtext;
 		
-		if(selected.length === 0){ return; }
+		list.sort(order);
+		newtext = list.map(function(seg){ return seg.text; }).join('');
 		
-		selected.sort(order);
-		newtext = selected.map(function(seg){ return seg.text; }).join('');
-		
-		mseg = selected.shift();
+		mseg = list.shift();
 		oldend = mseg.endTime;
-		mseg.cue.endTime = selected[selected.length-1].endTime;
+		mseg.cue.endTime = list[list.length-1].endTime;
 		oldtext = mseg.text;
 		mseg.cue.text = newtext;
 		
-		selected.forEach(function(seg){
+		list.forEach(function(seg){
 			seg.deleted = true;
 			seg.selected = false;
 			that.textTrack.removeCue(seg.cue);
-			s_segs.splice(s_segs.indexOf(seg),1);
+			ssegs.splice(ssegs.indexOf(seg),1);
 		});
 		
 		tl.renderTrack(this);
 		tl.cstack.push({
 			file: this.textTrack.label,
 			context: this,
-			redo: remerge.bind(this,selected,mseg,newtext),
-			undo: unmerge.bind(this,selected,mseg,oldtext,oldend)
+			redo: remerge.bind(this,list,mseg,newtext),
+			undo: unmerge.bind(this,list,mseg,oldtext,oldend)
 		});
-		tl.emit('merge',mseg,selected);
+		tl.emit('merge',mseg,list);
+	}
+	
+	TProto.mergeSelected = function(){
+		var that = this,
+			selected = this.tl.selectedSegments.filter(function(seg){return seg.track === that;});
+		if(selected.length === 0){ return; }
+		merge.call(this,selected);
 	};
 	
 	TProto.render = function(){
@@ -540,6 +545,14 @@
 		});
 		tl.renderTrack(track);
 		tl.emit('split',this,seg);
+	};
+	
+	SProto.mergeWithSelected = function(pos){
+		var track = this.track,
+			selected = this.tl.selectedSegments.filter(function(seg){return seg.track === track;});
+		if(selected.length === 0){ return; }
+		if(selected.indexOf(this) === -1){ selected.push(this); }
+		merge.call(this.track, selected);
 	};
 	
 	SProto.serialize = function(type){
