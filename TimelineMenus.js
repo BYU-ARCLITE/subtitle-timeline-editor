@@ -5,7 +5,111 @@
 		throw new Error("Timeline Uninitialized");
 	}
 	
-	Timeline.MainMenu = [
+	Timeline.Menu = [
+		{label:"Track",
+			condition:function(){return !!this.track; },
+			vars: {
+				numSelected: function(pos,vars){
+					var track = this.track;
+					return this.timeline.selectedSegments.reduce(function(c,seg){ return seg.track == track?c+1:c; },0);
+				}
+			},
+			submenu:[
+				{label:"Merge Selected",
+					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 1 },
+					action:function(){ this.track.mergeSelected(); }},
+				{label:"Copy Selected",
+					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0 },
+					action:function(){ this.track.copySelected(); }},
+				{label:"Paste",
+					condition:function(){
+						var copy = this.timeline.toCopy,
+							track = this.track;
+						return !track.locked && copy.length && copy[0].track !== track;
+					},
+					action:function(){ this.track.paste(); }},
+				{label:"Lock",
+					condition:function(){ return !this.track.locked; },
+					action:function(){ this.track.locked = true; }},
+				{label:"Unlock",
+					condition:function(){ return this.track.locked; },
+					action:function(){ this.track.locked = false; }},
+				{label:"Remove",
+					action:function(){
+						var track = this.track;
+						if(!confirm("Are You Sure You Want To Remove "+track.id+"?")){ return; }
+						this.timeline.removeTextTrack(track.id);
+					}},
+				{label:"Set Audio",
+					condition: function(){ return Reader && WaveForm && Resampler && !this.track.locked; },
+					submenu: {
+						forEach: function(f,that){
+							[{label: "From Disk",
+								action: function(){
+									var tl = this.timeline,
+										track = this.track,
+										f = document.createElement('input');
+									f.type = "file";
+									f.addEventListener('change',function(evt){
+										var file = evt.target.files[0];
+										addWaveToTimeline.call(tl,Reader.fromFile(file),file.name,track);
+									});
+									f.click();	
+								}
+							},{label: "From URL",
+								action: function(){
+									var tl = this,
+										url = prompt("URL of Audio File:","http://"),
+										name_match = /\/([^\/]+)$/.exec(url);
+									addWaveToTimeline.call(
+										tl,
+										Reader.fromURL(url),
+										name_match[1],
+										this.track
+									);
+								}
+							},{label: "None",
+								condition: function(){ return !!this.track.audioId; },
+								action: function(){ this.timeline.unsetAudioTrack(this.track.id); }
+							}].forEach(f,that);
+							Object.keys(that.timeline.audio).forEach(function(key){
+								f.call(that,(that.track.audioId === key?
+									{label: "<i>"+key+"</i>"}:
+									{label: key,
+										action: function(){ this.timeline.setAudioTrack(this.track.id,key); }}));
+							});
+						}
+					}}
+			]
+		},
+		{label:"Segment",
+			condition: function(){return !!this.segment; },
+			submenu:[
+				{label:"Select",
+					condition:function(){ return !this.segment.selected; },
+					action:function(){ this.segment.select(); }},
+				{label:"Unselect",
+					condition:function(){ return this.segment.selected; },
+					action:function(){ this.segment.unselect(); }},
+				{label:"Split", action:function(pos){ this.segment.split(pos); }},
+				{label:"Merge With Selected",
+					condition:function(){
+						var track = this.track;
+						return	!track.locked &&
+								!this.segment.selected &&
+								this.timeline.selectedSegments.some(function(seg){ return seg.track === track; });
+					},
+					action:function(){ this.segment.mergeWithSelected(); }},
+				{label:"Copy", action:function(){ this.segment.copy(); }},
+				{label:"Delete", action:function(){ this.segment.del(); }},
+				{label:"Match Repeat",
+					condition:function(pos){ return this.timeline.abRepeatSet; },
+					action:function(pos){
+						var tl = this.timeline;
+						this.segment(pos).move(tl.repeatA,tl.repeatB);
+					}}
+			]
+		},
 		{label:"Editing",submenu:[
 			{label:"Undo",
 				condition:function(){return this.timeline.cstack.undoDepth > 0; },
@@ -19,7 +123,8 @@
 				{label:"Add",action:function(){ this.timeline.currentTool = Timeline.CREATE; }},
 				{label:"Split",action:function(){ this.timeline.currentTool = Timeline.SPLIT; }},
 				{label:"Delete",action:function(){ this.timeline.currentTool = Timeline.DELETE; }},
-				{label:"Shift",action:function(){ this.timeline.currentTool = Timeline.SHIFT; }}
+				{label:"Shift",action:function(){ this.timeline.currentTool = Timeline.SHIFT; }},
+				{label:"Copy",action:function(){ this.timeline.currentTool = Timeline.COPY; }}
 			]}
 		]},
 		{label:"Navigation",submenu:[
@@ -51,64 +156,6 @@
 				(this.timeline.abRepeatSet?updateABPoints:resetABPoints).call(this.timeline,pos);
 			}}
 		]}
-	];
-	
-	Timeline.TrackMenu = [
-		{label:"Merge Selected",
-			condition:function(){ return !this.track.locked; },
-			action:function(){ this.track.mergeSelected(); }},
-		{label:"Lock",
-			condition:function(){ return !this.track.locked; },
-			action:function(){ this.track.locked = true; }},
-		{label:"Unlock",
-			condition:function(){ return this.track.locked; },
-			action:function(){ this.track.locked = false; }},
-		{label:"Remove",
-			action:function(){
-				var track = this.track;
-				if(!confirm("Are You Sure You Want To Remove "+track.id+"?")){ return; }
-				this.timeline.removeTextTrack(track.id);
-			}},
-		{label:"Set Audio",
-			condition: function(){ return Reader && WaveForm && Resampler && !this.track.locked; },
-			submenu: {
-				forEach: function(f,that){
-					[{label: "From Disk",
-						action: function(){
-							var tl = this.timeline,
-								track = this.track,
-								f = document.createElement('input');
-							f.type = "file";
-							f.addEventListener('change',function(evt){
-								var file = evt.target.files[0];
-								addWaveToTimeline.call(tl,Reader.fromFile(file),file.name,track);
-							});
-							f.click();	
-						}
-					},{label: "From URL",
-						action: function(){
-							var tl = this,
-								url = prompt("URL of Audio File:","http://"),
-								name_match = /\/([^\/]+)$/.exec(url);
-							addWaveToTimeline.call(
-								tl,
-								Reader.fromURL(url),
-								name_match[1],
-								this.track
-							);
-						}
-					},{label: "None",
-						condition: function(){ return !!this.track.audioId; },
-						action: function(){ this.timeline.unsetAudioTrack(this.track.id); }
-					}].forEach(f,that);
-					Object.keys(that.timeline.audio).forEach(function(key){
-						f.call(that,(that.track.audioId === key?
-							{label: "<i>"+key+"</i>"}:
-							{label: key,
-								action: function(){ this.timeline.setAudioTrack(this.track.id,key); }}));
-					});
-				}
-			}}
 	];
 	
 	/** Audio Functions **/
@@ -156,25 +203,5 @@
 		});
 		reader.start();
 	}
-	
-	Timeline.SegMenu = [
-		{label:"Select",
-			condition:function(){ return !this.segment.selected; },
-			action:function(){ this.segment.select(); }},
-		{label:"Unselect",
-			condition:function(){ return this.segment.selected; },
-			action:function(){ this.segment.unselect(); }},
-		{label:"Split", action:function(pos){ this.segment.split(pos); }},
-		{label:"Merge With Selected",
-			condition:function(){ return !this.track.locked; },
-			action:function(){ this.segment.mergeWithSelected(); }},
-		{label:"Delete", action:function(){ this.segment.del(); }},
-		{label:"Match Repeat",
-			condition:function(pos){ return this.timeline.abRepeatSet; },
-			action:function(pos){
-				var tl = this.timeline;
-				this.segment(pos).move(tl.repeatA,tl.repeatB);
-			}}
-	];
 	
 }(Timeline));

@@ -216,6 +216,29 @@
 		if(selected.length === 0){ return; }
 		merge.call(this,selected);
 	};
+
+	TProto.copySelected = function(){
+		var that = this,
+			tl = this.tl,
+			copy = tl.selectedSegments.filter(function(seg){return seg.track === that;});
+		if(copy.length > 0){ tl.toCopy = copy; }
+	};
+	
+	TProto.paste = function(){
+		//TODO: Make work with undo/redo
+		var tl = this.tl, that = this, visible = false;
+		tl.toCopy.forEach(function(seg){
+			var cue = seg.cue,
+				ncue = new TextTrackCue(cue.startTime,cue.endTime,cue.text);
+			ncue.vertical = cue.vertical;
+			ncue.align = cue.align;
+			ncue.line = cue.line;
+			ncue.size = cue.size;
+			ncue.position = cue.position;
+			that.add(ncue);
+			visible |= seg.visible;
+		});
+	};
 	
 	TProto.render = function(){
 		var segs,
@@ -469,6 +492,8 @@
 		if(this.visible){ tl.renderTrack(this.track); }
 		tl.emit('unselect', this);
 	};
+	
+	SProto.copy = function(){ this.tl.toCopy = [this]; };
 	
 	SProto.del = function(){
 		var i, tl = this.tl,

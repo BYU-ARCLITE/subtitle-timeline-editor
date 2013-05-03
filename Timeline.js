@@ -103,6 +103,7 @@ var Timeline = (function(){
 		this.currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT;
 		
 		this.selectedSegments = [];
+		this.toCopy = [];
 		this.events = {};
 		this.tracks = [];
 		this.audio = {};
@@ -132,9 +133,7 @@ var Timeline = (function(){
 		
 		//context menu
 		this.activeMenu = null;
-		this.mainMenuOptions = Timeline.MainMenu.slice();
-		this.trackMenuOptions = Timeline.TrackMenu.slice();
-		this.segMenuOptions = Timeline.SegMenu.slice();
+		this.menuOptions = Timeline.Menu?[].slice.call(Timeline.Menu):[]; //just in case .Menu is overwritten
 		
 		// Canvas
 		this.canvas = canvas;
@@ -192,6 +191,7 @@ var Timeline = (function(){
 	Timeline.SCROLL = 6;
 	Timeline.SHIFT = 7;
 	Timeline.SPLIT = 8;
+	Timeline.COPY = 9;
 
 	Proto = Timeline.prototype;
 
@@ -218,13 +218,13 @@ var Timeline = (function(){
 
 	/** Context menu functions*/
 	
-	function clickMenu(action,pos){
+	function clickMenu(action,pos,vars){
 		var tl = this.timeline;
 		if(tl.activeMenu){
 			tl.activeMenu.parentNode.removeChild(tl.activeMenu);
 			tl.activeMenu = null;
 		}
-		action.call(this,pos);
+		action.call(this,pos,vars);
 	}
 	
 	function checkMenuSize(){
@@ -234,30 +234,39 @@ var Timeline = (function(){
 		}
 	}
 	
-	function buildLevel(pos, opts, that){
+	function buildLevel(pos, opts, ovars, that){
 		var menu = document.createElement('ul');
 		opts.forEach(function(opt){
-			if(opt.condition && !opt.condition.call(this,pos)){ return; }
-			var ul, li = document.createElement('li');
+			var ul, li,
+				nthat = this,
+				vars = ovars;
+			if(opt.vars){
+				vars = Object.create(vars);
+				Object.keys(opt.vars).forEach(function(key){
+					vars[key] = opt.vars[key].call(nthat,pos,ovars);
+				});
+			}
+			if(opt.condition && !opt.condition.call(this,pos,vars)){ return; }
+			li = document.createElement('li');
 			li.innerHTML = "<a>"+opt.label+"</a>";
 			if(opt.submenu && (typeof opt.submenu.forEach === 'function')){
-				ul = buildLevel(pos, opt.submenu, that);
+				ul = buildLevel(pos, opt.submenu, vars, this);
 				li.appendChild(ul);
 				li.addEventListener('mouseover',checkMenuSize.bind(ul),false);
 			}
 			opt.action &&
-				li.addEventListener('click',clickMenu.bind(this,opt.action,pos),false);
+				li.addEventListener('click',clickMenu.bind(this,opt.action,pos,vars),false);
 			menu.appendChild(li);
 		},that);
 		return menu;
 	}
 	
-	Proto.showMenu = function(options,pos){
+	Proto.showMenu = function(pos){
 		var cvs = this.canvas,
 			top = (pos.y + cvs.offsetTop),
 			left = (pos.x + cvs.offsetLeft),
 			track = this.trackFromPos(pos),
-			menu = buildLevel(pos,options,{
+			menu = buildLevel(pos,this.menuOptions,{},{
 				timeline: this,
 				track: track,
 				segment: track && track.segFromPos(pos)
@@ -280,15 +289,11 @@ var Timeline = (function(){
 		this.activeMenu = menu;
 	};
 
-	Proto.addMenuItem = function(type,path,action,condition){
+	Proto.addMenuItem = function(path,action,condition){
 		var that = this, optname, idx, opt,
 			sequence = path.split('.'),
-			submenu = type==="main"?this.mainMenuOptions
-					:type==="track"?this.trackMenuOptions
-					:type==="seg"?this.segMenuOptions
-					:null;
+			submenu = this.menuOptions;
 		
-		if(!submenu){ throw new Error("Invalid Menu Type"); }
 		if(!sequence.length){ throw new Error("No Path"); }		
 		if(typeof action !== 'function'){ throw new Error("No Action Function"); }
 		
@@ -296,7 +301,9 @@ var Timeline = (function(){
 		do{	if(!opt.hasOwnProperty('submenu')){ opt.submenu = []; }
 			submenu = opt.submenu;
 			optname = sequence.shift();
-			for(idx = 0; opt = submenu[idx] && opt.label != optname; idx++){}
+			for(idx = 0; (opt = submenu[idx]) && opt.label != optname; idx++){
+				console.log(optname,opt);
+			}
 			if(idx === submenu.length){
 				opt = {label:optname};
 				submenu.push(opt);
@@ -1017,20 +1024,11 @@ var Timeline = (function(){
 	}
 	
 	function contextMenu(ev) {
-		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
-			seg, track = this.trackFromPos(pos),
-			opts = this.mainMenuOptions;
-
 		if(this.activeMenu){
 			this.activeMenu.parentNode.removeChild(this.activeMenu);
 			this.activeMenu = null;
 		}
-		if(track){
-			opts = [{label:"Track",submenu:this.trackMenuOptions}].concat(opts);
-			seg = track.segFromPos(pos);
-			if(seg){ opts = [{label:"Segment",submenu:this.segMenuOptions}].concat(opts); }
-		}
-		this.showMenu(opts,pos);
+		this.showMenu({x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY});
 		ev.preventDefault();
 	}
 
