@@ -240,13 +240,14 @@
 	TProto.paste = function(){
 		var added, tl = this.tl,
 			that = this,
+			textTrack = this.textTrack,
 			segments = this.segments,
 			visible = false;
 		
 		added = tl.toCopy.map(function(seg){
 			var cue = seg.cue,
 				ncue = new TextTrackCue(cue.startTime,cue.endTime,cue.text),
-				nseg = new Segment(that, cue);
+				nseg = new Segment(that, ncue);
 			ncue.vertical = cue.vertical;
 			ncue.align = cue.align;
 			ncue.line = cue.line;
