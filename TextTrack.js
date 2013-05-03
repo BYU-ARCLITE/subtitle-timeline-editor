@@ -87,20 +87,18 @@
 	
 	function recreateSeg(){
 		this.deleted = false;
-		this.track.textTrack.addCue(this.cue);
 		this.visible && this.tl.renderTrack(this.track);
 		this.tl.emit('create',this);
 	}
 
 	function deleteSeg(){
-		var i, vis = this.visible,
+		var i, visible = this.visible,
 			s_segs = this.tl.selectedSegments;
 		this.deleted = true;
 		this.selected = false;
 		i = s_segs.indexOf(this);
 		if(i !== -1){ s_segs.splice(i,1); }
-		this.track.textTrack.removeCue(this.cue);
-		vis && this.tl.renderTrack(this.track);
+		if(visible){ this.tl.renderTrack(this.track); }
 		this.tl.emit('delete',this);
 	}
 
@@ -155,10 +153,7 @@
 	
 	function remerge(segs,mseg,text){
 		var tl = this.tl, that = this;
-		segs.forEach(function(seg){
-			seg.deleted = true;
-			that.textTrack.removeCue(seg.cue);
-		});
+		segs.forEach(function(seg){ seg.deleted = true; });
 		mseg.cue.text = text;
 		mseg.cue.endTime = segs[segs.length-1].endTime;
 		if(mseg.visible){ tl.renderTrack(this); }
@@ -169,7 +164,6 @@
 		var tl = this.tl, that = this, visible = false;
 		segs.forEach(function(seg){
 			seg.deleted = false;
-			that.textTrack.addCue(seg.cue);
 			visible |= seg.visible;
 		});
 		mseg.cue.text = text;
@@ -196,7 +190,6 @@
 		list.forEach(function(seg){
 			seg.deleted = true;
 			seg.selected = false;
-			that.textTrack.removeCue(seg.cue);
 			ssegs.splice(ssegs.indexOf(seg),1);
 		});
 		
@@ -224,20 +217,59 @@
 		if(copy.length > 0){ tl.toCopy = copy; }
 	};
 	
-	TProto.paste = function(){
-		//TODO: Make work with undo/redo
+	function repaste(segs){
 		var tl = this.tl, that = this, visible = false;
-		tl.toCopy.forEach(function(seg){
+		segs.forEach(function(seg){
+			seg.deleted = false;
+			visible |= seg.visible;
+		});
+		if(visible){ tl.renderTrack(this); }
+		tl.emit('paste',segs);
+	}
+	
+	function unpaste(segs){
+		var tl = this.tl, that = this, visible = false;
+		segs.forEach(function(seg){
+			visible |= seg.visible;
+			seg.deleted = true;
+		});
+		if(visible){ tl.renderTrack(this); }
+		tl.emit('unpaste',segs);
+	}
+	
+	TProto.paste = function(){
+		var added, tl = this.tl,
+			that = this,
+			segments = this.segments,
+			visible = false;
+		
+		added = tl.toCopy.map(function(seg){
 			var cue = seg.cue,
-				ncue = new TextTrackCue(cue.startTime,cue.endTime,cue.text);
+				ncue = new TextTrackCue(cue.startTime,cue.endTime,cue.text),
+				nseg = new Segment(that, cue);
 			ncue.vertical = cue.vertical;
 			ncue.align = cue.align;
 			ncue.line = cue.line;
 			ncue.size = cue.size;
 			ncue.position = cue.position;
-			that.add(ncue);
-			visible |= seg.visible;
+			
+			textTrack.addCue(ncue);
+			segments.push(nseg);
+			visible |= nseg.visible;
+			
+			return nseg;
 		});
+		
+		segments.sort(order);
+		if(visible){ tl.renderTrack(this); }
+		
+		tl.cstack.push({
+			file: this.textTrack.label,
+			context: this,
+			redo: repaste.bind(this,added),
+			undo: unpaste.bind(this,added)
+		});
+		tl.emit('paste',added);
 	};
 	
 	TProto.render = function(){
@@ -343,11 +375,11 @@
 	};
 
 	function Segment(track, cue) {
+		var deleted = false;
 		this.tl = track.tl;
 		this.track = track;
 		this.cue = cue;
 		this.moving = false;
-		this.deleted = false;
 		this.selected = false;
 		this.resizeSide = 0;
 
@@ -360,6 +392,21 @@
 		this.startingLength = 0;
 		
 		this.shape = {};
+		
+		Object.defineProperties(this,{
+			deleted: {
+				set: function(d){
+					d = !!d;
+					if(d !== deleted){
+						track.textTrack[d?'removeCue':'addCue'](this.cue);
+						deleted = d;
+					}
+					return d;	
+				},
+				get: function(){ return deleted; },
+				enumerable: true
+			}
+		});
 	}
 
 	SProto = Segment.prototype;
@@ -497,9 +544,9 @@
 	
 	SProto.del = function(){
 		var i, tl = this.tl,
+			visible = this.visible,
 			s_segs = tl.selectedSegments;
 			
-		this.track.textTrack.removeCue(this.cue);
 		this.deleted = true;
 
 		i = s_segs.indexOf(this);
@@ -512,16 +559,14 @@
 			redo: deleteSeg,
 			undo: recreateSeg
 		});
-		tl.renderTrack(this.track);
+		if(visible){ tl.renderTrack(this.track); }
 		tl.emit('delete',this);
 	};
 
 	function resplitSeg(s1,s2,stime){
 		var tl = this.tl;
 			
-		this.textTrack.addCue(s2.cue);
 		s2.deleted = false;
-		
 		s1.cue.endTime = stime;
 
 		if(s1.visible || s2.visible){ tl.renderTrack(this); }
@@ -531,8 +576,7 @@
 	function unsplitSeg(s1,s2){
 		var i, tl = this.tl,
 			s_segs = tl.selectedSegments;
-			
-		this.textTrack.removeCue(s2.cue);
+		
 		s2.deleted = true;
 
 		i = s_segs.indexOf(s2);
