@@ -237,14 +237,14 @@
 		tl.emit('unpaste',segs);
 	}
 	
-	TProto.paste = function(){
+	TProto.paste = function(toCopy){
 		var added, tl = this.tl,
 			that = this,
 			textTrack = this.textTrack,
 			segments = this.segments,
 			visible = false;
 		
-		added = tl.toCopy.map(function(seg){
+		added = toCopy.map(function(seg){
 			var cue = seg.cue,
 				ncue = new TextTrackCue(cue.startTime,cue.endTime,cue.text),
 				nseg = new Segment(that, ncue);
@@ -679,17 +679,16 @@
 
 	// Event handlers
 	SProto.mouseDown = function(pos) {
+		var tl = this.tl;
 		if(this.deleted || !this.selectable)
 			return;
 
 		this.startingPos = this.tl.view.timeToPixel(this.startTime);
 		this.startingLength = this.endTime - this.startTime;
 
-		switch(this.tl.currentTool){
-			case Timeline.SELECT:
-				if(this.selected){ this.unselect(); }
-				else{ this.select(); }
-				break;
+		tl.activeElement = this;
+		
+		switch(tl.currentTool){
 			case Timeline.MOVE:
 				this.resizeSide = this.getMouseSide(pos);
 				this.moving = true;
@@ -729,12 +728,22 @@
 	};
 	
 	SProto.mouseUp = function(pos) {
-		var tl = this.tl, track = this.track;
-		if(this.deleted || !this.selectable)
+		var tl = this.tl, track;
+		if(this.deleted || !this.selectable || this !== tl.activeElement)
 			return;
 		switch(tl.currentTool) {
+			case Timeline.SELECT:
+				track = tl.trackFromPos(pos);
+				if(track === this.track && track.segFromPos(pos) === this){
+					if(this.selected){ this.unselect(); }
+					else{ this.select(); }
+				}else if(track){
+					track.paste([this]);
+				}
+				break;
 			case Timeline.MOVE:
 				this.moving = false;
+				track = this.track;
 				track.segments.sort(order);
 				track.textTrack.activeCues.refreshCues();
 				track.render();
@@ -748,17 +757,20 @@
 				tl.emit("move",this);
 				break;
 			case Timeline.DELETE:
-				this.del()
+				this.del();
+				break;
 		}
 	};
 
 	SProto.mouseMove = function(pos) {
-		if(this.deleted || !this.selectable || !this.moving){ return; }
 		var tl = this.tl,
 			activeStart = this.active,
-			newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x),
-			maxStartTime;
+			newTime, maxStartTime;
 
+		if(this.deleted || !this.selectable || !this.moving || this !== this.tl.activeElement){ return; }
+		
+		newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
+		
 		if(tl.currentTool === Timeline.SHIFT){
 			maxStartTime = tl.length - this.startingLength;
 			if(newTime < 0){ newTime = 0; }
@@ -766,7 +778,7 @@
 			this.startTime = newTime;
 			this.endTime = newTime + this.startingLength;
 			tl.emit('move',this);
-		}else{
+		}else if(tl.currentTool === Timeline.MOVE){
 			switch(this.resizeSide){
 				case 0:
 					maxStartTime = tl.length - this.startingLength;
@@ -793,6 +805,8 @@
 					throw new Error("Invalid State");
 			}
 			tl.renderTrack(this.track);
+		}else{
+			//handle visual indication of copy-in-progress here
 		}
 		if(activeStart != this.active){
 			this.track.textTrack.activeCues.refreshCues();

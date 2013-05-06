@@ -191,7 +191,6 @@ var Timeline = (function(){
 	Timeline.SCROLL = 6;
 	Timeline.SHIFT = 7;
 	Timeline.SPLIT = 8;
-	Timeline.COPY = 9;
 
 	Proto = Timeline.prototype;
 
@@ -302,7 +301,7 @@ var Timeline = (function(){
 			submenu = opt.submenu;
 			optname = sequence.shift();
 			for(idx = 0; (opt = submenu[idx]) && opt.label != optname; idx++){
-				console.log(optname,opt);
+				//console.log(optname,opt);
 			}
 			if(idx === submenu.length){
 				opt = {label:optname};

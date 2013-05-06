@@ -27,7 +27,7 @@
 							track = this.track;
 						return !track.locked && copy.length && copy[0].track !== track;
 					},
-					action:function(){ this.track.paste(); }},
+					action:function(){ this.track.paste(this.timeline.toCopy); }},
 				{label:"Lock",
 					condition:function(){ return !this.track.locked; },
 					action:function(){ this.track.locked = true; }},
