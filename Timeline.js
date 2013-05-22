@@ -944,6 +944,7 @@ var Timeline = (function(){
 		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
 			track,i;
 		
+		document.activeElement.blur();
 		if(this.activeMenu){
 			this.activeMenu.parentNode.removeChild(this.activeMenu);
 			this.activeMenu = null;
