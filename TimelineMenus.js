@@ -58,7 +58,7 @@
 								}
 							},{label: "From URL",
 								action: function(){
-									var tl = this,
+									var tl = this.timeline,
 										url = prompt("URL of Audio File:","http://"),
 										name_match = /\/([^\/]+)$/.exec(url);
 									addWaveToTimeline.call(
