@@ -301,9 +301,14 @@ var CaptionEditor = (function(){
 			case 90:
 				if(e.ctrlKey){ e.preventDefault(); }
 				break;
-			default: e.stopPropagation(); //space key, and any other keys that might be hot-keys for other stuff
+			default:
+				e.stopPropagation(); //space key, and any other keys that might be hot-keys for other stuff
 				break;
 		}
+	}
+	
+	function cancelEvent(e){
+		e.stopPropagation();
 	}
 	
 	function mutationCB(cue,editor,cstack,mutations,observer){
@@ -368,6 +373,8 @@ var CaptionEditor = (function(){
 			node.style.border = "1px solid silver";
 			node.appendChild(cue.getCueAsHTML(true));
 			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,cstack,observer),false);
+			node.addEventListener('keyup',cancelEvent,false);
+			node.addEventListener('keypress',cancelEvent,false);
 			
 			observer.observe(node,{subtree:true,childList:true,characterData:true});
 			
