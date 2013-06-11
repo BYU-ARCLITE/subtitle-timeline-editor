@@ -1,4 +1,4 @@
-(function(Timeline){
+(function(Timeline,global){
 	"use strict";
 	
 	if(!Timeline){
@@ -41,7 +41,7 @@
 						this.timeline.removeTextTrack(track.id);
 					}},
 				{label:"Set Audio",
-					condition: function(){ return Reader && WaveForm && Resampler && !this.track.locked; },
+					condition: function(){ return global.Reader && global.WaveForm && global.Resampler && !this.track.locked; },
 					submenu: {
 						forEach: function(f,that){
 							[{label: "From Disk",
@@ -204,4 +204,4 @@
 		reader.start();
 	}
 	
-}(Timeline));
+}(Timeline,window));

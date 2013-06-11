@@ -82,25 +82,25 @@
 	
 	Timeline.TextTrack = TlTextTrack;
 	
+	function deleteSeg(){
+		var i, visible = this.visible,
+			s_segs = this.tl.selectedSegments;
+		this.deleted = true;
+		this.selected = false;
+		i = s_segs.indexOf(this);
+		if(i !== -1){ s_segs.splice(i,1); }
+		if(visible){ this.tl.renderTrack(this.track); }
+		this.tl.emit('delete',this);
+	}
+	
+	function recreateSeg(){
+		this.deleted = false;
+		this.visible && this.tl.renderTrack(this.track);
+		this.tl.emit('create',this);
+	}
+	
 	(function(TProto){
 	
-		function recreateSeg(){
-			this.deleted = false;
-			this.visible && this.tl.renderTrack(this.track);
-			this.tl.emit('create',this);
-		}
-
-		function deleteSeg(){
-			var i, visible = this.visible,
-				s_segs = this.tl.selectedSegments;
-			this.deleted = true;
-			this.selected = false;
-			i = s_segs.indexOf(this);
-			if(i !== -1){ s_segs.splice(i,1); }
-			if(visible){ this.tl.renderTrack(this.track); }
-			this.tl.emit('delete',this);
-		}
-		
 		function remerge(segs,mseg,text){
 			var tl = this.tl, that = this;
 			segs.forEach(function(seg){ seg.deleted = true; });
