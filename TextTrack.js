@@ -383,6 +383,7 @@
 				selected = this.segments.filter(function(seg){ return seg.selected; });
 				if(selected.length < 2){ selected = this.segments; }
 				selected.forEach(function(seg){ seg.mouseDown(pos); });
+				tl.activeElement = this;
 			}else{
 				seg = this.segFromPos(pos);
 				if(seg !== null){
@@ -396,7 +397,7 @@
 			if(typeof pos !== 'object' || this.locked){ return; }
 			if(this.tl.currentTool === Timeline.SHIFT){
 				this.segments.forEach(function(seg){ seg.mouseMove(pos); });
-				this.render();
+				this.tl.renderTrack(this);
 			}
 		};
 			
@@ -767,8 +768,7 @@
 		
 		SProto.mouseUp = function(pos) {
 			var tl = this.tl, track;
-			if(this.deleted || !this.selectable || this !== tl.activeElement)
-				return;
+			if(this.deleted || !this.selectable){ return; }
 			switch(tl.currentTool) {
 				case Timeline.SELECT:
 					track = tl.trackFromPos(pos);
@@ -805,7 +805,7 @@
 				activeStart = this.active,
 				newTime, maxStartTime;
 
-			if(this.deleted || !this.selectable || !this.moving || this !== this.tl.activeElement){ return; }
+			if(this.deleted || !this.selectable || !this.moving){ return; }
 			
 			newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
 			
