@@ -163,6 +163,8 @@ var Timeline = (function(){
 		overlay.style.left = 0;
 		overlay.style.pointerEvents = "none";
 
+		//This canvas is never seen, but it must be attached to the DOM for LTR text to render properly.
+		//No one knows why, it simply is so 
 		this.cache = cache;
 		this.ctx = cache.getContext('2d');
 		cache.width = width;
@@ -177,6 +179,10 @@ var Timeline = (function(){
 		node.appendChild(canvas);
 		node.appendChild(overlay);
 		node.appendChild(cache);
+		
+		node.addEventListener('drop', dragDrop.bind(this), false);
+		node.addEventListener('dragover', dragOver.bind(this), false);
+		
 		location.appendChild(node);
 
 		this.render();
@@ -763,7 +769,7 @@ var Timeline = (function(){
 				kind: kind,
 				lang: lang,
 				label: name,
-				success: function(t){ that.addTextTrack(t,overwrite); },
+				success: function(track){ that.addTextTrack(track,overwrite); },
 				error: function(){ alert("There was an error loading the track."); }
 			};
 		params[(url instanceof File)?'file':'url'] = url;
@@ -1021,6 +1027,50 @@ var Timeline = (function(){
 		Object.keys(this.audio).forEach(function(key){ that.audio[key].redraw(); });
 		ev.preventDefault();
 		return false;
+	}
+	
+	function dragDrop(ev) {
+		ev.stopPropagation();
+		ev.preventDefault();
+		var that = this, links = [],
+			types = ev.dataTransfer.types;
+		[].forEach.call(ev.dataTransfer.files,function(file){
+			TextTrack.get({
+				file: file,
+				kind: 'subtitles',
+				lang: 'zxx',
+				label: file.name,
+				success: function(track){
+					track.mode = 'showing';
+					that.addTextTrack(track,true);
+				}
+			});
+		});
+		if(types.indexOf('text/x-moz-url') !== -1){
+			links = ev.dataTransfer.getData('text/x-moz-url').split('\n').filter(function(e,i){ return !(i%2); });
+		}else if(types.indexOf('text/uri-list') !== -1){
+			links = ev.dataTransfer.getData('text/uri-list').split('\n').filter(function(e){ return e[0]!=='#'; });
+		}else if(types.indexOf('text/plain') !== -1){
+			links = ev.dataTransfer.getData('text/plain').split('\n');
+		}
+		links.forEach(function(url){
+			TextTrack.get({
+				url: url,
+				kind: 'subtitles',
+				lang: 'zxx',
+				label: /.*?([^\/]+)\/?$/g.exec(url)[1],
+				success: function(track){
+					track.mode = 'showing';
+					that.addTextTrack(track,true);
+				}
+			});
+		});
+	}
+	
+	function dragOver(ev) {
+		ev.stopPropagation();
+		ev.preventDefault();
+		ev.dataTransfer.dropEffect = 'copy';
 	}
 	
 	function contextMenu(ev) {
