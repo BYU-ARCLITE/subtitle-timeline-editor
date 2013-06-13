@@ -64,7 +64,7 @@
 									var tl = this.timeline, name,
 										url = prompt("URL of Audio File:","http://");
 									if(!url){ return; }
-									name = /.*?([^\/]+)\/?$/g.exec(url)[1];
+									name = /([^\/]+)\/?$/g.exec(url)[1];
 									tl.loadAudioTrack(url,name);
 									tl.setAudioTrack(this.track.id,name);
 								}

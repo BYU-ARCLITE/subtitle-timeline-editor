@@ -1120,23 +1120,20 @@ var Timeline = (function(){
 	function dragDrop(ev) {
 		ev.stopPropagation();
 		ev.preventDefault();
-		var that = this, links, audiofiles, track,
+		var that = this, links, name,
+			track = this.trackFromPos({x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY}),
+			files = ev.dataTransfer.files,
 			types = ev.dataTransfer.types;
 			
-		if(types.indexOf('Files') !== -1){
-			//Load Local Files
-			audiofiles = [].filter.call(ev.dataTransfer.files,function(file){
-				return file.type.substr(0,6) === 'audio/';
-			});
-			if(audiofiles.length){
-				//Load an audio waveform
-				track = this.trackFromPos({x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY});
-				if(!track){ return; }
-				this.loadAudioTrack(audiofiles[0],audiofiles[0].name);
-				this.setAudioTrack(track.id,audiofiles[0].name);
-			}else{
-				//Load text tracks
-				[].forEach.call(ev.dataTransfer.files,function(file){
+		if(files.length){ //Load Local Files
+			[].forEach.call(files,function(file){
+				if(file.type.substr(0,6) === 'audio/'){ //Load audio waveform
+					name = file.name;
+					that.loadAudioTrack(audiofiles[0],name);
+					if(files.length === 1 && track){
+						that.setAudioTrack(track.id,name);
+					}
+				}else{ //Load text track
 					TextTrack.get({
 						file: file, label: file.name,
 						kind: 'subtitles', lang: 'zxx',
@@ -1145,11 +1142,9 @@ var Timeline = (function(){
 							that.addTextTrack(track,true);
 						}
 					});
-				});
-			}
-		}else{
-			//Load URLs
-			//TODO: Recognize audio files in downloads
+				}
+			});
+		}else{ //Load from URLs
 			if(types.indexOf('text/x-moz-url') !== -1){
 				links = ev.dataTransfer.getData('text/x-moz-url').split('\n').filter(function(e,i){ return !(i%2); });
 			}else if(types.indexOf('text/uri-list') !== -1){
@@ -1158,16 +1153,27 @@ var Timeline = (function(){
 				links = ev.dataTransfer.getData('text/plain').split('\n');
 			}else{ return; }
 			links.forEach(function(url){
-				TextTrack.get({
-					url: url,
-					kind: 'subtitles',
-					lang: 'zxx',
-					label: /.*?([^\/]+)\/?$/g.exec(url)[1],
-					success: function(track){
-						track.mode = 'showing';
-						that.addTextTrack(track,true);
+			    var xhr = new XMLHttpRequest();
+				xhr.onload = function(event) {
+					if(/audio\//g.test(xhr.getResponseHeader("Content-Type"))){	//Load an audio waveform
+						name = /([^\/]+)\/?$/g.exec(url)[1];
+						that.loadAudioTrack(url,name);
+						if(links.length === 1 && track){
+							that.setAudioTrack(track.id,name);
+						}
+					}else{ //Load a text track
+						TextTrack.get({
+							url: url, label: /([^\/]+)\/?$/g.exec(url)[1],
+							kind: 'subtitles', lang: 'zxx',
+							success: function(track){
+								track.mode = 'showing';
+								that.addTextTrack(track,true);
+							}
+						});
 					}
-				});
+				};
+				xhr.open("HEAD", url, true);
+				xhr.send(null);
 			});
 		}		
 	}
