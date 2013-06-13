@@ -21,6 +21,9 @@
 				{label:"Copy Selected",
 					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0 },
 					action:function(){ this.track.copySelected(); }},
+				{label:"Delete Selected",
+					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0 },
+					action:function(){ this.track.deleteSelected(); }},
 				{label:"Paste",
 					condition:function(){
 						var copy = this.timeline.toCopy,
