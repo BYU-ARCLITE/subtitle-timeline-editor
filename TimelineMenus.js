@@ -109,7 +109,7 @@
 					condition:function(pos){ return this.timeline.abRepeatSet; },
 					action:function(pos){
 						var tl = this.timeline;
-						this.segment(pos).move(tl.repeatA,tl.repeatB);
+						this.segment.move(tl.repeatA,tl.repeatB);
 					}}
 			]
 		},
