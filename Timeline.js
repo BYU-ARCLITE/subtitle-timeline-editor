@@ -457,6 +457,8 @@ var Timeline = (function(){
 		this.render();
 	};
 
+	/** Audio Functions **/	
+	
 	Proto.addAudioTrack = function(wave, id) {
 		var track;
 		if(this.audio.hasOwnProperty(id)){ throw new Error("Track with that id already loaded."); }
@@ -470,6 +472,45 @@ var Timeline = (function(){
 		this.render();
 	};
 
+	Proto.loadAudioTrack = function(source, id) {
+		var rate = 1001, bufsize = 10000,
+			chan, frame, buffer, channels, resampler,
+			reader = Reader[(source instanceof File?"fromFile":"fromURL")](source),
+			wave = new WaveForm(
+				this.width,
+				this.trackHeight,
+				1/*channels*/,rate
+			);
+		
+		this.addAudioTrack(wave, id);
+		reader.on('format', function(data) {
+			console.log("Decoding Audio...");
+			resampler = new Resampler(data.sampleRate,rate,1);
+			channels = data.channelsPerFrame;
+			bufsize -= bufsize%channels;
+			buffer = new Float32Array(bufsize);
+			chan = buffer.subarray(0,bufsize/channels);
+			frame = new Float32Array(Math.ceil(bufsize*rate/(data.sampleRate*channels)));
+		});
+		reader.on('ready', function(){
+			var repeat = setInterval(function(){
+				var i, j;
+				if(reader.get(buffer) !== 'filled'){
+					clearInterval(repeat);
+				}else{
+					//deinterlace:
+					for(i=0,j=0;j<bufsize;j+=channels){
+						chan[i++] = buffer[j];
+					}
+					resampler.exec(chan,frame);
+					wave.addFrame(frame); //addFrame emits redraw
+				}
+			},1);
+		});
+		console.log("Initializing Audio Decoder");
+		reader.start();
+	}
+	
 	Proto.removeAudioTrack = function(id){
 		var i, top, ctx, track;
 		if(!this.audio.hasOwnProperty(id)){ return; }
@@ -1079,39 +1120,56 @@ var Timeline = (function(){
 	function dragDrop(ev) {
 		ev.stopPropagation();
 		ev.preventDefault();
-		var that = this, links = [],
+		var that = this, links, audiofiles, track,
 			types = ev.dataTransfer.types;
-		[].forEach.call(ev.dataTransfer.files,function(file){
-			TextTrack.get({
-				file: file,
-				kind: 'subtitles',
-				lang: 'zxx',
-				label: file.name,
-				success: function(track){
-					track.mode = 'showing';
-					that.addTextTrack(track,true);
-				}
+			
+		if(types.indexOf('Files') !== -1){
+			//Load Local Files
+			audiofiles = [].filter.call(ev.dataTransfer.files,function(file){
+				return file.type.substr(0,6) === 'audio/';
 			});
-		});
-		if(types.indexOf('text/x-moz-url') !== -1){
-			links = ev.dataTransfer.getData('text/x-moz-url').split('\n').filter(function(e,i){ return !(i%2); });
-		}else if(types.indexOf('text/uri-list') !== -1){
-			links = ev.dataTransfer.getData('text/uri-list').split('\n').filter(function(e){ return e[0]!=='#'; });
-		}else if(types.indexOf('text/plain') !== -1){
-			links = ev.dataTransfer.getData('text/plain').split('\n');
-		}
-		links.forEach(function(url){
-			TextTrack.get({
-				url: url,
-				kind: 'subtitles',
-				lang: 'zxx',
-				label: /.*?([^\/]+)\/?$/g.exec(url)[1],
-				success: function(track){
-					track.mode = 'showing';
-					that.addTextTrack(track,true);
-				}
+			if(audiofiles.length){
+				//Load an audio waveform
+				track = this.trackFromPos({x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY});
+				if(!track){ return; }
+				this.loadAudioTrack(audiofiles[0],audiofiles[0].name);
+				this.setAudioTrack(track.id,audiofiles[0].name);
+			}else{
+				//Load text tracks
+				[].forEach.call(ev.dataTransfer.files,function(file){
+					TextTrack.get({
+						file: file, label: file.name,
+						kind: 'subtitles', lang: 'zxx',
+						success: function(track){
+							track.mode = 'showing';
+							that.addTextTrack(track,true);
+						}
+					});
+				});
+			}
+		}else{
+			//Load URLs
+			//TODO: Recognize audio files in downloads
+			if(types.indexOf('text/x-moz-url') !== -1){
+				links = ev.dataTransfer.getData('text/x-moz-url').split('\n').filter(function(e,i){ return !(i%2); });
+			}else if(types.indexOf('text/uri-list') !== -1){
+				links = ev.dataTransfer.getData('text/uri-list').split('\n').filter(function(e){ return e[0]!=='#'; });
+			}else if(types.indexOf('text/plain') !== -1){
+				links = ev.dataTransfer.getData('text/plain').split('\n');
+			}else{ return; }
+			links.forEach(function(url){
+				TextTrack.get({
+					url: url,
+					kind: 'subtitles',
+					lang: 'zxx',
+					label: /.*?([^\/]+)\/?$/g.exec(url)[1],
+					success: function(track){
+						track.mode = 'showing';
+						that.addTextTrack(track,true);
+					}
+				});
 			});
-		});
+		}		
 	}
 
 	function dragOver(ev) {

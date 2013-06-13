@@ -192,7 +192,7 @@ var WaveForm = (function(){
 			start = this.startSample*channels,
 			end = this.endSample*channels;
 		if(this.worker){this.worker.terminate();}
-		this.worker = new Worker("WaveWorker.js");
+		this.worker = new Worker(WaveForm.WorkerPath+"WaveWorker.js");
 		this.worker.addEventListener('message',drawPath.bind(this),false);
 		this.worker.postMessage({
 			frame:new Float32Array(this.data.subarray(start, end)),
@@ -290,6 +290,8 @@ var WaveForm = (function(){
 		ctx.stroke();
 		ctx.restore();
 	}
+	
+	WaveForm.WorkerPath = "";
 	
 	return WaveForm;
 }());

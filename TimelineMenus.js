@@ -54,22 +54,19 @@
 										f = document.createElement('input');
 									f.type = "file";
 									f.addEventListener('change',function(evt){
-										var file = evt.target.files[0];
-										addWaveToTimeline.call(tl,Reader.fromFile(file),file.name,track);
+										tl.loadAudioTrack(evt.target.files[0],file.name);
+										tl.setAudioTrack(track.id,file.name);
 									});
 									f.click();	
 								}
 							},{label: "From URL",
 								action: function(){
-									var tl = this.timeline,
-										url = prompt("URL of Audio File:","http://"),
-										name_match = /\/([^\/]+)$/.exec(url);
-									addWaveToTimeline.call(
-										tl,
-										Reader.fromURL(url),
-										name_match[1],
-										this.track
-									);
+									var tl = this.timeline, name,
+										url = prompt("URL of Audio File:","http://");
+									if(!url){ return; }
+									name = /.*?([^\/]+)\/?$/g.exec(url)[1];
+									tl.loadAudioTrack(url,name);
+									tl.setAudioTrack(this.track.id,name);
 								}
 							},{label: "None",
 								condition: function(){ return !!this.track.audioId; },
@@ -160,51 +157,5 @@
 			}}
 		]}
 	];
-	
-	/** Audio Functions **/
-	
-	function addWaveToTimeline(reader,name,track){
-		var tl = this,
-			rate = 1001,
-			wave = new WaveForm(
-				this.width,
-				this.trackHeight,
-				1/*channels*/,rate
-			);
-		
-		this.addAudioTrack(wave,name);
-		this.setAudioTrack(track.id,name);
-		console.log("Initializing Audio Decoder");
-		initAudioReader(reader,10000/*bufsize*/,rate,wave);
-	}
-	
-	function initAudioReader(reader,bufsize,rate,wave) {
-		var chan, frame, buffer, channels, resampler;
-		reader.on('format', function(data) {
-			resampler = new Resampler(data.sampleRate,rate,1);
-			channels = data.channelsPerFrame;
-			bufsize -= bufsize%channels;
-			buffer = new Float32Array(bufsize);
-			chan = buffer.subarray(0,bufsize/channels);
-			frame = new Float32Array(Math.ceil(bufsize*rate/(data.sampleRate*channels)));
-		});
-		reader.on('ready', function(){
-			var startTime = Date.now(),
-				repeat = setInterval(function(){
-				var i, j;
-				if(reader.get(buffer) !== 'filled'){
-					clearInterval(repeat);
-				}else{
-					//deinterlace:
-					for(i=0,j=0;j<bufsize;j+=channels){
-						chan[i++] = buffer[j];
-					}
-					resampler.exec(chan,frame);
-					wave.addFrame(frame); //addFrame emits redraw
-				}
-			},1);
-		});
-		reader.start();
-	}
 	
 }(Timeline,window));
