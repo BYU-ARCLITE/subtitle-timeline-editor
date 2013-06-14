@@ -82,13 +82,14 @@
 		for(iname in defaultImages){
 			this[iname] = (obj[iname] instanceof Image)?obj[iname]:defaultImages[iname];
 		}
-		Object.freeze(this);
 	}
 	
 	Object.defineProperty(Images.prototype,'complete',{
 		get: function(){
 			var iname;
 			for(iname in defaultImages){ if(!this[iname].complete){ return false; } }
+			Object.defineProperty(this,'complete',{value:true});
+			Object.freeze(this);
 			return true;
 		},enumerable:true
 	});
