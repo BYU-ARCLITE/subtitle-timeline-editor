@@ -131,16 +131,22 @@
 			{label:"Repeat Tool",action:function(){ this.timeline.currentTool = Timeline.REPEAT; }},
 			{label:"Scroll Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
 			{label:"Order Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
-			{label:"Zoom In",action:function(pos){
-				this.view.startTime += (this.timeline.view.pixelToTime(pos.x)-this.view.startTime)/2;
-				this.view.endTime += (this.timeline.view.pixelToTime(pos.x)-this.view.endTime)/2;
-				this.render();
-			}},
-			{label:"Zoom Out",action:function(pos){
-				this.view.startTime -= (this.timeline.view.pixelToTime(pos.x)-this.view.startTime)/2;
-				this.view.endTime -= (this.timeline.view.pixelToTime(pos.x)-this.view.endTime)/2;
-				this.render();
-			}}
+			{label:"Zoom In",
+				condition:function(){ return this.timeline.view.zoom > .001; },
+				action:function(pos){
+					var view = this.timeline.view;
+					view.startTime += (view.pixelToTime(pos.x)-view.startTime)/2;
+					view.endTime += (view.pixelToTime(pos.x)-view.endTime)/2;
+					this.timeline.render();
+				}},
+			{label:"Zoom Out",
+				condition:function(){ return this.timeline.view.length < this.timeline.length; },
+				action:function(pos){
+					var view = this.timeline.view;
+					view.startTime -= (view.pixelToTime(pos.x)-view.startTime)/2;
+					view.endTime -= (view.pixelToTime(pos.x)-view.endTime)/2;
+					this.timeline.render();
+				}}
 		]},
 		{label:"AB Repeat",submenu:[
 			{label:"Enable",
