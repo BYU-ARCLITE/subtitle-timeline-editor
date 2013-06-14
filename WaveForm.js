@@ -1,8 +1,12 @@
 var WaveForm = (function(){
 	"use strict";
 	
-	var blobURL = URL.createObjectURL(new Blob(['(' + workerFn.toString() + ')();'], {type: "text/javascript"})),
-		workerPath = blobURL;
+	var blobURL = URL.createObjectURL(
+		new Blob(
+			['(' + workerFn.toString() + ')();'],
+			{type: "text/javascript"}
+		)
+	);
 	
 	function WaveForm(width, height, channels, rate){
 		var start = 0, end = 0,
@@ -28,7 +32,8 @@ var WaveForm = (function(){
 		this.moveToSample = function(s,e){
 			var pstart, pend, ldraw, rdraw;
 			if(s == start && e == end){
-				this.emit('redraw');return;
+				this.emit('redraw');
+				return;
 			}
 			if(e <= start || s >= end){
 				start = s;
@@ -143,21 +148,7 @@ var WaveForm = (function(){
 				},enumerable: true
 			}
 		});
-	}
-	
-	Object.defineProperty(WaveForm,'WorkerPath',{
-		set: function(value){
-			if(typeof value !== 'string'){ return workerPath; }
-			if(value === 'blob'){
-				workerPath = blobURL;
-			}else{
-				workerPath = value;
-			}
-			return workerPath;
-		},
-		get: function(){ return workerPath; }
-	});
-	
+	}	
 
 	WaveForm.prototype.emit = function(evt, data){
 		var that = this, fns = this.events[evt];
@@ -211,7 +202,7 @@ var WaveForm = (function(){
 			end = this.endSample*channels;
 		if(this.worker){this.worker.terminate();}
 		
-		this.worker = new Worker(WaveForm.WorkerPath);
+		this.worker = new Worker(blobURL);
 		this.worker.addEventListener('message',drawPath.bind(this),false);
 		this.worker.postMessage({
 			frame:new Float32Array(this.data.subarray(start, end)),

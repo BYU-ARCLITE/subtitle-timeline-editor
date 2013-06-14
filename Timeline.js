@@ -8,8 +8,22 @@
  **/
 var Timeline = (function(){
 	"use strict";
-	var Proto;
+	var Proto,
+		lastTime = 0,
+		requestFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame,
+		cancelFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame;
 
+    if(!requestFrame){
+        requestFrame = function(callback) {
+            var currTime = +(new Date),
+                timeToCall = Math.max(0, 16 - (currTime - lastTime)),
+                id = window.setTimeout(function() { callback(currTime + timeToCall); }, timeToCall);
+            lastTime = currTime + timeToCall;
+            return id;
+        };
+        cancelFrame = clearTimeout;
+    }
+	
 	function Timeline(location, params) {
 		if(!(location instanceof HTMLElement)){ throw new Error("Invalid DOM Insertion Point"); }
 		if(!params){ params = {}; }
@@ -123,6 +137,10 @@ var Timeline = (function(){
 
 		// Sizing
 		this.height = this.keyHeight + this.trackPadding + this.sliderHeight;
+		
+		//rendering control
+		this.requestedTrack = null;
+		this.requestedFrame = 0;
 
 		//mouse control
 		this.mouseDown = false;
@@ -474,7 +492,7 @@ var Timeline = (function(){
 
 	Proto.loadAudioTrack = function(source, id) {
 		var rate = 1001, bufsize = 10000,
-			chan, frame, buffer, channels, resampler,
+			chansize, framesize, buffer, channels, resampler,
 			reader = Reader[(source instanceof File?"fromFile":"fromURL")](source),
 			wave = new WaveForm(
 				this.width,
@@ -483,32 +501,39 @@ var Timeline = (function(){
 			);
 		
 		this.addAudioTrack(wave, id);
+		console.log("Initializing Audio Decoder");
+		console.time("audio "+id);
+		
 		reader.on('format', function(data) {
 			console.log("Decoding Audio...");
-			resampler = new Resampler(data.sampleRate,rate,1);
 			channels = data.channelsPerFrame;
 			bufsize -= bufsize%channels;
 			buffer = new Float32Array(bufsize);
-			chan = buffer.subarray(0,bufsize/channels);
-			frame = new Float32Array(Math.ceil(bufsize*rate/(data.sampleRate*channels)));
+			chansize = bufsize/channels;
+			framesize = Math.ceil(bufsize*rate/(data.sampleRate*channels));
+			resampler = new Resampler(data.sampleRate,rate,1);
+			resampler.receive = function(data){
+				wave.addFrame(data.outBuffer); //addFrame emits redraw
+				getData();
+			};
 		});
-		reader.on('ready', function(){
-			var repeat = setInterval(function(){
-				var i, j;
-				if(reader.get(buffer) !== 'filled'){
-					clearInterval(repeat);
-				}else{
-					//deinterlace:
-					for(i=0,j=0;j<bufsize;j+=channels){
-						chan[i++] = buffer[j];
-					}
-					resampler.exec(chan,frame);
-					wave.addFrame(frame); //addFrame emits redraw
-				}
-			},1);
-		});
-		console.log("Initializing Audio Decoder");
+		reader.on('ready', getData);
 		reader.start();
+		
+		function getData(){
+			var i, j, chan;
+			if(reader.get(buffer) !== 'filled'){
+				console.log("Finished Decoding");
+				console.timeEnd("audio "+id);
+			}else{
+				//deinterlace; select only the first channel
+				chan = new Float32Array(chansize);
+				for(i=0,j=0;j<bufsize;i++,j+=channels){
+					chan[i] = buffer[j];
+				}
+				resampler.run(chan,new Float32Array(framesize));
+			}
+		}
 	}
 	
 	Proto.removeAudioTrack = function(id){
@@ -558,34 +583,34 @@ var Timeline = (function(){
 
 	/** Drawing functions **/
 
-	Proto.renderBackground = function() {
-		var ctx = this.ctx,
-			grd = ctx.createLinearGradient(0,0,0,this.height);
+	function renderBackground(tl) {
+		var ctx = tl.ctx,
+			grd = ctx.createLinearGradient(0,0,0,tl.height);
 
 		// Draw the backround color
-		grd.addColorStop(0,this.colors.bgTop);
-		grd.addColorStop(0.5,this.colors.bgMid);
-		grd.addColorStop(1,this.colors.bgBottom);
+		grd.addColorStop(0,tl.colors.bgTop);
+		grd.addColorStop(0.5,tl.colors.bgMid);
+		grd.addColorStop(1,tl.colors.bgBottom);
 		ctx.save();
 		ctx.fillStyle = grd;
 		ctx.globalCompositeOperation = "source-over";
-		ctx.fillRect(0, 0, this.width, this.height);
+		ctx.fillRect(0, 0, tl.width, tl.height);
 		ctx.restore();
-	};
+	}
 
-	Proto.renderKey = function() {
-		var ctx = this.ctx,
-			view = this.view,
+	function renderKey(tl) {
+		var ctx = tl.ctx,
+			view = tl.view,
 			zoom = view.zoom,
 			power, d=0,
 			hours, mins, secs, pixels,
 			start, end, position, offset, increment;
 
 		ctx.save();
-		ctx.font         = this.fonts.keyFont;
+		ctx.font         = tl.fonts.keyFont;
 		ctx.textBaseline = 'top';
-		ctx.fillStyle    = this.fonts.keyTextColor;
-		ctx.strokeStyle    = this.fonts.keyTextColor;
+		ctx.fillStyle    = tl.fonts.keyTextColor;
+		ctx.strokeStyle    = tl.fonts.keyTextColor;
 
 		// Find the smallest increment in powers of 2 that gives enough room for 1-second precision
 		power = Math.ceil(Math.log(ctx.measureText(" 0:00:00").width*zoom)/0.6931471805599453);
@@ -605,14 +630,13 @@ var Timeline = (function(){
 		start = view.startTime;
 		start -= start%increment;
 		end = view.endTime;
-		offset = this.canvas.dir === 'rtl' ? -2 : 2;
+		offset = tl.canvas.dir === 'rtl' ? -2 : 2;
 
-		for (position = this.view.timeToPixel(start); start < end; start += increment, position += pixels) {
-
+		for (position = view.timeToPixel(start); start < end; start += increment, position += pixels) {
 			// Draw the tick
 			ctx.beginPath();
-			ctx.moveTo(position, this.keyTop);
-			ctx.lineTo(position, this.keyTop + this.keyHeight);
+			ctx.moveTo(position, tl.keyTop);
+			ctx.lineTo(position, tl.keyTop + tl.keyHeight);
 			ctx.stroke();
 
 			// Now put the number on
@@ -623,33 +647,32 @@ var Timeline = (function(){
 
 			ctx.fillText(
 				hours + (mins<10?":0":":") + mins + (secs<10?":0":":") + secs.toFixed(d), position + offset,
-				this.keyTop + 2
+				tl.keyTop + 2
 			);
 		}
 		ctx.restore();
-	};
+	}
 
-	Proto.renderABRepeat = function() {
-		if(this.abRepeatSet) {
-			var left = this.view.timeToPixel(this.repeatA),
-				right = this.view.timeToPixel(this.repeatB),
-				ctx = this.ctx;
-			ctx.save();
-			ctx.fillStyle = this.colors[this.abRepeatOn?'abRepeat':'abRepeatLight'];
-			ctx.fillRect(left, 0, right-left, this.height);
-			ctx.restore();
-		}
-	};
-
-	Proto.renderTimeMarker = function(x) {
-		var ctx = this.context;
+	function renderABRepeat(tl) {
+		if(!tl.abRepeatSet) { return; }
+		var left = tl.view.timeToPixel(tl.repeatA),
+			right = tl.view.timeToPixel(tl.repeatB),
+			ctx = tl.ctx;
 		ctx.save();
-		ctx.fillStyle = this.colors.timeMarker;
-		ctx.fillRect(x, 0, 2, this.height);
+		ctx.fillStyle = tl.colors[tl.abRepeatOn?'abRepeat':'abRepeatLight'];
+		ctx.fillRect(left, 0, right-left, tl.height);
 		ctx.restore();
-	};
+	}
 
-	Proto.renderTrack = function(track) {
+	function renderTimeMarker(tl, x) {
+		var ctx = tl.context;
+		ctx.save();
+		ctx.fillStyle = tl.colors.timeMarker;
+		ctx.fillRect(x, 0, 2, tl.height);
+		ctx.restore();
+	}
+
+	function renderTrack(track) {
 		var left, right, ctx,
 			height = this.trackHeight,
 			top = this.getTrackTop(track),
@@ -678,28 +701,52 @@ var Timeline = (function(){
 			ctx.fillRect(x, top, 2, height);
 			ctx.restore();
 		}
-	};
-
-	Proto.render = function(stable) {
+		this.requestedTrack = null;
+		this.requestedFrame = 0;
+	}
+	
+	function render(stable) {
 		var aid, audio, x;
 		if(this.images.complete){
-			clearInterval(this.renderInterval);
-			this.renderInterval = null;
 			if(!stable){
-				this.renderBackground();
-				this.renderKey();
+				renderBackground(this);
+				renderKey(this);
 				this.tracks.forEach(function(track){ track.render(); });
 				for(aid in this.audio){ this.audio[aid].render(); }
-				this.renderABRepeat();
+				renderABRepeat(this);
 				this.context.drawImage(this.cache,0,0);
 			}
 			x = this.view.timeToPixel(this.timeMarkerPos)-1;
 			if(x >= -1 && x < this.width){
-				this.renderTimeMarker(x);
+				renderTimeMarker(this,x);
 			}
 			this.slider.render();
-		}else if(!this.renderInterval){
-			this.renderInterval = setInterval(this.render.bind(this,stable),1);
+			this.requestedTrack = null;
+			this.requestedFrame = 0;
+		}else{
+			this.requestedTrack = null;
+			this.requestedFrame = requestFrame(render.bind(this,stable));
+		}
+	}
+	
+	Proto.renderTrack = function(track) {
+		if(this.requestedFrame){
+			if(this.requestedTrack === track){ return; }
+			cancelFrame(this.requestedFrame);
+			this.requestedTrack = null;
+			this.requestedFrame = requestFrame(render.bind(this,true));
+		}else{
+			this.requestedTrack = track;
+			this.requestedFrame = requestFrame(renderTrack.bind(this,track));
+		}
+	};
+	
+	Proto.render = function(stable) {
+		if(this.requestedTrack !== null){
+			cancelFrame(this.requestedFrame);
+		}else if(this.requestedFrame === 0){
+			this.requestedTrack = null;
+			this.requestedFrame = requestFrame(render.bind(this,stable));
 		}
 	};
 
@@ -709,10 +756,10 @@ var Timeline = (function(){
 		this.context.drawImage(this.cache,0,0);
 		x = this.view.timeToPixel(this.timeMarkerPos)-1;
 		if(x >= -1 && x < this.width){
-			this.renderTimeMarker(x);
+			renderTimeMarker(this,x);
 		}
 		this.slider.render();
-	}
+	};
 
 	/** Time functions **/
 
