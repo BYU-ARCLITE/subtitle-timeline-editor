@@ -1129,7 +1129,7 @@ var Timeline = (function(){
 			[].forEach.call(files,function(file){
 				if(file.type.substr(0,6) === 'audio/'){ //Load audio waveform
 					name = file.name;
-					that.loadAudioTrack(audiofiles[0],name);
+					that.loadAudioTrack(file,name);
 					if(files.length === 1 && track){
 						that.setAudioTrack(track.id,name);
 					}
