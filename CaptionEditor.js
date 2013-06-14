@@ -1,6 +1,5 @@
 var CaptionEditor = (function(){
 	var getSelection = (window.getSelection || document.getSelection || document.selection.createRange),
-		MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver,
 		editCapTemplate = '<table style="text-align:center;border: 1px solid black;">\
 		<tr><td><label>Alignment:</label></td><td><label>Positioning:</label></td></tr>\
 		<tr><td>\
@@ -251,18 +250,21 @@ var CaptionEditor = (function(){
 	}
 	
 	function editorInput(cue,editor,cstack){
-		var newtext = HTML2VTT(this.childNodes,true);
+		var newtext = HTML2VTT(this.childNodes,true),
+			oldtext = cue.text;
 		if(cstack){
 			cstack.push({
 				context: cue,
 				file: cue.track.label,
 				redo: genTextChange(newtext,editor),
-				undo: genTextChange(cue.text,editor)
+				undo: genTextChange(oldtext,editor)
 			});
 		}
 		cue.text = newtext;
 		editor.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
-        if(editor.timeline){ editor.timeline.emit("cuechange",{cue:cue}); }
+        if(editor.timeline){
+			editor.timeline.emit("cuechange",{cue:cue,attr:'text',oldval:oldtext,newval:newtext});
+		}
 	}
 	
 	function editorKeyDown(cue,editor,cstack,observer,e){
@@ -306,10 +308,6 @@ var CaptionEditor = (function(){
 				e.stopPropagation(); //space key, and any other keys that might be hot-keys for other stuff
 				break;
 		}
-	}
-	
-	function cancelEvent(e){
-		e.stopPropagation();
 	}
 	
 	function mutationCB(cue,editor,cstack,mutations,observer){
@@ -362,6 +360,10 @@ var CaptionEditor = (function(){
 		observer.takeRecords();
 	}
 	
+	function cancelEvent(e){
+		e.stopPropagation();
+	}
+	
 	CaptionEditor.kinds = {
 		subtitles: function(cue){
 			var node = document.createElement('div'),
@@ -386,6 +388,8 @@ var CaptionEditor = (function(){
 				editor = this, cstack = this.cstack,
 				dialog = makeCapDialog(cue,this),
 				observer = new MutationObserver(mutationCB.bind(node,cue,editor,cstack));
+			
+			//TODO: add dialog box for position editing
 			
 			node.contentEditable = 'true';
 			node.style.border = "1px solid silver";

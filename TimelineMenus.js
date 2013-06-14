@@ -132,7 +132,7 @@
 			{label:"Scroll Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
 			{label:"Order Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
 			{label:"Zoom In",
-				condition:function(){ return this.timeline.view.zoom > .001; },
+				condition:function(){ return this.timeline.view.zoom > .0011; },
 				action:function(pos){
 					var view = this.timeline.view;
 					view.startTime += (view.pixelToTime(pos.x)-view.startTime)/2;
