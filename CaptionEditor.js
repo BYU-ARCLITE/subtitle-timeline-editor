@@ -262,6 +262,7 @@ var CaptionEditor = (function(){
 		}
 		cue.text = newtext;
 		editor.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
+        if(editor.timeline){ editor.timeline.emit("cuechange",{cue:cue}); }
 	}
 	
 	function editorKeyDown(cue,editor,cstack,observer,e){
