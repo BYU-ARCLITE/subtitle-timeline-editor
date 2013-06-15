@@ -46,6 +46,8 @@
 		this.timeMarker = obj.timeMarker || "rgba(255, 255, 160, 0.5)";
 		this.abRepeat = obj.abRepeat || "rgba(255, 0, 0, 0.4)";
 		this.abRepeatLight = obj.abRepeatLight || "rgba(255, 0, 0, 0.25)";
+		this.selectBox = obj.selectBox || "rgba(0, 119, 236, 0.25)";
+		this.selectBorder = obj.selectBorder || "rgba(0, 128, 255, 0.25)";
 		Object.freeze(this);
 	}
 	

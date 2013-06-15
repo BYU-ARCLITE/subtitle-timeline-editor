@@ -146,8 +146,7 @@ var Timeline = (function(){
 		this.mouseDown = false;
 		this.mouseDownPos = {x: 0, y: 0};
 		this.mousePos = {x: 0, y: 0};
-		this.scrollInterval = null;
-		this.renderInterval = null;
+		this.scrollInterval = 0;
 		this.currentCursor = "pointer";
 
 		//context menu
@@ -954,6 +953,7 @@ var Timeline = (function(){
 		}else if(track = this.trackFromPos(pos)){ // Are we on a track?
 			cursor = 	(this.currentTool === Timeline.ORDER)?'order':
 						(this.currentTool === Timeline.SHIFT)?'move':
+						(this.currentTool === Timeline.SELECT)?'select':
 						track.getCursor(pos);
 		}
 		if(this.currentCursor != cursor){
@@ -995,16 +995,6 @@ var Timeline = (function(){
 			}
 		}else if(this.sliderActive){
 			this.slider.mouseMove(pos);
-		}else if(this.mouseDown && this.activeElement !== null && this.currentTool === Timeline.SELECT && this.multi){
-			this.restore();
-			ctx = this.context;
-			ctx.save();
-			ctx.fillStyle = "rgba(100, 100, 255, 0.25)";
-			ctx.fillRect(	Math.min(this.mouseDownPos.x,this.mousePos.x),
-						Math.min(this.mouseDownPos.y,this.mousePos.y),
-						Math.abs(this.mouseDownPos.x-this.mousePos.x),
-						Math.abs(this.mouseDownPos.y-this.mousePos.y));
-			ctx.restore();
 		}else if(this.activeElement){
 			this.activeElement.mouseMove(pos);
 		}else{
@@ -1021,31 +1011,6 @@ var Timeline = (function(){
 		if(this.currentTool === Timeline.REPEAT){
 			this.abRepeatSetting = false;
 			this.abRepeatOn = (this.repeatA !== this.repeatB);
-		}else if(this.activeElement !== null && this.currentTool === Timeline.SELECT && this.multi){
-			this.restore();
-			this.activeElement = null;
-			startTime = this.view.pixelToTime(Math.min(this.mouseDownPos.x,this.mousePos.x));
-			endTime = this.view.pixelToTime(Math.max(this.mouseDownPos.x,this.mousePos.x));
-			track = this.trackFromPos(this.mouseDownPos);
-			segments = track.visibleSegments.filter(function(seg){
-				return seg.startTime < endTime && seg.endTime > startTime;
-			});
-			switch(segments.length){
-			case 0:
-				track.clearSelection();
-				break;
-			case 1:
-				segments[0].toggle();
-				break;
-			default:
-				segments.forEach(function(seg){
-					if(seg.selected){ return; }
-					seg.selected = true;
-					that.selectedSegments.push(seg);
-					that.emit('select', seg);
-				});
-				this.renderTrack(track);
-			}
 		}
 		mouseInactive.call(this,{x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY});
 		ev.preventDefault();
@@ -1054,7 +1019,6 @@ var Timeline = (function(){
 	function mouseOut(ev){
 		if(ev.button > 0 || !this.mouseDown){ return; }
 		mouseInactive.call(this,{x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY});
-		this.restore();
 		ev.preventDefault();
 	}
 
@@ -1071,7 +1035,7 @@ var Timeline = (function(){
 			for(id in this.audio){ this.audio[id].redraw(); }
 		}else if(this.scrollInterval){
 			clearInterval(this.scrollInterval);
-			this.scrollInterval = null;
+			this.scrollInterval = 0;
 			for(id in this.audio){ this.audio[id].redraw(); }
 		}else if(this.activeElement !== null) {
 			this.activeElement.mouseUp(pos);
@@ -1125,6 +1089,11 @@ var Timeline = (function(){
 			case Timeline.ORDER:
 				this.activeIndex = this.indexFromPos(pos);
 				break;
+			case Timeline.SELECT:
+				if(this.multi){
+					this.activeElement = new Selection(this,pos);
+					break;
+				}
 			default: // Check tracks
 				track = this.trackFromPos(pos);
 				this.activeElement = track;
@@ -1239,6 +1208,82 @@ var Timeline = (function(){
 		this.showMenu({x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY});
 		ev.preventDefault();
 	}
+	
+	function Selection(tl,pos){
+		this.tl = tl;
+		this.dragged = false;
+		this.startPos = pos;
+	}
+	
+	Selection.prototype.mouseMove = function(npos){
+		var tl = this.tl,
+			spos = this.startPos,
+			ctx = tl.context;
+			
+		this.dragged = true;
+		tl.restore();
+		
+		ctx.save();
+		
+		ctx.fillStyle = tl.colors.selectBox;
+		ctx.strokeStyle = tl.colors.selectBorder;
+		ctx.strokeWidth = 1;
+		
+		ctx.beginPath();
+		ctx.rect(	Math.min(spos.x,npos.x),
+					Math.min(spos.y,npos.y),
+					Math.abs(spos.x-npos.x),
+					Math.abs(spos.y-npos.y));
+		ctx.fill();
+		ctx.stroke();
+		
+		ctx.restore();
+	};
+	
+	Selection.prototype.mouseUp = function(epos){
+		var tl = this.tl,
+			view = tl.view,
+			spos = this.startPos;
+		
+		tl.restore();
+		if(!this.dragged){
+			(function(){
+				var track = tl.trackFromPos(epos),
+					seg = tl.segFromPos(epos);
+				if(!track){ return; }
+				if(seg){ seg.toggle(); }
+				else{ track.clearSelection(); }
+				tl.renderTrack(track);
+			}());
+		}else{
+			(function(){
+				var i, n,
+					startTime = view.pixelToTime(Math.min(spos.x,epos.x)),
+					endTime = view.pixelToTime(Math.max(spos.x,epos.x)),
+					top = Math.min(spos.y,epos.y),
+					bottom = Math.max(spos.y,epos.y),
+					kheight = tl.keyHeight + tl.trackPadding,
+					theight = tl.trackHeight + tl.trackPadding;
+				
+				i = Math.max(0,top-kheight);
+				i = Math[i%theight < tl.trackHeight?'floor':'ceil'](i/theight);
+				n = bottom >= (tl.height - tl.sliderHeight)
+					?tl.tracks.length-1
+					:Math.floor((bottom-kheight)/theight);
+				tl.tracks.slice(i,n+1).forEach(function(track){
+					track.visibleSegments.forEach(function(seg){
+						if(seg.selected || seg.startTime >= endTime || seg.endTime <= startTime){
+							return;
+						}
+						seg.selected = true;
+						tl.selectedSegments.push(seg);
+						tl.emit('select', seg);
+					});
+				});
+				tl.render();
+			}());
+		}		
+	};
 
 	return Timeline;
 }());

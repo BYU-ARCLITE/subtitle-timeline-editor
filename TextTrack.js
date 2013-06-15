@@ -638,7 +638,6 @@
 		SProto.getCursor = function(pos){
 			if(typeof pos !== 'object')	return;
 			switch(this.tl.currentTool){
-				case Timeline.SELECT: return 'select';
 				case Timeline.DELETE: return 'remove';
 				case Timeline.SPLIT: return 'split';
 				case Timeline.MOVE:
