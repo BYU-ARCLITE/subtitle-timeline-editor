@@ -825,6 +825,16 @@ var Timeline = (function(){
 		else{ this.render(); }
 		this.emit('abRepeatUnset');
 	};
+	
+	Proto.setRepeat = function(start,end) {
+		this.repeatA = Math.min(start,end);
+		this.repeatB = Math.max(start,end);
+		this.abRepeatSetting = false;
+		//the setter takes care of re-rendering
+		if(!this.abRepeatOn){ this.abRepeatOn = true; }
+		else{ this.render(); }
+		this.emit('abRepeatSet');
+	};
 
 	/** Persistence functions **/
 

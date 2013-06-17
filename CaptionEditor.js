@@ -365,8 +365,9 @@ var CaptionEditor = (function(){
 	}
 	
 	CaptionEditor.kinds = {
-		subtitles: function(cue){
-			var node = document.createElement('div'),
+		subtitles: function(renderedCue){
+			var cue = renderedCue.cue,
+				node = document.createElement('div'),
 				editor = this, cstack = this.cstack,
 				observer = new MutationObserver(mutationCB.bind(node,cue,editor,cstack));
 			
@@ -381,7 +382,7 @@ var CaptionEditor = (function(){
 			
 			observer.observe(node,{subtree:true,childList:true,characterData:true});
 			
-			return {node:node};
+			renderedCue.node = node;
 		},
 		captions: function(cue){
 			var node = document.createElement('div'),
@@ -399,13 +400,14 @@ var CaptionEditor = (function(){
 			
 			observer.observe(node,{subtree:true,childList:true,characterData:true});
 			
-			return {node:node,cleanup:dialog.close.bind(dialog)};
+			renderedCue.node = node;
+			renderedCue.collector = dialog.close.bind(dialog);
 		}
 	};
 	
-	CaptionEditor.prototype.make = function(cue){
-		try { return this.kinds[cue.track.kind].call(this,cue); }
-		catch(e){ return CaptionEditor.kinds.subtitles.call(this,cue); }
+	CaptionEditor.prototype.make = function(renderedCue,area,kind){
+		try { return this.kinds[kind].call(this,renderedCue); }
+		catch(e){ return CaptionEditor.kinds.subtitles.call(this,renderedCue); }
 	};
 	
 	return CaptionEditor;

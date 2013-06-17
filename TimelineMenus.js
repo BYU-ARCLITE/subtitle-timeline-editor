@@ -107,6 +107,11 @@
 					action:function(pos){
 						var tl = this.timeline;
 						this.segment.move(tl.repeatA,tl.repeatB);
+					}},
+				{label:"Set Repeat",
+					action:function(pos){
+						var seg = this.segment;
+						this.timeline.setRepeat(seg.startTime,seg.endTime);
 					}}
 			]
 		},
