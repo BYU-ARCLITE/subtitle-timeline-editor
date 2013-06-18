@@ -410,6 +410,9 @@
 			ctx.font = tl.fonts.titleFont;
 			ctx.fillStyle = tl.fonts.titleTextColor;
 			ctx.fillText(this.id, tl.width/100, tl.trackHeight/2);
+			
+			ctx.fillStyle = tl.colors[tl.cstack.isFileSaved(this.id)?'tintSaved':'tintUnsaved'];
+			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
 
 			ctx.restore();
 
@@ -862,6 +865,7 @@
 						redo: moveGenerator(this.startTime,this.endTime),
 						undo: moveGenerator(this.initialStart,this.initialEnd)
 					});
+					tl.renderTrack(track);
 					tl.emit("move",this);
 					break;
 				case Timeline.DELETE:
