@@ -574,12 +574,7 @@
 
 		Object.defineProperties(SProto,{
 			selectable: { get: function(){ return !this.track.locked; }, enumerable: true },
-			active: {
-				get: function(){
-					var mark = this.tl.timeMarkerPos;
-					return mark > this.cue.startTime && mark < this.cue.endTime;
-				},enumerable: true
-			},
+			active: { get: function(){ return this.cue.active;}, enumerable: true },
 			visible: {
 				get: function(){
 					var cue = this.cue,
@@ -917,8 +912,6 @@
 						throw new Error("Invalid State");
 				}
 				tl.renderTrack(this.track);
-			}else{
-				//handle visual indication of copy-in-progress here
 			}
 			if(activeStart != this.active){
 				this.track.textTrack.activeCues.refreshCues();
