@@ -123,8 +123,8 @@ var CaptionEditor = (function(){
 	}
 	
 	CaptionEditor.prototype.refresh = function(cue){
-		if(this.renderer){ this.renderer.refreshLayout(); }
-		if(this.timeline){ this.timeline.render(); }
+		if(this.renderer && cue.active){ this.renderer.refreshLayout(); }
+		if(this.timeline && this.timeline.spanInView(cue.startTime, cue.endTime)){ this.timeline.render(); }
 	};
 	
 	CaptionEditor.prototype.rebuild = function(cue){
@@ -405,9 +405,10 @@ var CaptionEditor = (function(){
 		}
 	};
 	
-	CaptionEditor.prototype.make = function(renderedCue,area,kind){
-		try { return this.kinds[kind].call(this,renderedCue); }
-		catch(e){ return CaptionEditor.kinds.subtitles.call(this,renderedCue); }
+	CaptionEditor.prototype.make = function(renderedCue,area){
+		if(renderedCue.dirty){ renderedCue.cleanup(); }
+		try { this.kinds[renderedCue.kind].call(this,renderedCue); }
+		catch(e){ CaptionEditor.kinds.subtitles.call(this,renderedCue); }
 	};
 	
 	return CaptionEditor;
