@@ -427,7 +427,7 @@
 		};
 
 		TProto.serialize = function(type){
-			return TimedText.serializeTrack(type, this.textTrack);
+			return TimedText.serialize(type, this.textTrack);
 		};
 
 		TProto.segFromPos = function(pos){
@@ -743,10 +743,6 @@
 			merge.call(this.track, selected);
 		};
 
-		SProto.serialize = function(type){
-			return this.deleted?"":TimedText.serializeCue(type, this.cue);
-		};
-
 		function handleWidths(seg, images){
 			return seg.selected?{
 				left:images.segmentLeftSel.width,
@@ -984,7 +980,7 @@
 						y = tl.segmentTextPadding;
 					}
 
-					text = TimedText.textPreviewers[this.track.kind](this.text);
+					text = TimedText.getPlainText(this.cue);
 					direction = getTextDirection(text);
 					tl.cache.dir = direction;
 
