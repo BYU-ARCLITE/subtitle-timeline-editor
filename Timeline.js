@@ -308,7 +308,7 @@ var Timeline = (function(){
 		this.activeMenu = menu;
 	};
 
-	Proto.addMenuItem = function(path,action,condition){
+	Proto.addMenuItem = function(path,action,condition,pos){
 		var that = this, optname, idx, opt,
 			sequence = path.split('.'),
 			submenu = this.menuOptions;
@@ -325,7 +325,8 @@ var Timeline = (function(){
 			}
 			if(idx === submenu.length){
 				opt = {label:optname};
-				submenu.push(opt);
+				pos = Math.floor(+pos)||submenu.length;
+				submenu.splice(pos,0,opt);
 			}
 		}while(sequence.length);
 
@@ -333,6 +334,23 @@ var Timeline = (function(){
 		if(typeof condition === 'function'){
 			opt.condition = condition;
 		}
+	};
+	
+	Proto.getMenuItems = function(path){
+		var that = this, optname, idx, opt,
+			sequence = path.split('.'),
+			submenu = this.menuOptions;
+
+		opt = {submenu:submenu};
+		do{	if(!opt.hasOwnProperty('submenu')){ return []; }
+			submenu = opt.submenu;
+			optname = sequence.shift();
+			for(idx = 0; (opt = submenu[idx]) && opt.label != optname; idx++){
+				//console.log(optname,opt);
+			}
+			if(idx === submenu.length){ return []; }
+		}while(sequence.length);
+		return opt.submenu.slice();
 	};
 
 	/**
