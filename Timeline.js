@@ -388,12 +388,12 @@ var Timeline = (function(){
 		this.emit("addtrack",n);
 	}
 
-	Proto.addTextTrack = function(track,overwrite) {
+	Proto.addTextTrack = function(track,mime,overwrite) {
 		if(track instanceof Timeline.TextTrack){
 			if(!overwrite && this.trackIndices.hasOwnProperty(track.id)){ throw new Error("Track name already in use."); }
 		}else{
 			if(!overwrite && this.trackIndices.hasOwnProperty(track.label)){ throw new Error("Track name already in use."); }
-			track = new Timeline.TextTrack(this, track);
+			track = new Timeline.TextTrack(this, track, mime);
 		}
 		if(this.trackIndices.hasOwnProperty(track.id)){
 			swaptracks.call(this,track,this.tracks[this.trackIndices[track.id]]);
@@ -838,11 +838,8 @@ var Timeline = (function(){
 
 	/** Persistence functions **/
 
-	Proto.exportTracks = function(mime, id) {
+	Proto.exportTracks = function(id) {
 		var that = this;
-
-		TimedText.checkType(mime);
-
 		return (function(){
 			var track;
 			if(typeof id === 'string'){ //save a single track
@@ -861,9 +858,9 @@ var Timeline = (function(){
 		})().map(function(track){
 			return {
 				collection:"tracks",
-				mime: mime,
-				name: TimedText.addExt(mime,track.id),
-				data: track.serialize(mime)
+				mime: track.mime,
+				name: TimedText.addExt(track.mime,track.id),
+				data: track.serialize()
 			};
 		});
 	};
@@ -874,7 +871,7 @@ var Timeline = (function(){
 				kind: kind,
 				lang: lang,
 				label: name,
-				success: function(track){ that.addTextTrack(track,overwrite); },
+				success: function(track, mime){ that.addTextTrack(track,mime,overwrite); },
 				error: function(){ alert("There was an error loading the track."); }
 			};
 		params[(url instanceof File)?'file':'url'] = url;
@@ -1163,9 +1160,9 @@ var Timeline = (function(){
 					TextTrack.get({
 						file: file, label: file.name,
 						kind: 'subtitles', lang: 'zxx',
-						success: function(track){
+						success: function(track, mime){
 							track.mode = 'showing';
-							that.addTextTrack(track,true);
+							that.addTextTrack(track,mime,true);
 						}
 					});
 				}
@@ -1191,9 +1188,9 @@ var Timeline = (function(){
 						TextTrack.get({
 							url: url, label: /([^\/]+)\/?$/g.exec(url)[1],
 							kind: 'subtitles', lang: 'zxx',
-							success: function(track){
+							success: function(track,mime){
 								track.mode = 'showing';
-								that.addTextTrack(track,true);
+								that.addTextTrack(track,mime,true);
 							}
 						});
 					}

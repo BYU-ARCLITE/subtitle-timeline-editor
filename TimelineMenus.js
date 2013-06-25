@@ -79,6 +79,24 @@
 										action: function(){ this.timeline.setAudioTrack(this.track.id,key); }}));
 							});
 						}
+					}},
+				{label:"Convert File Type",
+					condition: function(){ return !this.track.locked; },
+					submenu: {
+						forEach: function(f,that){
+							TimedText.getRegisteredTypes().forEach(function(mime){
+								f.call(that,(that.track.mime === mime?
+									{label: "<i>"+TimedText.getTypeName(mime)+"</i>"}:
+									{	label: TimedText.getTypeName(mime),
+										action: function(){
+											if(confirm("Converting File Types May Cause Loss of Formatting.\nAre you sure you want to continue?")){
+												this.track.mime = mime;
+											}
+										}
+									}
+								));
+							});
+						}
 					}}
 			]
 		},

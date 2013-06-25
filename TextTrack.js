@@ -1,5 +1,7 @@
 (function(Timeline,global){
 	"use strict";
+	
+	var idCounter = 0;
 
 	if(!Timeline){
 		throw new Error("Timeline Uninitialized");
@@ -10,30 +12,75 @@
 		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
 	}
 
-	function TlTextTrack(tl, cuetrack){
-		var locked = false,
-			that = this;
+	function TlTextTrack(tl, cueTrack, mime){
+		var that = this,
+			locked = false,
+			typeInfo = TimedText.getTypeInfo(mime);
+			
+		cueTrack.cues.forEach(function(cue){
+			if(!typeInfo.isCueCompatible(cue)){
+				throw new Error("TextTrackCue objects do not match the given mime type");
+			}
+		});
+		
 		this.tl = tl;
-		this.textTrack = cuetrack;
-		this.segments = cuetrack.cues.map(function(cue){ return new Segment(that, cue); });
+		this.segments = cueTrack.cues.map(function(cue){ return new Segment(that, cue); });
 		this.segments.sort(order);
 		this.visibleSegments = [];
 		this.audioId = null;
 		this.placeholder = null;
 		this.lastPos = null;
 
-		Object.defineProperty(this,'locked',{
-			get: function(){ return locked; },
-			set: function(val){
-				val = !!val;
-				if(val !== locked){
-					locked = val;
-					if(active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
-					tl.renderTrack(this);
-					if(this.audioId){ tl.audio[this.audioId].draw(); }
-				}
-				return locked;
-			}
+		function set_mime(newmime, newCues){
+			var oldmime = mime;
+			mime = newmime;
+			typeInfo = TimedText.getTypeInfo(mime);
+			cueTrack.cues.length = 0;
+			cueTrack.cues.loadCues(newCues);
+			cueTrack.activeCues.refreshCues();
+			tl.renderTrack(this);
+			tl.emit('convert',this,oldmime,newmime);
+		}
+		
+		Object.defineProperties(this,{
+			cueType: { get: function(){ return typeInfo.cueType; }, enumerable: true },
+			typeName: { get: function(){ return typeInfo.name; }, enumerable: true },
+			textTrack: {get: function(){ return cueTrack; }, enumerable: true },
+			locked: {
+				get: function(){ return locked; },
+				set: function(val){
+					val = !!val;
+					if(val !== locked){
+						locked = val;
+						if(active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
+						tl.renderTrack(this);
+						if(this.audioId){ tl.audio[this.audioId].draw(); }
+					}
+					return locked;
+				}, enumerable: true
+			},
+			mime: {
+				get: function(){ return mime; },
+				set: function(newmime){
+					var oldmime = mime,
+						oldCues, newCues;
+					if(newmime === mime){ return mime; }
+					
+					oldCues = cueTrack.cues.slice();
+					newCues = oldCues.map(TimedText.getCueConverter(oldmime, newmime));
+					
+					tl.cstack.push({
+						file: cueTrack.label,
+						context: this,
+						redo: set_mime.bind(this,newmime,newCues),
+						undo: set_mime.bind(this,oldmime,oldCues)
+					});
+					
+					set_mime.call(this, newmime, newCues);
+					
+					return mime;
+				}, enumerable: true
+			}					
 		});
 	}
 
@@ -45,6 +92,7 @@
 		this.moving = false;
 		this.selected = false;
 		this.resizeSide = 0;
+		this.uid = (idCounter++).toString(36);
 
 		// For undo/redo
 		this.initialStart = 0;
@@ -230,13 +278,6 @@
 		TProto.add = function(cue, select){
 			var tl = this.tl, seg;
 
-			if(!(cue instanceof TextTrackCue)){
-				cue = new TextTrackCue(
-					cue.startTime, cue.endTime,
-					(typeof cue.text === 'string')?cue.text:""
-				);
-			}
-
 			this.textTrack.addCue(cue);
 
 			seg = new Segment(this, cue);
@@ -394,7 +435,7 @@
 		};
 
 		TProto.render = function(){
-			var segs,
+			var segs, id_width,
 				tl = this.tl,
 				ctx = tl.ctx,
 				selected = [];
@@ -409,7 +450,11 @@
 			ctx.textBaseline = 'middle';
 			ctx.font = tl.fonts.titleFont;
 			ctx.fillStyle = tl.fonts.titleTextColor;
+			
+			id_width = ctx.measureText(this.id).width + tl.width/25;
+			
 			ctx.fillText(this.id, tl.width/100, tl.trackHeight/2);
+			ctx.fillText(this.typeName, Math.max(tl.width*.99 - ctx.measureText(this.typeName).width, id_width), tl.trackHeight/2);
 			
 			ctx.fillStyle = tl.colors[tl.cstack.isFileSaved(this.id)?'tintSaved':'tintUnsaved'];
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
@@ -426,8 +471,8 @@
 			this.placeholder && this.placeholder.render();
 		};
 
-		TProto.serialize = function(type){
-			return TimedText.serialize(type, this.textTrack);
+		TProto.serialize = function(){
+			return TimedText.serialize(this.mime, this.textTrack);
 		};
 
 		TProto.segFromPos = function(pos){
@@ -582,7 +627,6 @@
 					return !this.deleted && cue.startTime < view.endTime && cue.endTime > view.startTime;
 				}, enumerable: true
 			},
-			uid: { get: function(){ return this.cue.uid; }, enumerable: true },
 			id: {
 				set: function(id){
 					var tl = this.tl,
@@ -1016,21 +1060,19 @@
 
 		PProto.mouseUp = function(pos) {
 			var view = this.tl.view,
+				track = this.track,
 				startx, endx;
 
-			this.track.placeholder = null;
+			track.placeholder = null;
 			if(this.startx === pos.x){ return; }
-			if(this.startx < pos.x){
-				startx = this.startx;
-				endx = pos.x;
-			}else{
-				startx = pos.x;
-				endx = this.startx;
-			}
-			this.track.add({
-				startTime: view.pixelToTime(startx),
-				endTime: view.pixelToTime(endx)
-			}, this.tl.autoSelect);
+			startx = Math.min(this.startx, pos.x);
+			endx = Math.max(this.startx, pos.x);
+			this.track.add(
+				new track.cueType(
+					view.pixelToTime(startx),
+					view.pixelToTime(endx),
+					""
+				), this.tl.autoSelect);
 		};
 	}(Placeholder.prototype));
 
