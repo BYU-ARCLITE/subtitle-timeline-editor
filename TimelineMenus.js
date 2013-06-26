@@ -81,7 +81,7 @@
 						}
 					}},
 				{label:"Convert File Type",
-					condition: function(){ return !this.track.locked; },
+					condition: function(){ return !this.track.locked && TimedText.getRegisteredTypes().length > 1; },
 					submenu: {
 						forEach: function(f,that){
 							TimedText.getRegisteredTypes().forEach(function(mime){
