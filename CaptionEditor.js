@@ -22,83 +22,6 @@ var CaptionEditor = (function(){
 		<tr><td><label>Indentation</label></td><td><label>Caption Size</label></td></tr>\
 		<tr><td><input data-template-key="cue_pos" type="range" value=50/></td><td><input data-template-key="cue_size" type="range" value=100 min=0 max=100 /></td></tr>\
 	</table>';
-	
-	function HTML2VTT(nodeList,sanitize) {
-		return [].map.call(nodeList,function(node){
-			var tag;
-			if(node.nodeType === Node.TEXT_NODE){ return node.nodeValue.replace(/[\r\n]+/g,' '); }
-			if(node.nodeType !== Node.ELEMENT_NODE){ return ""; }
-			tag = node.nodeName.toLowerCase();
-			switch(tag){
-			case "br": return "\r\n";
-			case "div": return sanitize
-								?("\r\n"+HTML2VTT(node.childNodes))
-								:("<div>"+HTML2VTT(node.childNodes)+"</div>");
-			case "i":
-				return (node["data-target"] === "timestamp")
-						?node["data-timestamp"]
-						:("<i>"+HTML2VTT(node.childNodes)+"</i>");
-			default:
-				if(sanitize){ return HTML2VTT(node.childNodes,sanitize); }
-			case "u":
-			case "b":
-			case "ruby":
-			case "rt":
-				return "<"+tag+">"+HTML2VTT(node.childNodes,sanitize)+"</"+tag+">";
-			case "span":
-				switch(node['data-cuetag']){
-				case "V": return "<v "+node['data-voice']+">"+HTML2VTT(node.childNodes,sanitize)+"</v>";
-				case "C": return "<c."+node.className.replace(/ /g,'.')+">"+HTML2VTT(node.childNodes,sanitize)+"</c>";
-				case "LANG": return "<lang "+node.lang+">"+HTML2VTT(node.childNodes,sanitize)+"</lang>";
-				default: return HTML2VTT(node.childNodes,sanitize); //ignore unrecognized tags
-				}
-			}
-		}).join('');
-	}
-	
-	//strip out any html that could not have been generated from VTT
-	function formatHTMLInput(node) {
-		var tag, frag;
-		if(node.parentNode === null){ return null; }
-		if(node.nodeType === Node.TEXT_NODE){ return node; }
-		if(node.nodeType === Node.ELEMENT_NODE){
-			tag = node.nodeName.toLowerCase();
-			outer: switch(tag){
-			case "i":
-				frag = document.createElement('i');
-				if(node["data-target"] === "timestamp"){
-					frag["data-target"] = "timestamp";
-					frag["data-timestamp"] = node["data-timestamp"];
-					frag["data-seconds"] = node["data-seconds"];
-				}
-				break;
-			case "br": case "u": case "b": case "ruby": case "rt":
-				frag = document.createElement(tag);
-				break;
-			case "span":
-				switch(node['data-cuetag']){
-				case "V": case "C": case "LANG":
-					frag = document.createElement(tag);
-					frag["data-cuetag"] = node["data-cuetag"];
-					break outer;
-				}
-			default:
-				switch(node.childNodes.length){
-				case 1:
-					return formatHTMLInput(node.firstChild);
-				case 0:
-					return null;
-				default:
-					frag = document.createDocumentFragment();
-				}
-			}
-		}
-		[].slice.call(node.childNodes).forEach(function(cnode){
-			var nnode = formatHTMLInput(cnode);
-			if(nnode){ frag.appendChild(nnode); }
-		});
-		return frag;
-	}
 
 	function genTextChange(text, editor){
 		return function(){
@@ -250,7 +173,7 @@ var CaptionEditor = (function(){
 	}
 	
 	function editorInput(cue,editor,cstack){
-		var newtext = HTML2VTT(this.childNodes,true),
+		var newtext = TimedText.getCueType(cue).textFromHTML(this),
 			oldtext = cue.text;
 		if(cstack){
 			cstack.push({
@@ -320,7 +243,7 @@ var CaptionEditor = (function(){
 			}
 		});
 		nnodes.forEach(function(node){
-			var cpos, nnode = formatHTMLInput(node);
+			var cpos, nnode = TimedText.getCueType(cue).formatHTML(node);
 			if(nnode){
 				if(nnode !== node){ node.parentNode.replaceChild(nnode,node); }
 			}else{ node.parentNode.removeChild(node); }
@@ -405,10 +328,14 @@ var CaptionEditor = (function(){
 		}
 	};
 	
-	CaptionEditor.prototype.make = function(renderedCue,area){
-		if(renderedCue.dirty){ renderedCue.cleanup(); }
-		try { this.kinds[renderedCue.kind].call(this,renderedCue); }
-		catch(e){ CaptionEditor.kinds.subtitles.call(this,renderedCue); }
+	CaptionEditor.prototype.make = function(renderedCue,area,defRender){
+		if(renderedCue.editable){
+			if(renderedCue.dirty){ renderedCue.cleanup(); }
+			try { this.kinds[renderedCue.kind].call(this,renderedCue); }
+			catch(e){ CaptionEditor.kinds.subtitles.call(this,renderedCue); }
+		}else{
+			defRender();
+		}
 	};
 	
 	return CaptionEditor;
