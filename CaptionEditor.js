@@ -173,7 +173,7 @@ var CaptionEditor = (function(){
 	}
 	
 	function editorInput(cue,editor,cstack){
-		var newtext = TimedText.getCueType(cue).textFromHTML(this),
+		var newtext = TimedText.getCueTypeInfo(cue).textFromHTML(this),
 			oldtext = cue.text;
 		if(cstack){
 			cstack.push({
@@ -243,7 +243,7 @@ var CaptionEditor = (function(){
 			}
 		});
 		nnodes.forEach(function(node){
-			var cpos, nnode = TimedText.getCueType(cue).formatHTML(node);
+			var cpos, nnode = TimedText.getCueTypeInfo(cue).formatHTML(node);
 			if(nnode){
 				if(nnode !== node){ node.parentNode.replaceChild(nnode,node); }
 			}else{ node.parentNode.removeChild(node); }

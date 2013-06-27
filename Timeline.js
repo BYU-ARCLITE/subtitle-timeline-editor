@@ -1181,6 +1181,7 @@ var Timeline = (function(){
 						success: function(track, mime){
 							track.mode = 'showing';
 							that.addTextTrack(track,mime,true);
+                            that.emit("dropTrack", track);
 						}
 					});
 				}
@@ -1209,6 +1210,7 @@ var Timeline = (function(){
 							success: function(track,mime){
 								track.mode = 'showing';
 								that.addTextTrack(track,mime,true);
+                                that.emit("dropTrack", track);
 							}
 						});
 					}
