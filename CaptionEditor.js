@@ -243,7 +243,9 @@ var CaptionEditor = (function(){
 			}
 		});
 		nnodes.forEach(function(node){
-			var cpos, nnode = TimedText.getCueTypeInfo(cue).formatHTML(node);
+			var cpos, nnode;
+			if(!node.parentNode){ return; }
+			nnode = TimedText.getCueTypeInfo(cue).formatHTML(node);
 			if(nnode){
 				if(nnode !== node){ node.parentNode.replaceChild(nnode,node); }
 			}else{ node.parentNode.removeChild(node); }
