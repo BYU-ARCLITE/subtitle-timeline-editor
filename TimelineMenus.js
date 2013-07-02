@@ -40,8 +40,11 @@
 				{label:"Remove",
 					action:function(){
 						var track = this.track;
-						if(!confirm("Are You Sure You Want To Remove "+track.id+"?")){ return; }
-						this.timeline.removeTextTrack(track.id);
+						if(confirm(
+							this.timeline.commandStack.isFileSaved(track.id)
+							?"Are You Sure You Want To Remove "+track.id+"?"
+							:track.id+" has unsaved changes. Are you sure you want to remove it?")
+						){ this.timeline.removeTextTrack(track.id); }
 					}},
 				{label:"Set Audio",
 					condition: function(){ return global.Reader && global.WaveForm && global.Resampler && !this.track.locked; },
@@ -135,11 +138,11 @@
 		},
 		{label:"Editing",submenu:[
 			{label:"Undo",
-				condition:function(){return this.timeline.cstack.undoDepth > 0; },
-				action:function(){ this.timeline.cstack.undo(); }},
+				condition:function(){return this.timeline.commandStack.undoDepth > 0; },
+				action:function(){ this.timeline.commandStack.undo(); }},
 			{label:"Redo",
-				condition:function(){return this.timeline.cstack.redoDepth > 0; },
-				action:function(){ this.timeline.cstack.redo(); }},
+				condition:function(){return this.timeline.commandStack.redoDepth > 0; },
+				action:function(){ this.timeline.commandStack.redo(); }},
 			{label:"Tools",submenu:[
 				{label:"Select",action:function(){ this.timeline.currentTool = Timeline.SELECT; }},
 				{label:"Move",action:function(){ this.timeline.currentTool = Timeline.MOVE; }},

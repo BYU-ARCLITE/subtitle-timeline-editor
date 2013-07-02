@@ -92,7 +92,7 @@ var Timeline = (function(){
 				},enumerable: true
 			},timeMarkerPos: {
 				value: 0, writable: true
-			},cstack: {
+			},commandStack: {
 				value: params.stack || new EditorWidgets.CommandStack()
 			},
 			abRepeatSet: {
@@ -405,7 +405,7 @@ var Timeline = (function(){
 	function swaptracks(n,o){
 		this.tracks[this.trackIndices[n.id]] = n;
 		n.render();
-		this.cstack.removeEvents(o.id);
+		this.commandStack.removeEvents(o.id);
 		this.emit("removetrack",o);
 		this.emit("addtrack",n);
 	}
@@ -414,14 +414,10 @@ var Timeline = (function(){
 		return this.trackIndices.hasOwnProperty(name);
 	};
 	
-	Proto.addTextTrack = function(track,mime,overwrite) {
-		if(track instanceof Timeline.TextTrack){
-			if(!overwrite && this.trackIndices.hasOwnProperty(track.id)){ throw new Error("Track name already in use."); }
-		}else{
-			if(!overwrite && this.trackIndices.hasOwnProperty(track.label)){ throw new Error("Track name already in use."); }
-			track = new Timeline.TextTrack(this, track, mime);
-		}
-		if(this.trackIndices.hasOwnProperty(track.id)){
+	Proto.addTextTrack = function(textTrack,mime,overwrite) {
+		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){ throw new Error("Track name already in use."); }
+		var track = new Timeline.TextTrack(this, textTrack, mime);
+		if(this.trackIndices.hasOwnProperty(textTrack.label)){
 			swaptracks.call(this,track,this.tracks[this.trackIndices[track.id]]);
 		}else{
 			this.trackIndices[track.id] = this.tracks.length;
@@ -455,7 +451,7 @@ var Timeline = (function(){
 			this.overlay.height = this.height;
 			this.cache.height = this.height;
 			this.render();
-			this.cstack.removeEvents(track.id);
+			this.commandStack.removeEvents(track.id);
 			this.emit("removetrack",track);
 		}
 	};

@@ -37,7 +37,7 @@ var CaptionEditor = (function(){
 		var kinds = Object.create(CaptionEditor.kinds,{});
 		this.timeline = params.timeline||null;
 		this.renderer = params.renderer||null;
-		this.cstack = timeline?timeline.cstack:params.stack||null;
+		this.commandStack = timeline?timeline.commandStack:params.stack||null;
 		Object.keys(params.kinds||{}).forEach(function(key){
 			kind = params.kinds[key];
 			if(typeof kind === 'function'){ kinds[key] = kind; }
@@ -140,7 +140,7 @@ var CaptionEditor = (function(){
 	var pushAction = debounce(function(cue, attr, nval, editor, latch){
 		var oval = latch[attr];
 		latch[attr] = nval;
-		editor.cstack.push({
+		editor.commandStack.push({
 			context: cue,
 			file: cue.track.label,
 			redo: attrChange.bind(cue,attr,nval,editor,latch),
@@ -152,7 +152,7 @@ var CaptionEditor = (function(){
 		var oval = cue[attr];
 		cue[attr] = nval;
 		if(editor.renderer && cue.active){ editor.renderer.refreshLayout(); }
-		if(editor.cstack){
+		if(editor.commandStack){
 			pushAction(cue,attr,nval,editor,latch);
 		}
 		if(editor.timeline){
@@ -172,11 +172,11 @@ var CaptionEditor = (function(){
 		};
 	}
 	
-	function editorInput(cue,editor,cstack){
+	function editorInput(cue,editor,commandStack){
 		var newtext = TimedText.getCueTypeInfo(cue).textFromHTML(this),
 			oldtext = cue.text;
-		if(cstack){
-			cstack.push({
+		if(commandStack){
+			commandStack.push({
 				context: cue,
 				file: cue.track.label,
 				redo: genTextChange(newtext,editor),
@@ -190,7 +190,7 @@ var CaptionEditor = (function(){
 		}
 	}
 	
-	function editorKeyDown(cue,editor,cstack,observer,e){
+	function editorKeyDown(cue,editor,commandStack,observer,e){
 		var selection, range, anchor, text, focusNode, offset, frag;
 		e = e||window.event;
 		switch(e.keyCode){
@@ -211,7 +211,7 @@ var CaptionEditor = (function(){
 				observer.takeRecords();
 				
 				//refresh the display
-				editorInput.call(this,cue,editor,cstack);
+				editorInput.call(this,cue,editor,commandStack);
 				
 				//reset the caret
 				range = document.createRange();
@@ -233,7 +233,7 @@ var CaptionEditor = (function(){
 		}
 	}
 	
-	function mutationCB(cue,editor,cstack,mutations,observer){
+	function mutationCB(cue,editor,commandStack,mutations,observer){
 		var last, focus, range, selection, nnodes = []
 		mutations.forEach(function(mutation){
 			if(mutation.type === 'childList' && mutation.addedNodes){
@@ -281,7 +281,7 @@ var CaptionEditor = (function(){
 			selection.addRange(range);
 		}
 		*/
-		editorInput.call(this,cue,editor,cstack);
+		editorInput.call(this,cue,editor,commandStack);
 		observer.takeRecords();
 	}
 	
@@ -293,15 +293,15 @@ var CaptionEditor = (function(){
 		subtitles: function(renderedCue){
 			var cue = renderedCue.cue,
 				node = document.createElement('div'),
-				editor = this, cstack = this.cstack,
-				observer = new MutationObserver(mutationCB.bind(node,cue,editor,cstack));
+				editor = this, commandStack = this.commandStack,
+				observer = new MutationObserver(mutationCB.bind(node,cue,editor,commandStack));
 			
 			//THIS IS WHERE TO STICK IN CK EDITOR OR WHATEVER
 			
 			node.contentEditable = 'true'; 
 			node.style.border = "1px solid silver";
 			node.appendChild(cue.getCueAsHTML(true));
-			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,cstack,observer),false);
+			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,commandStack,observer),false);
 			node.addEventListener('keyup',cancelEvent,false);
 			node.addEventListener('keypress',cancelEvent,false);
 			
@@ -311,16 +311,16 @@ var CaptionEditor = (function(){
 		},
 		captions: function(cue){
 			var node = document.createElement('div'),
-				editor = this, cstack = this.cstack,
+				editor = this, commandStack = this.commandStack,
 				dialog = makeCapDialog(cue,this),
-				observer = new MutationObserver(mutationCB.bind(node,cue,editor,cstack));
+				observer = new MutationObserver(mutationCB.bind(node,cue,editor,commandStack));
 			
 			//TODO: add dialog box for position editing
 			
 			node.contentEditable = 'true';
 			node.style.border = "1px solid silver";
 			node.appendChild(cue.getCueAsHTML(true));
-			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,cstack,observer),false);
+			node.addEventListener('keydown',editorKeyDown.bind(node,cue,editor,commandStack,observer),false);
 			node.addEventListener("focus", dialog.show.bind(dialog), false);
 			
 			observer.observe(node,{subtree:true,childList:true,characterData:true});

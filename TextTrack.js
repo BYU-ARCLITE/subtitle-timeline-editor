@@ -25,19 +25,24 @@
 		
 		this.tl = tl;
 		this.segments = cueTrack.cues.map(function(cue){ return new Segment(that, cue); });
-		this.segments.sort(order);
 		this.visibleSegments = [];
 		this.audioId = null;
 		this.placeholder = null;
 		this.lastPos = null;
 
-		function set_mime(newmime, newCues){
-			var oldmime = mime;
+		function set_mime(newmime, newCues, newSegs){
+			var oldmime = mime,
+				segments = that.segments;
+			
 			mime = newmime;
 			typeInfo = TimedText.getTypeInfo(mime);
+			
 			cueTrack.cues.length = 0;
 			cueTrack.cues.loadCues(newCues);
 			cueTrack.activeCues.refreshCues();
+			
+			newCues.forEach(function(cue,i){ segments[i].cue = cue; });
+			
 			tl.renderTrack(this);
 			tl.emit('convert',this,oldmime,newmime);
 		}
@@ -69,7 +74,7 @@
 					oldCues = cueTrack.cues.slice();
 					newCues = oldCues.map(TimedText.getCueConverter(oldmime, newmime));
 					
-					tl.cstack.push({
+					tl.commandStack.push({
 						file: cueTrack.label,
 						context: this,
 						redo: set_mime.bind(this,newmime,newCues),
@@ -192,7 +197,7 @@
 			});
 
 			tl.renderTrack(this);
-			tl.cstack.push({
+			tl.commandStack.push({
 				file: this.textTrack.label,
 				context: this,
 				redo: remerge.bind(this,list,mseg,newtext),
@@ -243,7 +248,7 @@
 					}
 					tl.trackIndices[val] = tl.trackIndices[oldid];
 					delete tl.trackIndices[oldid];
-					tl.cstack.renameEvents(oldid,val);
+					tl.commandStack.renameEvents(oldid,val);
 					this.textTrack.label = val;
 					tl.render();
 					return val;
@@ -285,7 +290,7 @@
 			this.segments.sort(order);
 
 			// Save the action
-			tl.cstack.push({
+			tl.commandStack.push({
 				file: this.textTrack.label,
 				context: seg,
 				undo: deleteSeg,
@@ -375,7 +380,7 @@
 				tl.emit('delete',this);
 			});
 			// Save the delete
-			tl.cstack.push({
+			tl.commandStack.push({
 				file: this.textTrack.label,
 				context: selected,
 				redo: deleteMultiSeg(this),
@@ -425,7 +430,7 @@
 			segments.sort(order);
 			if(visible){ tl.renderTrack(this); }
 
-			tl.cstack.push({
+			tl.commandStack.push({
 				file: this.textTrack.label,
 				context: this,
 				redo: repaste.bind(this,added),
@@ -456,7 +461,7 @@
 			ctx.fillText(this.id, tl.width/100, tl.trackHeight/2);
 			ctx.fillText(this.typeName, Math.max(tl.width*.99 - ctx.measureText(this.typeName).width, id_width), tl.trackHeight/2);
 			
-			ctx.fillStyle = tl.colors[tl.cstack.isFileSaved(this.id)?'tintSaved':'tintUnsaved'];
+			ctx.fillStyle = tl.colors[tl.commandStack.isFileSaved(this.id)?'tintSaved':'tintUnsaved'];
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
 
 			ctx.restore();
@@ -524,7 +529,7 @@
 				if(selected.length < 2){ selected = this.segments; }
 				selected.forEach(function(seg){ seg.moving = false; });
 				delta = selected[0].startTime - selected[0].initialStart;
-				tl.cstack.push({
+				tl.commandStack.push({
 					file: this.textTrack.label,
 					context: this,
 					redo: reshift.bind(this,selected,delta),
@@ -632,7 +637,7 @@
 					var tl = this.tl,
 						cue = this.cue;
 					if(cue.id === id){ return id; }
-					tl.cstack.push({
+					tl.commandStack.push({
 						file: this.track.textTrack.label,
 						context:this,
 						undo: idChangeGenerator(cue.id),
@@ -661,7 +666,7 @@
 					var tl = this.tl,
 						cue = this.cue;
 					if(cue.text == t){ return t; }
-					tl.cstack.push({
+					tl.commandStack.push({
 						file: this.track.textTrack.label,
 						context:this,
 						undo: textChangeGenerator(cue.text),
@@ -741,7 +746,7 @@
 			if(i !== -1){ s_segs.splice(i,1); }
 
 			// Save the delete
-			tl.cstack.push({
+			tl.commandStack.push({
 				file: this.track.textTrack.label,
 				context: this,
 				redo: deleteSeg,
@@ -770,7 +775,7 @@
 			track.segments.sort(order);
 
 			// Save the split
-			tl.cstack.push({
+			tl.commandStack.push({
 				file: track.textTrack.label,
 				redo: resplitSeg.bind(track,this,seg,stime),
 				undo: unsplitSeg.bind(track,this,seg)
@@ -866,7 +871,7 @@
 
 		SProto.move = function(start,end){
 			var redo = moveGenerator(start,end);
-			this.tl.cstack.push({
+			this.tl.commandStack.push({
 				context: this,
 				file: this.track.textTrack.label,
 				undo: moveGenerator(this.startTime,this.endTime),
@@ -894,7 +899,7 @@
 					track.textTrack.activeCues.refreshCues();
 					track.render();
 					// Save the move
-					tl.cstack.push({
+					tl.commandStack.push({
 						context: this,
 						file: track.textTrack.label,
 						redo: moveGenerator(this.startTime,this.endTime),
