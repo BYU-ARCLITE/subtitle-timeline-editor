@@ -31,7 +31,7 @@
 		this.lastPos = null;
 
 		function set_mime(newmime, newCues, newSegs){
-			var oldmime = mime,
+			var i = 0, oldmime = mime,
 				segments = that.segments;
 			
 			mime = newmime;
@@ -41,7 +41,9 @@
 			cueTrack.cues.loadCues(newCues);
 			cueTrack.activeCues.refreshCues();
 			
-			newCues.forEach(function(cue,i){ segments[i].cue = cue; });
+			segments.forEach(function(seg){
+				if(!seg.deleted){ seg.cue = newCues[i++]; }
+			});
 			
 			tl.renderTrack(this);
 			tl.emit('convert',this,oldmime,newmime);
@@ -592,6 +594,7 @@
 				this.startTime = start;
 				this.endTime = end;
 				this.track.textTrack.activeCues.refreshCues();
+				this.segments.sort(order);
 				if(this.visible){ this.tl.renderTrack(this.track); }
 				this.tl.emit("move",this);
 			};
@@ -638,7 +641,7 @@
 						cue = this.cue;
 					if(cue.id === id){ return id; }
 					tl.commandStack.push({
-						file: this.track.textTrack.label,
+						file: this.track.id,
 						context:this,
 						undo: idChangeGenerator(cue.id),
 						redo: idChangeGenerator(id)
@@ -667,7 +670,7 @@
 						cue = this.cue;
 					if(cue.text == t){ return t; }
 					tl.commandStack.push({
-						file: this.track.textTrack.label,
+						file: this.track.id,
 						context:this,
 						undo: textChangeGenerator(cue.text),
 						redo: textChangeGenerator(t)
@@ -975,6 +978,104 @@
 			}
 		}
 
+		function renderSubPreview(ctx, shape, fonts, tl){
+			var direction, text, y;
+			if(this.id){
+				direction = getTextDirection(this.id+"");
+				tl.cache.dir = direction;
+
+				ctx.font = fonts.idFont;
+				ctx.fillStyle = fonts.idTextColor;
+				ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
+				y = Math.max(fonts.idFontSize,tl.segmentTextPadding);
+			}else{
+				y = tl.segmentTextPadding;
+			}
+
+			text = TimedText.getPlainText(this.cue);
+			direction = getTextDirection(text);
+			tl.cache.dir = direction;
+
+			ctx.font = fonts.segmentFont;
+			ctx.fillStyle = fonts.segmentTextColor;
+			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
+		}
+		
+		function renderChapterPreview(ctx, shape, fonts, tl){
+			var direction, text, y;
+			if(this.id){
+				y = tl.segmentTextPadding;
+				direction = getTextDirection(this.id+"");
+				tl.cache.dir = direction;
+
+				ctx.font = fonts.segmentFont;
+				ctx.fillStyle = fonts.segmentTextColor;
+				ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, tl.segmentTextPadding);
+				
+				text = TimedText.getPlainText(this.cue);
+				direction = getTextDirection(text);
+				tl.cache.dir = direction;
+				
+				ctx.font = fonts.idFont;
+				ctx.fillStyle = fonts.idTextColor;
+				ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, tl.segmentTextPadding + fonts.segmentFontSize);
+			}else{
+				text = TimedText.getPlainText(this.cue);
+				direction = getTextDirection(text);
+				tl.cache.dir = direction;
+
+				ctx.font = fonts.segmentFont;
+				ctx.fillStyle = fonts.idTextColor;
+				ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, tl.segmentTextPadding);
+			}
+		}
+
+		function renderDescPreview(ctx, shape, fonts, tl){
+			var direction, text, y;
+			if(this.id){
+				direction = getTextDirection(this.id+"");
+				tl.cache.dir = direction;
+
+				ctx.font = fonts.idFont;
+				ctx.fillStyle = fonts.idTextColor;
+				ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
+				y = Math.max(fonts.idFontSize,tl.segmentTextPadding);
+			}else{
+				y = tl.segmentTextPadding;
+			}
+
+			text = TimedText.getPlainText(this.cue);
+			direction = getTextDirection(text);
+			tl.cache.dir = direction;
+
+			ctx.font = fonts.segmentFont;
+			ctx.fillStyle = fonts.idTextColor;
+			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
+		}
+		
+		function renderMetaPreview(ctx, shape, fonts, tl){
+			var direction, text, y;
+			if(this.id){
+				direction = getTextDirection(this.id+"");
+				tl.cache.dir = direction;
+
+				ctx.font = fonts.idFont;
+				ctx.fillStyle = fonts.idTextColor;
+				ctx.fillText("Meta: " + this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
+				y = Math.max(fonts.idFontSize,tl.segmentTextPadding);
+			}else{
+				y = tl.segmentTextPadding;
+			}
+
+			text = this.cue.text;
+			direction = getTextDirection(text);
+			tl.cache.dir = direction;
+
+			ctx.font = fonts.segmentFont;
+			ctx.fillStyle = fonts.segmentTextColor;
+			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
+		}
+		
 		SProto.render = function() {
 			if(this.deleted)
 				return;
@@ -986,11 +1087,10 @@
 				shape = this.calcShape(),
 				x = shape.x,
 				y = shape.y,
-				direction, dir, text;
+				direction, text;
 
 			// is it on the screen
 			if(x > -shape.width && x < tl.width) {
-				dir = tl.cache.dir;
 				ctx.save();
 				ctx.translate(x, y);
 
@@ -1016,29 +1116,24 @@
 					ctx.clip();
 
 					ctx.textBaseline = 'top';
-
-					if(this.id){
-						direction = getTextDirection(this.id+"");
-						tl.cache.dir = direction;
-
-						ctx.font = fonts.idFont;
-						ctx.fillStyle = fonts.idTextColor;
-						ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
-						y = Math.max(fonts.idFontSize,tl.segmentTextPadding);
-					}else{
-						y = tl.segmentTextPadding;
+					switch(this.track.kind){
+					default:
+					case 'subtitles':
+					case 'captions':
+						renderSubPreview.call(this, ctx, shape, fonts, tl);
+						break;
+					case 'descriptions':
+						renderDescPreview.call(this, ctx, shape, fonts, tl);
+						break;
+					case 'chapters':
+						renderChapterPreview.call(this, ctx, shape, fonts, tl);
+						break;
+					case 'metadata':
+						renderMetaPreview.call(this, ctx, shape, fonts, tl);
+						break;
 					}
-
-					text = TimedText.getPlainText(this.cue);
-					direction = getTextDirection(text);
-					tl.cache.dir = direction;
-
-					ctx.font = fonts.segmentFont;
-					ctx.fillStyle = fonts.segmentTextColor;
-					ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
 				}
 				ctx.restore();
-				tl.cache.dir = dir;
 			}
 		};
 	}(Segment.prototype));
