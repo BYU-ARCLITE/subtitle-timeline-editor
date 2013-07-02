@@ -214,6 +214,10 @@ var Timeline = (function(){
 
 	Proto = Timeline.prototype;
 
+	Object.defineProperties(Proto,{
+		trackNames: {get: function(){ return Object.keys(this.trackIndices); }, enumerable: true }
+	});
+	
 	// Sizing
 	Proto.trackHeight = 50;
 	Proto.trackPadding = 10;
@@ -406,6 +410,10 @@ var Timeline = (function(){
 		this.emit("addtrack",n);
 	}
 
+	Proto.hasTextTrack = function(name){
+		return this.trackIndices.hasOwnProperty(name);
+	};
+	
 	Proto.addTextTrack = function(track,mime,overwrite) {
 		if(track instanceof Timeline.TextTrack){
 			if(!overwrite && this.trackIndices.hasOwnProperty(track.id)){ throw new Error("Track name already in use."); }
