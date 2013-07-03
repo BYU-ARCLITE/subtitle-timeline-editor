@@ -623,15 +623,16 @@ var Timeline = (function(){
 		var ctx = tl.ctx,
 			view = tl.view,
 			zoom = view.zoom,
+			font = tl.fonts.key,
 			power, d=0,
 			hours, mins, secs, pixels,
 			start, end, position, offset, increment;
 
 		ctx.save();
-		ctx.font         = tl.fonts.keyFont;
+		ctx.font         = font.font;
+		ctx.fillStyle    = font.color;
+		ctx.strokeStyle    = font.color;
 		ctx.textBaseline = 'top';
-		ctx.fillStyle    = tl.fonts.keyTextColor;
-		ctx.strokeStyle    = tl.fonts.keyTextColor;
 
 		// Find the smallest increment in powers of 2 that gives enough room for 1-second precision
 		power = Math.ceil(Math.log(ctx.measureText(" 0:00:00").width*zoom)/0.6931471805599453);

@@ -442,21 +442,22 @@
 		};
 
 		TProto.render = function(){
-			var segs, id_width,
+			var segs, dir, id_width,
 				tl = this.tl,
 				ctx = tl.ctx,
+				font = tl.fonts.title,
 				selected = [];
-
+			
 			ctx.save();
 
 			ctx.translate(0,tl.getTrackTop(this));
 
-			ctx.fillStyle = ctx.createPattern(tl.images.trackBg, "repeat-x");
+			ctx.fillStyle = ctx.createPattern(tl.images[this.kind]||tl.images.subtitles, "repeat-x");
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
 
 			ctx.textBaseline = 'middle';
-			ctx.font = tl.fonts.titleFont;
-			ctx.fillStyle = tl.fonts.titleTextColor;
+			ctx.font = font.font;
+			ctx.fillStyle = font.color;
 			
 			id_width = ctx.measureText(this.id).width + tl.width/25;
 			
@@ -468,6 +469,7 @@
 
 			ctx.restore();
 
+			dir = tl.cache.dir;
 			segs = this.segments.filter(function(seg){return seg.visible;});
 			this.visibleSegments = segs;
 			segs.forEach(function(seg){
@@ -476,6 +478,7 @@
 			});
 			selected.forEach(function(seg){ seg.render(); });
 			this.placeholder && this.placeholder.render();
+			tl.cache.dir = dir;
 		};
 
 		TProto.serialize = function(){
@@ -985,9 +988,9 @@
 				tl.cache.dir = direction;
 
 				ctx.font = fonts.idFont;
-				ctx.fillStyle = fonts.idTextColor;
+				ctx.fillStyle = fonts.idColor;
 				ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
-				y = Math.max(fonts.idFontSize,tl.segmentTextPadding);
+				y = Math.max(fonts.idSize,tl.segmentTextPadding);
 			}else{
 				y = tl.segmentTextPadding;
 			}
@@ -996,38 +999,9 @@
 			direction = getTextDirection(text);
 			tl.cache.dir = direction;
 
-			ctx.font = fonts.segmentFont;
-			ctx.fillStyle = fonts.segmentTextColor;
+			ctx.font = fonts.textFont;
+			ctx.fillStyle = fonts.textColor;
 			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
-		}
-		
-		function renderChapterPreview(ctx, shape, fonts, tl){
-			var direction, text, y;
-			if(this.id){
-				y = tl.segmentTextPadding;
-				direction = getTextDirection(this.id+"");
-				tl.cache.dir = direction;
-
-				ctx.font = fonts.segmentFont;
-				ctx.fillStyle = fonts.segmentTextColor;
-				ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, tl.segmentTextPadding);
-				
-				text = TimedText.getPlainText(this.cue);
-				direction = getTextDirection(text);
-				tl.cache.dir = direction;
-				
-				ctx.font = fonts.idFont;
-				ctx.fillStyle = fonts.idTextColor;
-				ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, tl.segmentTextPadding + fonts.segmentFontSize);
-			}else{
-				text = TimedText.getPlainText(this.cue);
-				direction = getTextDirection(text);
-				tl.cache.dir = direction;
-
-				ctx.font = fonts.segmentFont;
-				ctx.fillStyle = fonts.idTextColor;
-				ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, tl.segmentTextPadding);
-			}
 		}
 
 		function renderDescPreview(ctx, shape, fonts, tl){
@@ -1037,9 +1011,9 @@
 				tl.cache.dir = direction;
 
 				ctx.font = fonts.idFont;
-				ctx.fillStyle = fonts.idTextColor;
+				ctx.fillStyle = fonts.idColor;
 				ctx.fillText(this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
-				y = Math.max(fonts.idFontSize,tl.segmentTextPadding);
+				y = Math.max(fonts.idSize,tl.segmentTextPadding);
 			}else{
 				y = tl.segmentTextPadding;
 			}
@@ -1048,8 +1022,8 @@
 			direction = getTextDirection(text);
 			tl.cache.dir = direction;
 
-			ctx.font = fonts.segmentFont;
-			ctx.fillStyle = fonts.idTextColor;
+			ctx.font = fonts.textFont;
+			ctx.fillStyle = fonts.textColor;
 			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
 		}
 		
@@ -1060,9 +1034,9 @@
 				tl.cache.dir = direction;
 
 				ctx.font = fonts.idFont;
-				ctx.fillStyle = fonts.idTextColor;
+				ctx.fillStyle = fonts.idColor;
 				ctx.fillText("Meta: " + this.id, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, 0);
-				y = Math.max(fonts.idFontSize,tl.segmentTextPadding);
+				y = Math.max(fonts.idSize,tl.segmentTextPadding);
 			}else{
 				y = tl.segmentTextPadding;
 			}
@@ -1071,8 +1045,8 @@
 			direction = getTextDirection(text);
 			tl.cache.dir = direction;
 
-			ctx.font = fonts.segmentFont;
-			ctx.fillStyle = fonts.segmentTextColor;
+			ctx.font = fonts.textFont;
+			ctx.fillStyle = fonts.textColor;
 			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
 		}
 		
@@ -1119,17 +1093,19 @@
 					switch(this.track.kind){
 					default:
 					case 'subtitles':
+						renderSubPreview.call(this, ctx, shape, fonts.subtitles, tl);
+						break;
 					case 'captions':
-						renderSubPreview.call(this, ctx, shape, fonts, tl);
+						renderSubPreview.call(this, ctx, shape, fonts.captions, tl);
 						break;
 					case 'descriptions':
-						renderDescPreview.call(this, ctx, shape, fonts, tl);
+						renderDescPreview.call(this, ctx, shape, fonts.descriptions, tl);
 						break;
 					case 'chapters':
-						renderChapterPreview.call(this, ctx, shape, fonts, tl);
+						renderSubPreview.call(this, ctx, shape, fonts.chapters, tl);
 						break;
 					case 'metadata':
-						renderMetaPreview.call(this, ctx, shape, fonts, tl);
+						renderMetaPreview.call(this, ctx, shape, fonts.metadata, tl);
 						break;
 					}
 				}
