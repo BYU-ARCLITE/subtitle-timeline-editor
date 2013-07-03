@@ -369,6 +369,31 @@
 			};
 		}
 
+		TProto.setPlaceholder = function(start, end){
+			var view = this.tl.view;
+			if(this.placeholder === null){
+				this.placeholder = new Placeholder(this.tl, this, view.timeToPixel(start));
+			}else{
+				this.placeholder.startx = view.timeToPixel(start);
+			}
+			this.placeholder.endx = view.timeToPixel(end);
+		};
+		
+		TProto.resolvePlaceholder = function(){
+			if(this.placeholder === null){ return; }
+			var view = this.tl.view,
+				placeholder = this.placeholder;
+
+			track.placeholder = null;
+			if(placeholder.startx === placeholder.endx){ return; }
+			this.track.add(
+				new track.cueType(
+					view.pixelToTime(startx),
+					view.pixelToTime(endx),
+					""
+				), this.tl.autoSelect);
+		};
+		
 		TProto.deleteSelected = function(){
 			var that = this, tl = this.tl,
 				visible = false,

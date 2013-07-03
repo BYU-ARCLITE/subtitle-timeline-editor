@@ -239,6 +239,14 @@ var Timeline = (function(){
 		else{ this.events[name] = [cb]; }
 	};
 
+	Proto.off = function(name, cb){
+		var i;
+		if(!this.events.hasOwnProperty(name)){ return; }
+		i = this.events[name].indexOf(cb);
+		if(i === -1){ return; }
+		this.events[name].splice(i,1);
+	};
+
 	/** Context menu functions*/
 
 	function clickMenu(action,pos,vars){
