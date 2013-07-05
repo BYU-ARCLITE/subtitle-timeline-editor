@@ -105,7 +105,7 @@ var Timeline = (function(){
 					if(abRepeatOn !== on){
 						abRepeatOn = on;
 						this.render();
-						this.emit(on?'abRepeatEnabled':'abRepeatDisabled');
+						this.emit(new Timeline.Event(on?'abrepeatenabled':'abrepeatdisabled'));
 					}
 					return on;
 				}
@@ -211,6 +211,18 @@ var Timeline = (function(){
 	Timeline.SCROLL = 6;
 	Timeline.SHIFT = 7;
 	Timeline.SPLIT = 8;
+	
+	Timeline.Event = function(name,data){
+		var that = this, prevent = false;
+		if(typeof data === 'object'){
+			Object.keys(data).forEach(function(key){ that[key] = data[key]; });
+		}
+		this.timeStamp = +(new Date);
+		this.target = null;
+		this.type = name;
+		this.preventDefault = function(){ prevented = true; };
+		Object.defineProperty(this,'defaultPrevented',{get:function(){ return prevent; }});
+	};
 
 	Proto = Timeline.prototype;
 
@@ -229,22 +241,25 @@ var Timeline = (function(){
 
 	/** Event Triggers **/
 
-	Proto.emit = function(evt, data){
-		var that = this, fns = this.events[evt];
-		fns && fns.forEach(function(cb){ try{cb.call(that,data);}catch(e){} });
+	Proto.emit = function(evt){
+		var that = this, fns = this.events[evt.type];
+		evt.target = this;
+		fns && fns.forEach(function(cb){ try{cb.call(that,evt);}catch(ignore){} });
+		return !evt.defaultPrevented;
 	};
 
 	Proto.on = function(name, cb){
+		name = name.toLowerCase();
 		if(this.events.hasOwnProperty(name)){ this.events[name].push(cb); }
 		else{ this.events[name] = [cb]; }
 	};
 
 	Proto.off = function(name, cb){
 		var i;
+		name = name.toLowerCase();
 		if(!this.events.hasOwnProperty(name)){ return; }
 		i = this.events[name].indexOf(cb);
-		if(i === -1){ return; }
-		this.events[name].splice(i,1);
+		if(!~i){ this.events[name].splice(i,1); }
 	};
 
 	/** Context menu functions*/
@@ -414,8 +429,8 @@ var Timeline = (function(){
 		this.tracks[this.trackIndices[n.id]] = n;
 		n.render();
 		this.commandStack.removeEvents(o.id);
-		this.emit("removetrack",o);
-		this.emit("addtrack",n);
+		this.emit(new Timeline.Event("removetrack",{track:o}));
+		this.emit(new Timeline.Event("addtrack",{track:n}));
 	}
 
 	Proto.hasTextTrack = function(name){
@@ -436,7 +451,7 @@ var Timeline = (function(){
 			this.overlay.height = this.height;
 			this.cache.height = this.height;
 			this.render();
-			this.emit("addtrack",track);
+			this.emit(new Timeline.Event("addtrack",{track:track}));
 		}
 	};
 
@@ -460,7 +475,7 @@ var Timeline = (function(){
 			this.cache.height = this.height;
 			this.render();
 			this.commandStack.removeEvents(track.id);
-			this.emit("removetrack",track);
+			this.emit(new Timeline.Event("removetrack",{track:track}));
 		}
 	};
 
@@ -482,7 +497,7 @@ var Timeline = (function(){
 			this.overlay.height = this.height;
 			this.cache.height = this.height;
 			this.render();
-			this.emit("addtrack",track);
+			this.emit(new Timeline.Event("addtrack",{track:track}));
 		}
 	};
 
@@ -799,8 +814,9 @@ var Timeline = (function(){
 				var x, stable = false;
 				if(time == this.timeMarkerPos){ return time; }
 				if(this.abRepeatOn && time > this.repeatB) {
-					time = this.repeatA;
-					this.emit('jump',this.repeatA);
+					if(this.emit(new Timeline.Event('jump',{time:this.repeatA}))){
+						time = this.repeatA;
+					}
 				}
 
 				//move the view
@@ -818,7 +834,7 @@ var Timeline = (function(){
 
 				this.timeMarkerPos = time;
 				this.tracks.forEach(function(track){ track.textTrack.currentTime = time; });
-				this.emit('timeupdate', time);
+				this.emit(new Timeline.Event('timeupdate'));
 				this.render(stable);
 				return time;
 			},
@@ -844,7 +860,7 @@ var Timeline = (function(){
 
 	function resetABPoints(pos){
 		this.repeatB = this.repeatA = this.view.pixelToTime(pos.x);
-		this.emit('abRepeatSet');
+		this.emit(new Timeline.Event("abrepeatset"));
 	}
 
 	Proto.clearRepeat = function() {
@@ -854,7 +870,7 @@ var Timeline = (function(){
 		//the setter takes care of re-rendering
 		if(this.abRepeatOn){ this.abRepeatOn = false; }
 		else{ this.render(); }
-		this.emit('abRepeatUnset');
+		this.emit(new Timeline.Event('abrepeatunset'));
 	};
 	
 	Proto.setRepeat = function(start,end) {
@@ -864,7 +880,7 @@ var Timeline = (function(){
 		//the setter takes care of re-rendering
 		if(!this.abRepeatOn){ this.abRepeatOn = true; }
 		else{ this.render(); }
-		this.emit('abRepeatSet');
+		this.emit(new Timeline.Event("abrepeatset"));
 	};
 
 	/** Persistence functions **/
@@ -1009,8 +1025,9 @@ var Timeline = (function(){
 		if(this.scrollInterval){ return; }
 		if(this.scrubActive){
 			i = this.view.pixelToTime(pos.x);
-			this.emit('jump',i);
-			this.currentTime = i;
+			if(this.emit(new Timeline.Event("jump", {time:i}))){
+				this.currentTime = i;
+			}
 		}else if(this.currentTool == Timeline.REPEAT && this.abRepeatSetting){
 			updateABPoints.call(this,pos);
 			updateCursor.call(this,pos);
@@ -1114,8 +1131,9 @@ var Timeline = (function(){
 		}else if(pos.y < this.keyHeight+this.trackPadding) { // Check the key
 			this.scrubActive = true;
 			i = this.view.pixelToTime(pos.x);
-			this.emit('jump',i);
-			this.currentTime = i;
+			if(this.emit(new Timeline.Event("jump", {time:i}))){
+				this.currentTime = i;
+			}
 		}else switch(this.currentTool){
 			case Timeline.REPEAT:
 				this.abRepeatSetting = true;
@@ -1157,8 +1175,9 @@ var Timeline = (function(){
 		}else if(pos.y < this.keyHeight+this.trackPadding) { // Check the key
 			i = Math.min(Math.max(this.currentTime + delta*this.view.zoom,0),this.length);
 			if(i !== this.currentTime){
-				this.emit('jump',i);
-				this.currentTime = i;
+				if(this.emit(new Timeline.Event("jump", {time:i}))){
+					this.currentTime = i;
+				}
 			}
 		}else{
 			delta /= 10;
@@ -1194,17 +1213,17 @@ var Timeline = (function(){
 						success: function(track, mime){
 							track.mode = 'showing';
 							that.addTextTrack(track,mime,true);
-                            that.emit("dropTrack", track);
+                            that.emit(new Timeline.Event("droptrack", {track:track}));
 						}
 					});
 				}
 			});
 		}else{ //Load from URLs
-			if(types.indexOf('text/x-moz-url') !== -1){
+			if(~types.indexOf('text/x-moz-url')){
 				links = ev.dataTransfer.getData('text/x-moz-url').split('\n').filter(function(e,i){ return !(i%2); });
-			}else if(types.indexOf('text/uri-list') !== -1){
+			}else if(~types.indexOf('text/uri-list')){
 				links = ev.dataTransfer.getData('text/uri-list').split('\n').filter(function(e){ return e[0]!=='#'; });
-			}else if(types.indexOf('text/plain') !== -1){
+			}else if(~types.indexOf('text/plain')){
 				links = ev.dataTransfer.getData('text/plain').split('\n');
 			}else{ return; }
 			links.forEach(function(url){
@@ -1223,7 +1242,7 @@ var Timeline = (function(){
 							success: function(track,mime){
 								track.mode = 'showing';
 								that.addTextTrack(track,mime,true);
-                                that.emit("dropTrack", track);
+                                that.emit(new Timeline.Event("droptrack", {track:track}));
 							}
 						});
 					}
@@ -1317,7 +1336,7 @@ var Timeline = (function(){
 						}
 						seg.selected = true;
 						tl.selectedSegments.push(seg);
-						tl.emit('select', seg);
+						tl.emit(new Timeline.Event('select', {segment: seg}));
 					});
 				});
 				tl.render();

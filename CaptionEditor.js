@@ -134,7 +134,7 @@ var CaptionEditor = (function(){
 		this[attr] = nval;
 		latch[attr] = nval;
 		if(editor.renderer && this.active){ editor.renderer.rebuildCaptions(); }
-		if(editor.timeline){ editor.timeline.emit("cuechange",{cue:this,attr:attr,oldval:oval,newval:nval}); }
+		if(editor.timeline){ editor.timeline.emit(new Timeline.Event("cuechange",{cue:this,attr:attr,oldval:oval,newval:nval})); }
 	}
 	
 	var pushAction = debounce(function(cue, attr, nval, editor, latch){
@@ -156,7 +156,7 @@ var CaptionEditor = (function(){
 			pushAction(cue,attr,nval,editor,latch);
 		}
 		if(editor.timeline){
-			editor.timeline.emit("cuechange",{cue:this,attr:attr,oldval:oval,newval:nval});
+			editor.timeline.emit(new Timeline.Event("cuechange",{cue:this,attr:attr,oldval:oval,newval:nval}));
 		}
 	}
 	
@@ -186,7 +186,7 @@ var CaptionEditor = (function(){
 		cue.text = newtext;
 		editor.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
         if(editor.timeline){
-			editor.timeline.emit("cuechange",{cue:cue,attr:'text',oldval:oldtext,newval:newtext});
+			editor.timeline.emit(new Timeline.Event("cuechange",{cue:cue,attr:'text',oldval:oldtext,newval:newtext}));
 		}
 	}
 	

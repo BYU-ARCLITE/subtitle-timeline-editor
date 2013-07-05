@@ -46,7 +46,7 @@
 			});
 			
 			tl.renderTrack(this);
-			tl.emit('convert',this,oldmime,newmime);
+			tl.emit(new Timeline.Event("convert",{track:this,oldtype:oldmime}));
 		}
 		
 		Object.defineProperties(this,{
@@ -132,7 +132,7 @@
 		this.track = track;
 		this.startx = x;
 		this.endx = x;
-		tl.emit("startcreate", tl.view.pixelToTime(x));
+		tl.emit(new Timeline.Event("segstart",{track:track}));
 	}
 
 	Timeline.TextTrack = TlTextTrack;
@@ -143,15 +143,15 @@
 		this.deleted = true;
 		this.selected = false;
 		i = s_segs.indexOf(this);
-		if(i !== -1){ s_segs.splice(i,1); }
+		if(~i){ s_segs.splice(i,1); }
 		if(visible){ this.tl.renderTrack(this.track); }
-		this.tl.emit('delete',this);
+		tl.emit(new Timeline.Event("delete",{segments:[this]}));
 	}
 
 	function recreateSeg(){
 		this.deleted = false;
 		if(this.visible){ this.tl.renderTrack(this.track); }
-		this.tl.emit('create',this);
+		tl.emit(new Timeline.Event("create",{segments:[this]}));
 	}
 
 	(function(TProto){
@@ -162,7 +162,8 @@
 			mseg.cue.text = text;
 			mseg.cue.endTime = segs[segs.length-1].endTime;
 			if(mseg.visible){ tl.renderTrack(this); }
-			tl.emit('merge',mseg,segs);
+			tl.emit(new Timeline.Event('merge',{merged:mseg,removed:segs}));
+			tl.emit(new Timeline.Event('delete',{segments:segs}));
 		}
 
 		function unmerge(segs,mseg,text,end){
@@ -174,7 +175,8 @@
 			mseg.cue.text = text;
 			mseg.cue.endTime = end;
 			if(mseg.visible || visible){ tl.renderTrack(this); }
-			tl.emit('unmerge',mseg,segs);
+			tl.emit(new Timeline.Event('unmerge',{merged:mseg,removed:segs}));
+			tl.emit(new Timeline.Event('create',{segments:segs}));
 		}
 
 		function merge(list){
@@ -205,7 +207,8 @@
 				redo: remerge.bind(this,list,mseg,newtext),
 				undo: unmerge.bind(this,list,mseg,oldtext,oldend)
 			});
-			tl.emit('merge',mseg,list);
+			tl.emit(new Timeline.Event('merge',{merged:mseg,removed:list}));
+			tl.emit(new Timeline.Event('delete',{segments:list}));
 		}
 
 		function repaste(segs){
@@ -215,7 +218,8 @@
 				visible |= seg.visible;
 			});
 			if(visible){ tl.renderTrack(this); }
-			tl.emit('paste',segs);
+			tl.emit(new Timeline.Event('paste',{segments:segs}));
+			tl.emit(new Timeline.Event('create',{segments:segs}));
 		}
 
 		function unpaste(segs){
@@ -225,7 +229,8 @@
 				seg.deleted = true;
 			});
 			if(visible){ tl.renderTrack(this); }
-			tl.emit('unpaste',segs);
+			tl.emit(new Timeline.Event('unpaste',{segments:segs}));
+			tl.emit(new Timeline.Event('delete',{segments:segs}));
 		}
 
 		function reshift(selected,delta){
@@ -235,7 +240,7 @@
 				seg.endTime += delta;
 			});
 			tl.renderTrack(this);
-			tl.emit('shift',selected,delta);
+			tl.emit(new Timeline.Event('shift',{segments:selected,delta:delta}));
 		}
 
 		Object.defineProperties(TProto,{
@@ -299,7 +304,8 @@
 				redo: recreateSeg
 			});
 
-			tl.emit('create', seg);
+			tl.emit(new Timeline.Event('addcue',{cue:cue,segment:seg}));
+			tl.emit(new Timeline.Event('create',{segments:[seg]}));
 			if(select){ seg.select(); }
 			else if(seg.visible){ tl.renderTrack(this); }
 			return seg;
@@ -332,11 +338,9 @@
 				visible = visible || seg.visible;
 				seg.selected = false;
 				tl.selectedSegments.splice(tl.selectedSegments.indexOf(seg),1);
-				tl.emit('unselect',seg);
 			});
-			if(visible){
-				tl.renderTrack(this);
-			}
+			tl.emit(new Timeline.Event('unselect',{segments:selected}));
+			if(visible){ tl.renderTrack(this); }
 		};
 
 		function deleteMultiSeg(track){
@@ -346,12 +350,12 @@
 					s_segs = tl.selectedSegments;
 				this.forEach(function(seg){
 					var i = s_segs.indexOf(seg);
-					if(i !== -1){ s_segs.splice(i,1); }
+					if(~i){ s_segs.splice(i,1); }
 					visible = visible || seg.visible;
 					seg.deleted = true;
 					seg.selected = false;
-					tl.emit('delete',seg);
 				});
+				tl.emit(new Timeline.Event('delete',{segments:this}));
 				if(visible){ tl.renderTrack(track); }
 			};
 		}
@@ -363,8 +367,8 @@
 				this.forEach(function(seg){
 					seg.deleted = false;
 					visible = visible || seg.visible;
-					tl.emit('create',seg);
 				});
+				tl.emit(new Timeline.Event('create',{segments:this}));
 				if(visible){ tl.renderTrack(track); }
 			};
 		}
@@ -377,21 +381,25 @@
 				this.placeholder.startx = view.timeToPixel(start);
 			}
 			this.placeholder.endx = view.timeToPixel(end);
+			this.tl.renderTrack(this);
 		};
 		
 		TProto.resolvePlaceholder = function(){
 			if(this.placeholder === null){ return; }
-			var view = this.tl.view,
-				placeholder = this.placeholder;
+			var seg, view = this.tl.view,
+				placeholder = this.placeholder,
+				startx = placeholder.startx,
+				endx = placeholder.endx;
 
-			track.placeholder = null;
-			if(placeholder.startx === placeholder.endx){ return; }
-			this.track.add(
-				new track.cueType(
+			this.placeholder = null;
+			if(startx === endx){ return; }
+			seg = this.add(
+				new this.cueType(
 					view.pixelToTime(startx),
 					view.pixelToTime(endx),
 					""
 				), this.tl.autoSelect);
+			this.tl.emit(new Timeline.Event("segcomplete",{track:this,segment:seg}));
 		};
 		
 		TProto.deleteSelected = function(){
@@ -404,7 +412,6 @@
 				visible = visible || seg.visible;
 				seg.deleted = true;
 				seg.selected = false;
-				tl.emit('delete',this);
 			});
 			// Save the delete
 			tl.commandStack.push({
@@ -413,6 +420,7 @@
 				redo: deleteMultiSeg(this),
 				undo: recreateMultiSeg(this)
 			});
+			tl.emit(new Timeline.Event('delete',{segments:selected}));
 			if(visible){ tl.renderTrack(this); }
 		};
 
@@ -463,7 +471,8 @@
 				redo: repaste.bind(this,added),
 				undo: unpaste.bind(this,added)
 			});
-			tl.emit('paste',added);
+			tl.emit(new Timeline.Event('paste',{segments:added}));
+			tl.emit(new Timeline.Event('create',{segments:added}));
 		};
 
 		TProto.render = function(){
@@ -565,7 +574,7 @@
 					redo: reshift.bind(this,selected,delta),
 					undo: reshift.bind(this,selected,-delta)
 				});
-				tl.emit('shift',selected,delta);
+				tl.emit(new Timeline.Event('shift',{segments:selected,delta:delta}));
 			}
 		};
 	}(TlTextTrack.prototype));
@@ -605,7 +614,7 @@
 			return function(){
 				this.cue.text = text;
 				this.tl.renderTrack(this.track);
-				this.tl.emit('textchange',this);
+				this.tl.emit(new Timeline.Event('textchange',{segment:this}));
 			};
 		}
 
@@ -613,7 +622,7 @@
 			return function(){
 				this.cue.id = id;
 				this.tl.renderTrack(this.track);
-				this.tl.emit('idchange',this);
+				this.tl.emit(new Timeline.Event('idchange',{segment:this}));
 			};
 		}
 
@@ -624,7 +633,7 @@
 				this.track.textTrack.activeCues.refreshCues();
 				this.segments.sort(order);
 				if(this.visible){ this.tl.renderTrack(this.track); }
-				this.tl.emit("move",this);
+				this.tl.emit(new Timeline.Event('move',{segment:this}));
 			};
 		}
 
@@ -645,12 +654,12 @@
 			s2.deleted = true;
 
 			i = s_segs.indexOf(s2);
-			if(i !== -1){ s_segs.splice(i,1); }
+			if(~i){ s_segs.splice(i,1); }
 
 			s1.cue.endTime = s2.cue.endTime;
 
 			if(s1.visible){ this.tl.renderTrack(this); }
-			this.tl.emit('merge',s1,s2);
+			this.tl.emit(new Timeline.Event('merge',{segments:[s1,s2]}));
 		}
 
 		Object.defineProperties(SProto,{
@@ -676,7 +685,7 @@
 					});
 					cue.id = id;
 					tl.renderTrack(this.track);
-					tl.emit('idchange',this);
+					tl.emit(new Timeline.Event('idchange',{segment:this}));
 					return id;
 				},
 				get: function(){return this.cue.id;},
@@ -705,7 +714,7 @@
 					});
 					cue.text = t;
 					tl.renderTrack(this.track);
-					tl.emit('textchange',this);
+					tl.emit(new Timeline.Event('textchange',{segment:this}));
 					return t;
 				},
 				get: function(){return this.cue.text;},
@@ -738,7 +747,7 @@
 				tl.selectedSegments.forEach(function(seg){
 					seg.selected = false;
 					if(seg.visible){ trackmap[seg.track.id] = seg.track; }
-					tl.emit('unselect',seg);
+					tl.emit(new Timeline.Event('unselect',{segments:[this]}));
 				});
 				tl.selectedSegments = [this];
 			}else{
@@ -747,7 +756,7 @@
 			for(id in trackmap){
 				tl.renderTrack(trackmap[id]);
 			}
-			tl.emit('select',this);
+			tl.emit(new Timeline.Event('select',{segments:[this]}));
 		};
 
 		SProto.unselect = function(){
@@ -756,7 +765,7 @@
 			this.selected = false;
 			tl.selectedSegments.splice(tl.selectedSegments.indexOf(this),1);
 			if(this.visible){ tl.renderTrack(this.track); }
-			tl.emit('unselect', this);
+			tl.emit(new Timeline.Event('unselect',{segments:[this]}));
 		};
 
 		SProto.toggle = function(){
@@ -774,7 +783,7 @@
 			this.deleted = true;
 
 			i = s_segs.indexOf(this);
-			if(i !== -1){ s_segs.splice(i,1); }
+			if(~i){ s_segs.splice(i,1); }
 
 			// Save the delete
 			tl.commandStack.push({
@@ -784,7 +793,7 @@
 				undo: recreateSeg
 			});
 			if(visible){ tl.renderTrack(this.track); }
-			tl.emit('delete',this);
+			tl.emit(new Timeline.Event('delete',{segments:[this]}));
 		};
 
 		SProto.split = function(pos){
@@ -794,16 +803,11 @@
 				track = this.track,
 				cue = this.cue;
 
-			cp = new TextTrackCue(stime+.001, cue.endTime, cue.text);
-			cp.snapToLines = cue.snapToLines;
-			cp.pauseOnExit = cue.pauseOnExit;
+			cp = new track.cueType(stime+.001, cue.endTime, cue.text);
 
 			cue.endTime = stime;
 
-			track.textTrack.addCue(cp);
-			seg = new Segment(track, cp);
-			track.segments.push(seg);
-			track.segments.sort(order);
+			seg = track.add(cp,false);
 
 			// Save the split
 			tl.commandStack.push({
@@ -812,7 +816,7 @@
 				undo: unsplitSeg.bind(track,this,seg)
 			});
 			tl.renderTrack(track);
-			tl.emit('split',this,seg);
+			tl.emit(new Timeline.Event('split',{first:this,second:seg}));
 		};
 
 		SProto.mergeWithSelected = function(pos){
@@ -960,7 +964,7 @@
 				else if(newTime > maxStartTime){ newTime = maxStartTime; }
 				this.startTime = newTime;
 				this.endTime = newTime + this.startingLength;
-				tl.emit('move',this);
+				tl.emit(new Timeline.Event('move',{segment:this}));
 			}else if(tl.currentTool === Timeline.MOVE){
 				switch(this.resizeSide){
 					case 0:
@@ -969,20 +973,20 @@
 						else if(newTime > maxStartTime){ newTime = maxStartTime; }
 						this.startTime = newTime;
 						this.endTime = newTime + this.startingLength;
-						tl.emit('move',this);
+						tl.emit(new Timeline.Event('move',{segment:this}));
 						break;
 					case -1:
 						if(newTime < 0){ newTime = 0; }
 						else if(newTime >= this.endTime){ newTime = this.endTime - .001; }
 						this.startTime = newTime;
-						tl.emit('resizel',this);
+						tl.emit(new Timeline.Event('resizel',{segment:this}));
 						break;
 					case 1:
 						newTime += this.startingLength;
 						if(newTime <= this.startTime){ newTime = this.startTime + .001; }
 						else if(newTime > tl.length){ newTime = tl.length; }
 						this.endTime = newTime;
-						tl.emit('resizer',this);
+						tl.emit(new Timeline.Event('resizer',{segment:this}));
 						break;
 					default:
 						throw new Error("Invalid State");
@@ -1155,25 +1159,16 @@
 		PProto.mouseMove = function(pos) {
 			var tl = this.tl;
 			this.endx = pos.x;
-			tl.emit("endcreate", tl.view.pixelToTime(pos.x));
 			tl.renderTrack(this.track);
 		};
 
 		PProto.mouseUp = function(pos) {
 			var view = this.tl.view,
-				track = this.track,
-				startx, endx;
+				track = this.track;
 
-			track.placeholder = null;
-			if(this.startx === pos.x){ return; }
-			startx = Math.min(this.startx, pos.x);
-			endx = Math.max(this.startx, pos.x);
-			this.track.add(
-				new track.cueType(
-					view.pixelToTime(startx),
-					view.pixelToTime(endx),
-					""
-				), this.tl.autoSelect);
+			this.startx = Math.min(this.startx, pos.x);
+			this.endx = Math.max(this.startx, pos.x);
+			track.resolvePlaceholder();
 		};
 	}(Placeholder.prototype));
 
