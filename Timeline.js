@@ -508,8 +508,9 @@ var Timeline = (function(){
 	};
 
 	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite) {
-		var track = this.tracks[this.trackIndices[tid]];
-		if(!track){ throw new Error("Track does not exist"); }
+		var track;
+		if(!this.trackIndices.hasOwnProperty(tid)){ throw new Error("Track does not exist"); }
+		track = this.tracks[this.trackIndices[tid]];
 		if(name != track.id){
 			if(this.trackIndices.hasOwnProperty(name)){
 				if(!overwrite){ throw new Error("Track name already in use."); }
@@ -525,6 +526,17 @@ var Timeline = (function(){
 		this.render();
 	};
 
+	Proto.setAutoCue = function(onoff, tid) {
+		var tracks;
+		if(typeof tid === 'undefined'){
+			tracks = this.tracks;
+		}else{
+			if(!this.trackIndices.hasOwnProperty(tid)){ throw new Error("Track does not exist"); }
+			tracks = [this.tracks[this.trackIndices[tid]]];
+		}			
+		tracks.forEach(function(track){ track.autoCue = onoff; });
+	};
+	
 	/** Audio Functions **/	
 	
 	Proto.addAudioTrack = function(wave, id) {
