@@ -115,6 +115,8 @@ var Timeline = (function(){
 		this.multi = !!params.multi;
 		this.autoSelect = !!params.autoSelect;
 		this.currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT;
+		this.autoCueStatus = Timeline.AutoCueResolved;
+		this.autoCueStart = 0;
 
 		this.selectedSegments = [];
 		this.toCopy = [];
@@ -212,6 +214,10 @@ var Timeline = (function(){
 	Timeline.SHIFT = 7;
 	Timeline.SPLIT = 8;
 	
+	Timeline.AutoCueResolved = 0;
+	Timeline.AutoCueCueing = 1;
+	Timeline.AutoCueRepeating = 2;
+	
 	Timeline.Event = function(name,data){
 		var that = this, prevent = false;
 		if(typeof data === 'object'){
@@ -259,7 +265,7 @@ var Timeline = (function(){
 		name = name.toLowerCase();
 		if(!this.events.hasOwnProperty(name)){ return; }
 		i = this.events[name].indexOf(cb);
-		if(!~i){ this.events[name].splice(i,1); }
+		if(~i){ this.events[name].splice(i,1); }
 	};
 
 	/** Context menu functions*/
@@ -775,11 +781,11 @@ var Timeline = (function(){
 	}
 	
 	Proto.renderTrack = function(track) {
-		if(this.requestedFrame){
+		if(this.requestedFrame !== 0){
 			if(this.requestedTrack === track){ return; }
 			cancelFrame(this.requestedFrame);
 			this.requestedTrack = null;
-			this.requestedFrame = requestFrame(render.bind(this,true));
+			this.requestedFrame = requestFrame(render.bind(this,false));
 		}else{
 			this.requestedTrack = track;
 			this.requestedFrame = requestFrame(renderTrack.bind(this,track));
@@ -788,9 +794,15 @@ var Timeline = (function(){
 	
 	Proto.render = function(stable) {
 		if(this.requestedTrack !== null){
-			cancelFrame(this.requestedFrame);
-		}else if(this.requestedFrame === 0){
 			this.requestedTrack = null;
+			cancelFrame(this.requestedFrame);
+			this.requestedFrame = requestFrame(render.bind(this,false));
+		}else if(this.requestedFrame !== 0){
+			if(!stable){
+				cancelFrame(this.requestedFrame);
+				this.requestedFrame = requestFrame(render.bind(this,false));
+			}
+		}else{
 			this.requestedFrame = requestFrame(render.bind(this,stable));
 		}
 	};
@@ -807,11 +819,11 @@ var Timeline = (function(){
 	};
 
 	/** Time functions **/
-
+	
 	Object.defineProperties(Proto,{
 		currentTime: {
 			set: function(time){
-				var x, stable = false;
+				var x, startTime, endTime, stable = false;
 				if(time == this.timeMarkerPos){ return time; }
 				if(this.abRepeatOn && time > this.repeatB) {
 					if(this.emit(new Timeline.Event('jump',{time:this.repeatA}))){
@@ -832,8 +844,18 @@ var Timeline = (function(){
 					}
 				}
 
+				if(this.autoCueStatus === Timeline.AutoCueCueing){ 
+					startTime = Math.min(this.autoCueStart,time);
+					endTime = Math.max(this.autoCueStart,time);
+					this.tracks.forEach(function(track){
+						track.textTrack.currentTime = time; 
+						if(track.autoCue){ track.setPlaceholder(startTime, endTime); }
+					});
+				}else{
+					this.tracks.forEach(function(track){ track.textTrack.currentTime = time; });
+				}
+				
 				this.timeMarkerPos = time;
-				this.tracks.forEach(function(track){ track.textTrack.currentTime = time; });
 				this.emit(new Timeline.Event('timeupdate'));
 				this.render(stable);
 				return time;
@@ -882,7 +904,35 @@ var Timeline = (function(){
 		else{ this.render(); }
 		this.emit(new Timeline.Event("abrepeatset"));
 	};
-
+	
+	Proto.breakPoint = function(){
+		var that = this,
+			time = this.currentTime,
+			tracks = this.tracks.filter(function(track){ return track.autoCue; });
+		if(!tracks.length){ return; }
+		switch(this.autoCueStatus){
+		case Timeline.AutoCueResolved:
+			this.autoCueStatus = Timeline.AutoCueCueing;
+			this.autoCueStart = time;
+			tracks.forEach(function(track){
+				track.setPlaceholder(time, time);
+				track.resolvePlaceholder();
+			});
+			break;
+		case Timeline.AutoCueCueing:
+			this.autoCueStatus = Timeline.AutoCueRepeating;
+			this.setRepeat(this.autoCueStart,time);
+			tracks.forEach(function(track){
+				track.setPlaceholder(that.autoCueStart-.01, time+.01);
+				track.resolvePlaceholder();
+			});
+			break;
+		default:
+			this.clearRepeat();
+			this.autoCueStatus = Timeline.AutoCueResolved;
+		}
+	};
+	
 	/** Persistence functions **/
 
 	Proto.exportTracks = function(id) {

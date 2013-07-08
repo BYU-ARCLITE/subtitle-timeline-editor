@@ -15,6 +15,7 @@
 	function TlTextTrack(tl, cueTrack, mime){
 		var that = this,
 			locked = false,
+			autoCue = false,
 			typeInfo = TimedText.getTypeInfo(mime);
 			
 		cueTrack.cues.forEach(function(cue){
@@ -53,6 +54,19 @@
 			cueType: { get: function(){ return typeInfo.cueType; }, enumerable: true },
 			typeName: { get: function(){ return typeInfo.name; }, enumerable: true },
 			textTrack: {get: function(){ return cueTrack; }, enumerable: true },
+			autoCue: {
+				get: function(){ return autoCue; },
+				set: function(val){
+					val = !!val;
+					if(val === autoCue){ return val; }
+					autoCue = val;
+					if(!autoCue && this.tl.autoCueStatus === Timeline.AutoCueCueing){
+						this.placeholder = null;
+						this.tl.renderTrack(this);
+					}
+					return autoCue;
+				}, enumerable: true
+			},
 			locked: {
 				get: function(){ return locked; },
 				set: function(val){
