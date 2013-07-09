@@ -48,10 +48,6 @@ var CaptionEditor = (function(){
 		cue.text = newtext;
 		renderedCue.updateContent();
 		this.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
-		console.log("Input: ", renderedCue.dirty);
-        if(this.timeline){
-			this.timeline.emit(new Timeline.Event("cuechange",{cue:cue,attr:'text',oldval:oldtext,newval:newtext}));
-		}
 	}
 	
 	function replaceSelectionWith(node){
