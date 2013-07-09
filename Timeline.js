@@ -93,7 +93,7 @@ var Timeline = (function(){
 			},timeMarkerPos: {
 				value: 0, writable: true
 			},commandStack: {
-				value: params.stack || new EditorWidgets.CommandStack()
+				value: params.stack instanceof EditorWidgets.CommandStack ? params.stack : new EditorWidgets.CommandStack()
 			},
 			abRepeatSet: {
 				get: function(){ return !(this.repeatA === null || this.repeatB === null); }
