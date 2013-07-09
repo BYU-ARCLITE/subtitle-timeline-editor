@@ -1,4 +1,4 @@
-(function(Timeline,global){
+(function(Timeline,TimedText,global){
 	"use strict";
 	
 	var idCounter = 0;
@@ -31,7 +31,7 @@
 		this.placeholder = null;
 		this.lastPos = null;
 
-		function set_mime(newmime, newCues, newSegs){
+		function set_mime(newmime, newCues){
 			var i = 0, oldmime = mime,
 				segments = that.segments;
 			
@@ -48,6 +48,9 @@
 			
 			tl.renderTrack(this);
 			tl.emit(new Timeline.Event("convert",{track:this,oldtype:oldmime}));
+			if(this.segments.some(function(seg){ return seg.active; })){
+				tl.emit(new Timeline.Event("activechange"));
+			}
 		}
 		
 		Object.defineProperties(this,{
@@ -73,7 +76,7 @@
 					val = !!val;
 					if(val !== locked){
 						locked = val;
-						if(active){ this.segments.forEach(function(seg){ seg.selected = false; }); }
+						this.segments.forEach(function(seg){ seg.selected = false; });
 						tl.renderTrack(this);
 						if(this.audioId){ tl.audio[this.audioId].draw(); }
 					}
@@ -152,50 +155,65 @@
 	Timeline.TextTrack = TlTextTrack;
 
 	function deleteSeg(){
-		var i, visible = this.visible,
+		var i, tl = this.tl, visible = this.visible, active = this.active,
 			s_segs = this.tl.selectedSegments;
 		this.deleted = true;
 		this.selected = false;
 		i = s_segs.indexOf(this);
 		if(~i){ s_segs.splice(i,1); }
-		if(visible){ this.tl.renderTrack(this.track); }
 		tl.emit(new Timeline.Event("delete",{segments:[this]}));
+		if(active){
+			this.track.textTrack.activeCues.refreshCues();
+			tl.emit(new Timeline.Event('activechange'));
+		}
+		if(visible){ tl.renderTrack(this.track); }
 	}
 
 	function recreateSeg(){
+		var tl = this.tl;
 		this.deleted = false;
-		if(this.visible){ this.tl.renderTrack(this.track); }
 		tl.emit(new Timeline.Event("create",{segments:[this]}));
+		if(this.active){
+			this.track.textTrack.activeCues.refreshCues();
+			tl.emit(new Timeline.Event('activechange'));
+		}
+		if(this.visible){ tl.renderTrack(this.track); }
 	}
 
 	(function(TProto){
 
 		function remerge(segs,mseg,text){
-			var tl = this.tl, that = this;
+			var tl = this.tl;
 			segs.forEach(function(seg){ seg.deleted = true; });
 			mseg.cue.text = text;
 			mseg.cue.endTime = segs[segs.length-1].endTime;
-			if(mseg.visible){ tl.renderTrack(this); }
 			tl.emit(new Timeline.Event('merge',{merged:mseg,removed:segs}));
 			tl.emit(new Timeline.Event('delete',{segments:segs}));
+			if(mseg.active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			if(mseg.visible){ tl.renderTrack(this); }
 		}
 
 		function unmerge(segs,mseg,text,end){
-			var tl = this.tl, that = this, visible = false;
-			segs.forEach(function(seg){
-				seg.deleted = false;
-				visible |= seg.visible;
-			});
+			var tl = this.tl,
+				visible = mseg.visible,
+				active = mseg.active;
+			segs.forEach(function(seg){	seg.deleted = false; });
 			mseg.cue.text = text;
 			mseg.cue.endTime = end;
-			if(mseg.visible || visible){ tl.renderTrack(this); }
 			tl.emit(new Timeline.Event('unmerge',{merged:mseg,removed:segs}));
 			tl.emit(new Timeline.Event('create',{segments:segs}));
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			if(mseg.visible || visible){ tl.renderTrack(this); }
 		}
 
 		function merge(list){
-			var that = this,
-				tl = this.tl,
+			var tl = this.tl,
 				ssegs = tl.selectedSegments,
 				mseg, oldend, oldtext, newtext;
 
@@ -214,7 +232,6 @@
 				ssegs.splice(ssegs.indexOf(seg),1);
 			});
 
-			tl.renderTrack(this);
 			tl.commandStack.push({
 				file: this.textTrack.label,
 				context: this,
@@ -223,38 +240,60 @@
 			});
 			tl.emit(new Timeline.Event('merge',{merged:mseg,removed:list}));
 			tl.emit(new Timeline.Event('delete',{segments:list}));
+			if(mseg.active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			tl.renderTrack(this);
 		}
 
 		function repaste(segs){
-			var tl = this.tl, that = this, visible = false;
+			var tl = this.tl, visible = false, active = false;
 			segs.forEach(function(seg){
 				seg.deleted = false;
-				visible |= seg.visible;
+				visible = visible || seg.visible;
+				active = active || seg.active;
 			});
-			if(visible){ tl.renderTrack(this); }
 			tl.emit(new Timeline.Event('paste',{segments:segs}));
 			tl.emit(new Timeline.Event('create',{segments:segs}));
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			if(visible){ tl.renderTrack(this); }
 		}
 
 		function unpaste(segs){
-			var tl = this.tl, that = this, visible = false;
+			var tl = this.tl, visible = false, active = false;
 			segs.forEach(function(seg){
-				visible |= seg.visible;
+				visible = visible || seg.visible;
+				active = active || seg.active;
 				seg.deleted = true;
 			});
-			if(visible){ tl.renderTrack(this); }
 			tl.emit(new Timeline.Event('unpaste',{segments:segs}));
 			tl.emit(new Timeline.Event('delete',{segments:segs}));
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			if(visible){ tl.renderTrack(this); }
 		}
 
 		function reshift(selected,delta){
-			var tl = this.tl;
+			var tl = this.tl, change = false;
 			selected.forEach(function(seg){
+				var active = seg.active;
 				seg.startTime += delta;
 				seg.endTime += delta;
+				tl.emit(new Timeline.Event('move',{segment:seg}));
+				change = change || active === seg.active;
 			});
-			tl.renderTrack(this);
 			tl.emit(new Timeline.Event('shift',{segments:selected,delta:delta}));
+			if(change){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			tl.renderTrack(this);
 		}
 
 		Object.defineProperties(TProto,{
@@ -263,7 +302,7 @@
 				set: function(val){
 					var tl = this.tl,
 						oldid = this.textTrack.label;
-					if(oldid == val){ return oldid; }
+					if(oldid === val){ return oldid; }
 					if(tl.trackIndices.hasOwnProperty(val)){
 						throw new Error("Track name already in use.");
 					}
@@ -294,7 +333,7 @@
 		TProto.cloneTimeCodes = function(kind,lang,name){
 			var ntt = new TextTrack(kind,name,lang);
 			ntt.cues.loadCues(this.textTrack.cues.map(function(cue){
-				return new TextTrackCue(cue.startTime,cue.endTime,"");
+				return new this.cueType(cue.startTime,cue.endTime,"");
 			}));
 			ntt.readyState = TextTrack.LOADED;
 			ntt.mode = "showing";
@@ -310,6 +349,8 @@
 			this.segments.push(seg);
 			this.segments.sort(order);
 
+			if(select){ seg.select(); }
+			
 			// Save the action
 			tl.commandStack.push({
 				file: this.textTrack.label,
@@ -320,8 +361,11 @@
 
 			tl.emit(new Timeline.Event('addcue',{cue:cue,segment:seg}));
 			tl.emit(new Timeline.Event('create',{segments:[seg]}));
-			if(select){ seg.select(); }
-			else if(seg.visible){ tl.renderTrack(this); }
+			if(seg.active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			tl.renderTrack(this);
 			return seg;
 		};
 
@@ -334,7 +378,7 @@
 		};
 
 		TProto.getCursor = function(pos) {
-			if(typeof pos !== 'object') return;
+			if(typeof pos !== 'object'){ return; }
 			var seg;
 
 			if(this.locked){ return 'locked'; }
@@ -360,16 +404,21 @@
 		function deleteMultiSeg(track){
 			var tl = track.tl;
 			return function(){
-				var visible = false,
+				var visible = false, active = false,
 					s_segs = tl.selectedSegments;
 				this.forEach(function(seg){
 					var i = s_segs.indexOf(seg);
 					if(~i){ s_segs.splice(i,1); }
 					visible = visible || seg.visible;
+					active = active || seg.active;
 					seg.deleted = true;
 					seg.selected = false;
 				});
 				tl.emit(new Timeline.Event('delete',{segments:this}));
+				if(active){
+					track.textTrack.activeCues.refreshCues();
+					tl.emit(new Timeline.Event('activechange'));
+				}
 				if(visible){ tl.renderTrack(track); }
 			};
 		}
@@ -377,12 +426,17 @@
 		function recreateMultiSeg(track){
 			var tl = track.tl;
 			return function(){
-				var visible = false;
+				var visible = false, active = false;
 				this.forEach(function(seg){
 					seg.deleted = false;
 					visible = visible || seg.visible;
+					active = active || seg.active;
 				});
 				tl.emit(new Timeline.Event('create',{segments:this}));
+				if(active){
+					track.textTrack.activeCues.refreshCues();
+					tl.emit(new Timeline.Event('activechange'));
+				}
 				if(visible){ tl.renderTrack(track); }
 			};
 		}
@@ -418,12 +472,13 @@
 		
 		TProto.deleteSelected = function(){
 			var that = this, tl = this.tl,
-				visible = false,
+				visible = false, active = false,
 				s_segs = tl.selectedSegments,
 				selected = s_segs.filter(function(seg){return seg.track === that;});
 			selected.forEach(function(seg){
 				s_segs.splice(s_segs.indexOf(seg),1);
 				visible = visible || seg.visible;
+				active = active || seg.active;
 				seg.deleted = true;
 				seg.selected = false;
 			});
@@ -435,7 +490,11 @@
 				undo: recreateMultiSeg(this)
 			});
 			tl.emit(new Timeline.Event('delete',{segments:selected}));
-			if(visible){ tl.renderTrack(this); }
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			tl.renderTrack(this);
 		};
 
 		TProto.mergeSelected = function(){
@@ -457,12 +516,15 @@
 				that = this,
 				textTrack = this.textTrack,
 				segments = this.segments,
-				visible = false;
+				visible = false,
+				active = false;
 
 			added = toCopy.map(function(seg){
 				var cue = seg.cue,
-					ncue = new TextTrackCue(cue.startTime,cue.endTime,cue.text),
+					ncue = new this.cueType(cue.startTime,cue.endTime,cue.text),
 					nseg = new Segment(that, ncue);
+					
+				//TODO: Make cue-type independent
 				ncue.vertical = cue.vertical;
 				ncue.align = cue.align;
 				ncue.line = cue.line;
@@ -471,13 +533,13 @@
 
 				textTrack.addCue(ncue);
 				segments.push(nseg);
-				visible |= nseg.visible;
+				visible = visible || nseg.visible;
+				active = active || nseg.active;
 
 				return nseg;
 			});
 
 			segments.sort(order);
-			if(visible){ tl.renderTrack(this); }
 
 			tl.commandStack.push({
 				file: this.textTrack.label,
@@ -487,6 +549,11 @@
 			});
 			tl.emit(new Timeline.Event('paste',{segments:added}));
 			tl.emit(new Timeline.Event('create',{segments:added}));
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			tl.renderTrack(this);
 		};
 
 		TProto.render = function(){
@@ -510,7 +577,7 @@
 			id_width = ctx.measureText(this.id).width + tl.width/25;
 			
 			ctx.fillText(this.id, tl.width/100, tl.trackHeight/2);
-			ctx.fillText(this.typeName, Math.max(tl.width*.99 - ctx.measureText(this.typeName).width, id_width), tl.trackHeight/2);
+			ctx.fillText(this.typeName, Math.max(tl.width*0.99 - ctx.measureText(this.typeName).width, id_width), tl.trackHeight/2);
 			
 			ctx.fillStyle = tl.colors[tl.commandStack.isFileSaved(this.id)?'tintSaved':'tintUnsaved'];
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
@@ -528,7 +595,7 @@
 				else{ seg.render(); }
 			});
 			selected.forEach(function(seg){ seg.render(); });
-			this.placeholder && this.placeholder.render();
+			if(this.placeholder !== null){ this.placeholder.render(); }
 			tl.cache.dir = dir;
 			
 			ctx.restore();
@@ -572,9 +639,14 @@
 		};
 
 		TProto.mouseMove = function(pos){
+			var change;
 			if(typeof pos !== 'object' || this.locked){ return; }
 			if(this.tl.currentTool === Timeline.SHIFT){
-				this.segments.forEach(function(seg){ seg.mouseMove(pos); });
+				change = this.segments.reduce(function(acc,seg){ return acc || seg.mouseMove(pos); }, false);
+				if(change){
+					this.textTrack.activeCues.refreshCues();
+					this.tl.emit(new Timeline.Event('activechange'));
+				}
 				this.tl.renderTrack(this);
 			}
 		};
@@ -594,6 +666,7 @@
 					undo: reshift.bind(this,selected,-delta)
 				});
 				tl.emit(new Timeline.Event('shift',{segments:selected,delta:delta}));
+				tl.renderTrack(this);
 			}
 		};
 	}(TlTextTrack.prototype));
@@ -604,7 +677,6 @@
 			return function(){
 				this.cue.text = text;
 				this.tl.renderTrack(this.track);
-				this.tl.emit(new Timeline.Event('textchange',{segment:this}));
 			};
 		}
 
@@ -612,29 +684,39 @@
 			return function(){
 				this.cue.id = id;
 				this.tl.renderTrack(this.track);
-				this.tl.emit(new Timeline.Event('idchange',{segment:this}));
 			};
 		}
 
 		function moveGenerator(start,end){
 			return function(){
+				var active = this.active;
 				this.startTime = start;
 				this.endTime = end;
-				this.track.textTrack.activeCues.refreshCues();
 				this.segments.sort(order);
-				if(this.visible){ this.tl.renderTrack(this.track); }
 				this.tl.emit(new Timeline.Event('move',{segment:this}));
+				if(this.active !== active){
+					this.track.textTrack.activeCues.refreshCues();
+					this.tl.emit(new Timeline.Event('activechange'));
+				}
+				if(this.visible){ this.tl.renderTrack(this.track); }
 			};
 		}
 
 		function resplitSeg(s1,s2,stime){
-			var tl = this.tl;
+			var tl = this.tl,
+				active = s1.active,
+				visible = s1.visible;
 
 			s2.deleted = false;
 			s1.cue.endTime = stime;
 
-			if(s1.visible || s2.visible){ tl.renderTrack(this); }
 			tl.emit('split',s1,s2);
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			if(visible){ tl.renderTrack(this); }
+				
 		}
 
 		function unsplitSeg(s1,s2){
@@ -648,8 +730,12 @@
 
 			s1.cue.endTime = s2.cue.endTime;
 
-			if(s1.visible){ this.tl.renderTrack(this); }
-			this.tl.emit(new Timeline.Event('merge',{segments:[s1,s2]}));
+			tl.emit(new Timeline.Event('merge',{segments:[s1,s2]}));
+			if(s1.active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			if(s1.visible){ tl.renderTrack(this); }
 		}
 
 		Object.defineProperties(SProto,{
@@ -675,7 +761,6 @@
 					});
 					cue.id = id;
 					tl.renderTrack(this.track);
-					tl.emit(new Timeline.Event('idchange',{segment:this}));
 					return id;
 				},
 				get: function(){return this.cue.id;},
@@ -695,7 +780,7 @@
 				set: function(t){
 					var tl = this.tl,
 						cue = this.cue;
-					if(cue.text == t){ return t; }
+					if(cue.text === t){ return t; }
 					tl.commandStack.push({
 						file: this.track.id,
 						context:this,
@@ -704,7 +789,6 @@
 					});
 					cue.text = t;
 					tl.renderTrack(this.track);
-					tl.emit(new Timeline.Event('textchange',{segment:this}));
 					return t;
 				},
 				get: function(){return this.cue.text;},
@@ -713,7 +797,7 @@
 		});
 
 		SProto.getCursor = function(pos){
-			if(typeof pos !== 'object')	return;
+			if(typeof pos !== 'object'){ return; }
 			switch(this.tl.currentTool){
 				case Timeline.DELETE: return 'remove';
 				case Timeline.SPLIT: return 'split';
@@ -761,13 +845,14 @@
 		SProto.toggle = function(){
 			if(this.selected){ this.unselect(); }
 			else{ this.select(); }
-		}
+		};
 
 		SProto.copy = function(){ this.tl.toCopy = [this]; };
 
 		SProto.del = function(){
 			var i, tl = this.tl,
 				visible = this.visible,
+				active = this.active,
 				s_segs = tl.selectedSegments;
 
 			this.deleted = true;
@@ -782,8 +867,12 @@
 				redo: deleteSeg,
 				undo: recreateSeg
 			});
-			if(visible){ tl.renderTrack(this.track); }
 			tl.emit(new Timeline.Event('delete',{segments:[this]}));
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			tl.renderTrack(this.track);
 		};
 
 		SProto.split = function(pos){
@@ -793,7 +882,7 @@
 				track = this.track,
 				cue = this.cue;
 
-			cp = new track.cueType(stime+.001, cue.endTime, cue.text);
+			cp = new track.cueType(stime+0.001, cue.endTime, cue.text);
 
 			cue.endTime = stime;
 
@@ -805,8 +894,8 @@
 				redo: resplitSeg.bind(track,this,seg,stime),
 				undo: unsplitSeg.bind(track,this,seg)
 			});
-			tl.renderTrack(track);
 			tl.emit(new Timeline.Event('split',{first:this,second:seg}));
+			tl.renderTrack(track);
 		};
 
 		SProto.mergeWithSelected = function(pos){
@@ -833,7 +922,6 @@
 		// Location computation
 		SProto.calcShape = function() {
 			var x, tl = this.tl,
-				shape = this.shape,
 				xl = tl.view.timeToPixel(this.startTime),
 				xr = tl.view.timeToPixel(this.endTime),
 				mid = (xl+xr)/2,
@@ -855,7 +943,6 @@
 
 		SProto.getMouseSide = function(pos) {
 			var x, tl = this.tl,
-				images = tl.images,
 				shape = this.shape,
 				hwidth = handleWidths(this, tl.images);
 
@@ -868,8 +955,7 @@
 		// Event handlers
 		SProto.mouseDown = function(pos) {
 			var tl = this.tl;
-			if(this.deleted || !this.selectable)
-				return;
+			if(this.deleted || !this.selectable){ return; }
 
 			this.startingPos = this.tl.view.timeToPixel(this.startTime);
 			this.startingLength = this.endTime - this.startTime;
@@ -877,20 +963,20 @@
 			tl.activeElement = this;
 
 			switch(tl.currentTool){
-				case Timeline.MOVE:
-					this.resizeSide = this.getMouseSide(pos);
-					this.moving = true;
-					this.initialStart = this.startTime;
-					this.initialEnd = this.endTime;
-					break;
-				case Timeline.SHIFT:
-					this.moving = true;
-					this.initialStart = this.startTime;
-					this.initialEnd = this.endTime;
-					break;
-				case Timeline.SPLIT:
-					this.split(pos);
-					break;
+			case Timeline.MOVE:
+				this.resizeSide = this.getMouseSide(pos);
+				this.moving = true;
+				this.initialStart = this.startTime;
+				this.initialEnd = this.endTime;
+				break;
+			case Timeline.SHIFT:
+				this.moving = true;
+				this.initialStart = this.startTime;
+				this.initialEnd = this.endTime;
+				break;
+			case Timeline.SPLIT:
+				this.split(pos);
+				break;
 			}
 		};
 
@@ -903,6 +989,7 @@
 				redo: redo
 			});
 			redo.call(this);
+			this.tl.renderTrack(this.track);
 		};
 
 		SProto.mouseUp = function(pos) {
@@ -921,7 +1008,6 @@
 					this.moving = false;
 					track = this.track;
 					track.segments.sort(order);
-					track.textTrack.activeCues.refreshCues();
 					track.render();
 					// Save the move
 					tl.commandStack.push({
@@ -931,7 +1017,6 @@
 						undo: moveGenerator(this.initialStart,this.initialEnd)
 					});
 					tl.renderTrack(track);
-					tl.emit("move",this);
 					break;
 				case Timeline.DELETE:
 					this.del();
@@ -944,7 +1029,7 @@
 				activeStart = this.active,
 				newTime, maxStartTime;
 
-			if(this.deleted || !this.selectable || !this.moving){ return; }
+			if(this.deleted || !this.selectable || !this.moving){ return false; }
 
 			newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
 
@@ -955,37 +1040,41 @@
 				this.startTime = newTime;
 				this.endTime = newTime + this.startingLength;
 				tl.emit(new Timeline.Event('move',{segment:this}));
+				if(activeStart !== this.active){ return true; }
 			}else if(tl.currentTool === Timeline.MOVE){
 				switch(this.resizeSide){
-					case 0:
-						maxStartTime = tl.length - this.startingLength;
-						if(newTime < 0){ newTime = 0; }
-						else if(newTime > maxStartTime){ newTime = maxStartTime; }
-						this.startTime = newTime;
-						this.endTime = newTime + this.startingLength;
-						tl.emit(new Timeline.Event('move',{segment:this}));
-						break;
-					case -1:
-						if(newTime < 0){ newTime = 0; }
-						else if(newTime >= this.endTime){ newTime = this.endTime - .001; }
-						this.startTime = newTime;
-						tl.emit(new Timeline.Event('resizel',{segment:this}));
-						break;
-					case 1:
-						newTime += this.startingLength;
-						if(newTime <= this.startTime){ newTime = this.startTime + .001; }
-						else if(newTime > tl.length){ newTime = tl.length; }
-						this.endTime = newTime;
-						tl.emit(new Timeline.Event('resizer',{segment:this}));
-						break;
-					default:
-						throw new Error("Invalid State");
+				case 0:
+					maxStartTime = tl.length - this.startingLength;
+					if(newTime < 0){ newTime = 0; }
+					else if(newTime > maxStartTime){ newTime = maxStartTime; }
+					this.startTime = newTime;
+					this.endTime = newTime + this.startingLength;
+					tl.emit(new Timeline.Event('move',{segment:this}));
+					break;
+				case -1:
+					if(newTime < 0){ newTime = 0; }
+					else if(newTime >= this.endTime){ newTime = this.endTime - 0.001; }
+					this.startTime = newTime;
+					tl.emit(new Timeline.Event('resizel',{segment:this}));
+					break;
+				case 1:
+					newTime += this.startingLength;
+					if(newTime <= this.startTime){ newTime = this.startTime + 0.001; }
+					else if(newTime > tl.length){ newTime = tl.length; }
+					this.endTime = newTime;
+					tl.emit(new Timeline.Event('resizer',{segment:this}));
+					break;
+				default:
+					throw new Error("Invalid State");
 				}
 				tl.renderTrack(this.track);
+				if(activeStart !== this.active){
+					this.track.textTrack.activeCues.refreshCues();
+					tl.emit(new Timeline.Event("activechange"));
+					return true;
+				}
 			}
-			if(activeStart != this.active){
-				this.track.textTrack.activeCues.refreshCues();
-			}
+			return false;
 		};
 
 		// Rendering
@@ -1002,7 +1091,7 @@
 		function renderSubPreview(ctx, shape, fonts, tl){
 			var direction, text, y;
 			if(this.id){
-				direction = TimedText.getTextDirection(this.id+"");
+				direction = TimedText.getTextDirection(this.id);
 				tl.cache.dir = direction;
 
 				ctx.font = fonts.idFont;
@@ -1025,7 +1114,7 @@
 		function renderDescPreview(ctx, shape, fonts, tl){
 			var direction, text, y;
 			if(this.id){
-				direction = TimedText.getTextDirection(this.id+"");
+				direction = TimedText.getTextDirection(this.id);
 				tl.cache.dir = direction;
 
 				ctx.font = fonts.idFont;
@@ -1048,7 +1137,7 @@
 		function renderMetaPreview(ctx, shape, fonts, tl){
 			var direction, text, y;
 			if(this.id){
-				direction = TimedText.getTextDirection(this.id+"");
+				direction = TimedText.getTextDirection(this.id);
 				tl.cache.dir = direction;
 
 				ctx.font = fonts.idFont;
@@ -1069,8 +1158,7 @@
 		}
 		
 		SProto.render = function() {
-			if(this.deleted)
-				return;
+			if(this.deleted){ return; }
 
 			var tl = this.tl,
 				images = tl.images,
@@ -1147,4 +1235,4 @@
 		};
 	}(Placeholder.prototype));
 
-}(window.Timeline,window));
+}(window.Timeline,window.TimedText,window));
