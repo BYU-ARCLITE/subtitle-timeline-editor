@@ -135,12 +135,23 @@ var CaptionEditor = (function(){
 	}
 	
 	function makeEditable(renderedCue,editor){
-		var node,
-			cursor = getSelection().anchorNode,
-			renderer = renderedCue.renderer;
+		var node;
 		
 		if(typeof renderedCue.typeInfo.attachEditor === 'function'){
-			renderedCue.typeInfo.attachEditor(renderedCue, editorInput.bind(renderedCue,editor));
+			renderedCue.typeInfo.attachEditor(renderedCue, {
+				//registerAttrChange: function(){ ... }
+				registerInput: editorInput.bind(editor,renderedCue),
+				getSelectedContent: function(){
+					var selection = getSelection();
+					return (selection.type === "Range" && renderedCue.node.contains(selection.focusNode))?
+						selection.getRangeAt(0).cloneContents():document.createDocumentFragment();
+				},
+				replaceSelection: function(node){
+					if(!renderedCue.node.contains(getSelection().focusNode)){ return false; }
+					replaceSelectionWith(node);
+					return true;
+				}
+			})
 		}
 		
 		node = renderedCue.node;
