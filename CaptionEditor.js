@@ -86,6 +86,9 @@ var CaptionEditor = (function(){
 				e.preventDefault();
 				e.stopPropagation();
 				break;
+			case 27: //escape key
+				this.node.blur();
+				break;
 			case 89: //undo and redo keys
 			case 90:
 				if(e.ctrlKey){ e.preventDefault(); }
@@ -132,7 +135,9 @@ var CaptionEditor = (function(){
 	}
 	
 	function makeEditable(renderedCue,editor){
-		var node;
+		var node,
+			cursor = getSelection().anchorNode,
+			renderer = renderedCue.renderer;
 		
 		if(typeof renderedCue.typeInfo.attachEditor === 'function'){
 			renderedCue.typeInfo.attachEditor(renderedCue, editorInput.bind(renderedCue,editor));
@@ -145,7 +150,44 @@ var CaptionEditor = (function(){
 		node.addEventListener('paste',filterPasteData.bind(renderedCue,editor),false);
 		node.addEventListener('keydown',editorKeyDown.bind(renderedCue,editor),false);
 		node.addEventListener('keyup',cancelEvent,false);
-		node.addEventListener('keypress',cancelEvent,false);
+		node.addEventListener('keypress',cancelEvent,false);		
+	}
+	
+	function isFocusEditable(){
+		var node = getSelection().focusNode;
+		while(node !== null){
+			if(node.nodeType === Node.ELEMENT_NODE){
+				if(node.contentEditable === "true"){ return true; }
+				if(node.tagName === 'input'){ return true; }
+				if(node.tagName === 'textarea'){ return true; }
+			}
+			node = node.parentNode;
+		}
+		return false;
+	}
+	
+	function autoFocus(renderedCue){
+		var node = renderedCue.node;
+		if(isFocusEditable()){ return; }
+		(new MutationObserver(function(mutations,observer) {
+			var selection, range;
+			if(mutations.some(function(record){
+				return record.type !== 'childList'?false:
+					record.addedNodes === null?false:
+					[].indexOf.call(record.addedNodes,node) !== -1;
+			})){
+				range = document.createRange();
+				range.selectNodeContents(node);
+				range.collapse(false); //false moves to the end instead of the beginning
+				
+				selection = getSelection();
+				selection.removeAllRanges();
+				selection.addRange(range);
+				
+				node.focus();
+				observer.disconnect();
+			}    
+		})).observe(renderedCue.renderer.appendCueCanvasTo,{childList:true,subtree:true});
 	}
 	
 	CaptionEditor.prototype.make = function(renderedCue,area,defRender){
@@ -154,9 +196,15 @@ var CaptionEditor = (function(){
 				if(renderedCue.dirty){
 					renderedCue.cleanup();
 				}else{ return; }
+				defRender();
+				if(renderedCue.node){ autoFocus(renderedCue); }
+			}else{
+				defRender();
+				if(renderedCue.node){
+					makeEditable(renderedCue,this);
+					autoFocus(renderedCue);
+				}
 			}
-			defRender();
-			makeEditable(renderedCue,this);
 		}else{ defRender(); }
 	};
 	
