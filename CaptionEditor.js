@@ -178,9 +178,10 @@ var CaptionEditor = (function(){
 	}
 	
 	function autoFocus(renderedCue){
-		var node = renderedCue.node;
+		var observer, fn, node = renderedCue.node;
 		if(isFocusEditable()){ return; }
-		(new MutationObserver(function(mutations,observer) {
+		fn = function(){ observer.disconnect(); };
+		observer = new MutationObserver(function(mutations) {
 			var selection, range;
 			if(mutations.some(function(record){
 				return record.type !== 'childList'?false:
@@ -197,8 +198,11 @@ var CaptionEditor = (function(){
 				
 				node.focus();
 				observer.disconnect();
+				renderedCue.removeFinalizer(fn);
 			}    
-		})).observe(renderedCue.renderer.appendCueCanvasTo,{childList:true,subtree:true});
+		});
+		observer.observe(renderedCue.renderer.appendCueCanvasTo,{childList:true,subtree:true});
+		renderedCue.addFinalizer(fn);
 	}
 	
 	CaptionEditor.prototype.make = function(renderedCue,area,defRender){
