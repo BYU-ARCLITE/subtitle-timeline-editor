@@ -692,7 +692,7 @@
 				var active = this.active;
 				this.startTime = start;
 				this.endTime = end;
-				this.segments.sort(order);
+				this.track.segments.sort(order);
 				this.tl.emit(new Timeline.Event('move',{segment:this}));
 				if(this.active !== active){
 					this.track.textTrack.activeCues.refreshCues();
