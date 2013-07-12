@@ -367,6 +367,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			sequence = path.split('.'),
 			submenu = this.menuOptions;
 
+		if(typeof config !== 'object'){ config = {}; }
 		if(!sequence.length){ throw new Error("No Path"); }
 
 		opt = {submenu:submenu};
@@ -387,7 +388,10 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}while(sequence.length);
 
 		opt.label = config.label;
-		if(typeof config.action === 'action'){
+		if(typeof config.vars === 'object'){
+			opt.vars = config.vars;
+		}
+		if(typeof config.action === 'function'){
 			opt.action = config.action;
 		}
 		if(typeof config.calc === 'function'){
