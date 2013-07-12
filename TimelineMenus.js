@@ -6,7 +6,7 @@
 	}
 	
 	Timeline.Menu = [
-		{label:"Track",
+		{name:"Track",
 			condition:function(){return !!this.track; },
 			vars: {
 				numSelected: function(pos,vars){
@@ -15,35 +15,30 @@
 				}
 			},
 			submenu:[
-				{label:"Merge Selected",
+				{name:"Merge Selected",
 					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 1 },
 					action:function(){ this.track.mergeSelected(); }},
-				{label:"Copy Selected",
+				{name:"Copy Selected",
 					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0 },
 					action:function(){ this.track.copySelected(); }},
-				{label:"Delete Selected",
+				{name:"Delete Selected",
 					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0 },
 					action:function(){ this.track.deleteSelected(); }},
-				{label:"Paste",
+				{name:"Paste",
 					condition:function(){
 						var copy = this.timeline.toCopy,
 							track = this.track;
 						return !track.locked && copy.length && copy[0].track !== track;
 					},
 					action:function(){ this.track.paste(this.timeline.toCopy); }},
-				{label:"Start Auto Cue",
-					condition: function(){ return !(this.track.locked && this.track.autoCue); },
-					action: function(pos){ this.track.autoCue = true; }},
-				{label:"Stop Auto Cue",
-					condition: function(){ return !this.track.locked && this.track.autoCue; },
-					action: function(pos){ this.track.autoCue = false; }},
-				{label:"Lock",
+				{name:"Auto Cue",
+					label:function(){ return this.track.autoCue?"Stop Auto Cue":"Start Auto Cue"; },
 					condition:function(){ return !this.track.locked; },
-					action:function(){ this.track.locked = true; }},
-				{label:"Unlock",
-					condition:function(){ return this.track.locked; },
-					action:function(){ this.track.locked = false; }},
-				{label:"Remove",
+					action:function(pos){ this.track.autoCue = !this.track.autoCue; }},
+				{name:"Lock",
+					label:function(){ return this.track.locked?"Unlock":"Lock"; },
+					action:function(){ this.track.locked = !this.track.locked; }},
+				{name:"Remove",
 					action:function(){
 						var track = this.track;
 						if(confirm(
@@ -52,74 +47,69 @@
 							:track.id+" has unsaved changes. Are you sure you want to remove it?")
 						){ this.timeline.removeTextTrack(track.id); }
 					}},
-				{label:"Set Audio",
+				{name:"Set Audio",
 					condition: function(){ return global.Reader && global.WaveForm && global.Resampler && !this.track.locked; },
-					submenu: {
-						forEach: function(f,that){
-							[{label: "From Disk",
-								action: function(){
-									var tl = this.timeline,
-										track = this.track,
-										f = document.createElement('input');
-									f.type = "file";
-									f.addEventListener('change',function(evt){
-										tl.loadAudioTrack(evt.target.files[0],file.name);
-										tl.setAudioTrack(track.id,file.name);
-									});
-									f.click();	
-								}
-							},{label: "From URL",
-								action: function(){
-									var tl = this.timeline, name,
-										url = prompt("URL of Audio File:","http://");
-									if(!url){ return; }
-									name = /([^\/]+)\/?$/g.exec(url)[1];
-									tl.loadAudioTrack(url,name);
-									tl.setAudioTrack(this.track.id,name);
-								}
-							},{label: "None",
-								condition: function(){ return !!this.track.audioId; },
-								action: function(){ this.timeline.unsetAudioTrack(this.track.id); }
-							}].forEach(f,that);
-							Object.keys(that.timeline.audio).forEach(function(key){
-								f.call(that,(that.track.audioId === key?
-									{label: "<i>"+key+"</i>"}:
-									{label: key,
-										action: function(){ this.timeline.setAudioTrack(this.track.id,key); }}));
-							});
+					submenu:[
+						{name: "From Disk",
+							action: function(){
+								var tl = this.timeline,
+									track = this.track,
+									f = document.createElement('input');
+								f.type = "file";
+								f.addEventListener('change',function(evt){
+									tl.loadAudioTrack(evt.target.files[0],file.name);
+									tl.setAudioTrack(track.id,file.name);
+								});
+								f.click();	
+							}
+						},{name: "From URL",
+							action: function(){
+								var tl = this.timeline, name,
+									url = prompt("URL of Audio File:","http://");
+								if(!url){ return; }
+								name = /([^\/]+)\/?$/g.exec(url)[1];
+								tl.loadAudioTrack(url,name);
+								tl.setAudioTrack(this.track.id,name);
+							}
+						},{name: "None",
+							condition: function(){ return !!this.track.audioId; },
+							action: function(){ this.timeline.unsetAudioTrack(this.track.id); }
 						}
+					],
+					calc: function(f){
+						Object.keys(this.timeline.audio).forEach(function(key){
+							f(this.track.audioId === key?
+								{name: "<i>"+key+"</i>"}:
+								{name: key,
+									action: function(){ this.timeline.setAudioTrack(this.track.id,key); }});
+						},this);
 					}},
-				{label:"Convert File Type",
+				{name:"Convert File Type",
 					condition: function(){ return !this.track.locked && TimedText.getRegisteredTypes().length > 1; },
-					submenu: {
-						forEach: function(f,that){
-							TimedText.getRegisteredTypes().forEach(function(mime){
-								f.call(that,(that.track.mime === mime?
-									{label: "<i>"+TimedText.getTypeName(mime)+"</i>"}:
-									{	label: TimedText.getTypeName(mime),
-										action: function(){
-											if(confirm("Converting File Types May Cause Loss of Formatting.\nAre you sure you want to continue?")){
-												this.track.mime = mime;
-											}
+					calc: function(f){
+						TimedText.getRegisteredTypes().forEach(function(mime){
+							f(this.track.mime === mime?
+								{name: "<i>"+TimedText.getTypeName(mime)+"</i>"}:
+								{name: TimedText.getTypeName(mime),
+									action: function(){
+										if(confirm("Converting File Types May Cause Loss of Formatting.\nAre you sure you want to continue?")){
+											this.track.mime = mime;
 										}
 									}
-								));
-							});
-						}
+								}
+							);
+						},this);
 					}}
 			]
 		},
-		{label:"Segment",
+		{name:"Segment",
 			condition: function(){return !!this.segment; },
 			submenu:[
-				{label:"Select",
-					condition:function(){ return !this.segment.selected; },
-					action:function(){ this.segment.select(); }},
-				{label:"Unselect",
-					condition:function(){ return this.segment.selected; },
-					action:function(){ this.segment.unselect(); }},
-				{label:"Split", action:function(pos){ this.segment.split(pos); }},
-				{label:"Merge With Selected",
+				{name:"Select",
+					label:function(){ return this.segment.selected?"Unselect":"Select"; },
+					action:function(){ this.segment.toggle(); }},
+				{name:"Split", action:function(pos){ this.segment.split(pos); }},
+				{name:"Merge With Selected",
 					condition:function(){
 						var track = this.track;
 						return	!track.locked &&
@@ -127,51 +117,51 @@
 								this.timeline.selectedSegments.some(function(seg){ return seg.track === track; });
 					},
 					action:function(){ this.segment.mergeWithSelected(); }},
-				{label:"Copy", action:function(){ this.segment.copy(); }},
-				{label:"Delete", action:function(){ this.segment.del(); }},
-				{label:"Match Repeat",
+				{name:"Copy", action:function(){ this.segment.copy(); }},
+				{name:"Delete", action:function(){ this.segment.del(); }},
+				{name:"Match Repeat",
 					condition:function(pos){ return this.timeline.abRepeatSet; },
 					action:function(pos){
 						var tl = this.timeline;
 						this.segment.move(tl.repeatA,tl.repeatB);
 					}},
-				{label:"Set Repeat",
+				{name:"Set Repeat",
 					action:function(pos){
 						var seg = this.segment;
 						this.timeline.setRepeat(seg.startTime,seg.endTime);
 					}}
 			]
 		},
-		{label:"Editing",submenu:[
-			{label:"Undo",
+		{name:"Editing",submenu:[
+			{name:"Undo",
 				condition:function(){return this.timeline.commandStack.undoDepth > 0; },
 				action:function(){ this.timeline.commandStack.undo(); }},
-			{label:"Redo",
+			{name:"Redo",
 				condition:function(){return this.timeline.commandStack.redoDepth > 0; },
 				action:function(){ this.timeline.commandStack.redo(); }},
-			{label:"Tools",submenu:[
-				{label:"Select",action:function(){ this.timeline.currentTool = Timeline.SELECT; }},
-				{label:"Move",action:function(){ this.timeline.currentTool = Timeline.MOVE; }},
-				{label:"Add",action:function(){ this.timeline.currentTool = Timeline.CREATE; }},
-				{label:"Split",action:function(){ this.timeline.currentTool = Timeline.SPLIT; }},
-				{label:"Delete",action:function(){ this.timeline.currentTool = Timeline.DELETE; }},
-				{label:"Shift",action:function(){ this.timeline.currentTool = Timeline.SHIFT; }},
-				{label:"Copy",action:function(){ this.timeline.currentTool = Timeline.COPY; }}
+			{name:"Tools",submenu:[
+				{name:"Select",action:function(){ this.timeline.currentTool = Timeline.SELECT; }},
+				{name:"Move",action:function(){ this.timeline.currentTool = Timeline.MOVE; }},
+				{name:"Add",action:function(){ this.timeline.currentTool = Timeline.CREATE; }},
+				{name:"Split",action:function(){ this.timeline.currentTool = Timeline.SPLIT; }},
+				{name:"Delete",action:function(){ this.timeline.currentTool = Timeline.DELETE; }},
+				{name:"Shift",action:function(){ this.timeline.currentTool = Timeline.SHIFT; }},
+				{name:"Copy",action:function(){ this.timeline.currentTool = Timeline.COPY; }}
 			]}
 		]},
-		{label:"Navigation",submenu:[
-			{label:"Repeat Tool",action:function(){ this.timeline.currentTool = Timeline.REPEAT; }},
-			{label:"Scroll Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
-			{label:"Order Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
-			{label:"Zoom In",
-				condition:function(){ return this.timeline.view.zoom > .0011; },
+		{name:"Navigation",submenu:[
+			{name:"Repeat Tool",action:function(){ this.timeline.currentTool = Timeline.REPEAT; }},
+			{name:"Scroll Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
+			{name:"Order Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
+			{name:"Zoom In",
+				condition:function(){ return this.timeline.view.zoom > 0.0011; },
 				action:function(pos){
 					var view = this.timeline.view;
 					view.startTime += (view.pixelToTime(pos.x)-view.startTime)/2;
 					view.endTime += (view.pixelToTime(pos.x)-view.endTime)/2;
 					this.timeline.render();
 				}},
-			{label:"Zoom Out",
+			{name:"Zoom Out",
 				condition:function(){ return this.timeline.view.length < this.timeline.length; },
 				action:function(pos){
 					var view = this.timeline.view;
@@ -180,17 +170,15 @@
 					this.timeline.render();
 				}}
 		]},
-		{label:"AB Repeat",submenu:[
-			{label:"Enable",
-				condition:function(){return this.timeline.abRepeatSet && !this.timeline.abRepeatOn; },
-				action:function(){ this.timeline.abRepeatOn = true; }},
-			{label:"Disable",
-				condition:function(){return this.timeline.abRepeatOn; },
-				action:function(){ this.timeline.abRepeatOn = false; }},
-			{label:"Clear",
+		{name:"AB Repeat",submenu:[
+			{name:"Enable",
+				label:function(){ return this.timeline.abRepeatOn?"Disable":"Enable"; },
+				condition:function(){ return this.timeline.abRepeatSet; },
+				action:function(){ this.timeline.abRepeatOn = !this.timeline.abRepeatOn; }},
+			{name:"Clear",
 				condition:function(){return this.timeline.abRepeatSet; },
 				action:function(){ this.timeline.clearRepeat(); }},
-			{label:"Set Repeat Point",action:function(pos){
+			{name:"Set Repeat Point",action:function(pos){
 				(this.timeline.abRepeatSet?updateABPoints:resetABPoints).call(this.timeline,pos);
 			}}
 		]}

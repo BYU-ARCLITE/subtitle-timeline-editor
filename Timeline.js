@@ -293,31 +293,44 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}
 	}
 
-	function buildLevel(pos, opts, ovars, that){
-		var menu = document.createElement('ul');
-		opts.forEach(function(opt){
-			var ul, li,
-				nthat = this,
-				vars = ovars;
-			if(opt.vars){
-				vars = Object.create(vars);
-				Object.keys(opt.vars).forEach(function(key){
-					vars[key] = opt.vars[key].call(nthat,pos,ovars);
-				});
+	function buildOption(menu,pos,ovars,opt){
+		var ul, li,
+			vars = ovars;
+		if(typeof opt.vars === 'object'){
+			vars = Object.create(vars);
+			Object.keys(opt.vars).forEach(function(key){
+				vars[key] = opt.vars[key].call(this,pos,ovars);
+			},this);
+		}
+		if(typeof opt.condition === 'function' && !opt.condition.call(this,pos,vars)){ return; }
+		li = document.createElement('li');
+		li.innerHTML = "<a>"+String(
+			typeof opt.label === 'undefined'?opt.name:
+			typeof opt.label === 'function'?opt.label.call(this,pos,vars):opt.label
+		)+"</a>";
+		if(typeof opt.action === 'function'){
+			li.addEventListener('click',clickMenu.bind(this,opt.action,pos,vars),false);
+		}
+		ul = buildLevel(pos, opt, vars, this);
+		if(ul !== null){
+			li.appendChild(ul);
+			li.addEventListener('mouseover',checkMenuSize.bind(ul),false);
+		}
+		menu.appendChild(li);
+	}
+	
+	function buildLevel(pos, level, ovars, that){
+		var menu = null;
+		if(level.submenu instanceof Array){
+			menu = document.createElement('ul');
+			level.submenu.forEach(buildOption.bind(that,menu,pos,ovars));
+			if(typeof level.calc === 'function'){
+				level.calc.call(that,buildOption.bind(that,menu,pos,ovars));
 			}
-			if(opt.condition && !opt.condition.call(this,pos,vars)){ return; }
-			li = document.createElement('li');
-			li.innerHTML = "<a>"+opt.label+"</a>";
-			if(opt.submenu && (typeof opt.submenu.forEach === 'function')){
-				ul = buildLevel(pos, opt.submenu, vars, this);
-				li.appendChild(ul);
-				li.addEventListener('mouseover',checkMenuSize.bind(ul),false);
-			}
-			if(typeof opt.action === 'function'){
-				li.addEventListener('click',clickMenu.bind(this,opt.action,pos,vars),false);
-			}
-			menu.appendChild(li);
-		},that);
+		}else if(typeof level.calc === 'function'){
+			menu = document.createElement('ul');
+			level.calc.call(that,buildOption.bind(that,menu,pos,ovars));
+		}
 		return menu;
 	}
 
@@ -326,7 +339,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			top = (pos.y + cvs.offsetTop),
 			left = (pos.x + cvs.offsetLeft),
 			track = this.trackFromPos(pos),
-			menu = buildLevel(pos,this.menuOptions,{},{
+			menu = buildLevel(pos,{submenu:this.menuOptions},{},{
 				timeline: this,
 				track: track,
 				segment: track && track.segFromPos(pos)
@@ -349,31 +362,39 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.activeMenu = menu;
 	};
 
-	Proto.addMenuItem = function(path,action,condition,pos){
+	Proto.addMenuItem = function(path,config){ //label, action, condition, calc, index
 		var optname, idx, opt,
 			sequence = path.split('.'),
 			submenu = this.menuOptions;
 
 		if(!sequence.length){ throw new Error("No Path"); }
-		if(typeof action !== 'function'){ throw new Error("No Action Function"); }
 
 		opt = {submenu:submenu};
 		do{	if(!opt.hasOwnProperty('submenu')){ opt.submenu = []; }
 			submenu = opt.submenu;
 			optname = sequence.shift();
-			for(idx = 0; (opt = submenu[idx]) && opt.label !== optname; idx++){
+			for(idx = 0; (opt = submenu[idx]) && opt.name !== optname; idx++){
 				//console.log(optname,opt);
 			}
 			if(idx === submenu.length){
-				opt = {label:optname};
-				pos = Math.floor(+pos)||submenu.length;
-				submenu.splice(pos,0,opt);
+				opt = {name:optname};
+				if(typeof config.index === 'number'){
+					submenu.splice(Math.floor(config.index),0,opt);
+				}else{
+					submenu.push(opt);
+				}
 			}
 		}while(sequence.length);
 
-		opt.action = action;
-		if(typeof condition === 'function'){
-			opt.condition = condition;
+		opt.label = config.label;
+		if(typeof config.action === 'action'){
+			opt.action = config.action;
+		}
+		if(typeof config.calc === 'function'){
+			opt.calc = config.calc;
+		}
+		if(typeof config.condition === 'function'){
+			opt.condition = config.condition;
 		}
 	};
 	
@@ -386,7 +407,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		do{	if(!opt.hasOwnProperty('submenu')){ return []; }
 			submenu = opt.submenu;
 			optname = sequence.shift();
-			for(idx = 0; (opt = submenu[idx]) && opt.label !== optname; idx++){
+			for(idx = 0; (opt = submenu[idx]) && opt.name !== optname; idx++){
 				//console.log(optname,opt);
 			}
 			if(idx === submenu.length){ return []; }
