@@ -949,9 +949,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.emit(new Timeline.Event("abrepeatset"));
 	};
 	
-	Proto.breakPoint = function(){
-		var that = this,
-			time = this.currentTime,
+	Proto.breakPoint = function(skip){
+		var time = this.currentTime,
 			tracks = this.tracks.filter(function(track){ return track.autoCue; });
 		if(!tracks.length){ return; }
 		switch(this.autoCueStatus){
@@ -964,13 +963,17 @@ var Timeline = (function(TimedText,EditorWidgets){
 			});
 			break;
 		case Timeline.AutoCueCueing:
-			this.autoCueStatus = Timeline.AutoCueRepeating;
-			this.setRepeat(this.autoCueStart,time);
+			if(!skip){
+				this.autoCueStatus = Timeline.AutoCueRepeating;
+				this.setRepeat(this.autoCueStart,time);
+				this.autoCueStart -= .01;
+				time += .01;
+				break;
+			}
 			tracks.forEach(function(track){
-				track.setPlaceholder(that.autoCueStart-0.01, time+0.01);
+				track.setPlaceholder(this.autoCueStart, time);
 				track.resolvePlaceholder();
-			});
-			break;
+			},this);
 		default:
 			this.clearRepeat();
 			this.autoCueStatus = Timeline.AutoCueResolved;
