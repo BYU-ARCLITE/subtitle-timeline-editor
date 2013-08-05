@@ -215,17 +215,13 @@ var CaptionEditor = (function(){
 	CaptionEditor.prototype.make = function(renderedCue,area,defRender){
 		if(renderedCue.editable){
 			if(renderedCue.done){
-				if(renderedCue.dirty){
-					renderedCue.cleanup();
-				}else{ return; }
-				defRender();
-				if(renderedCue.node){ setTimeout(function(){autoFocus(renderedCue);},50); }
-			}else{
-				defRender();
-				if(renderedCue.node){
-					makeEditable(renderedCue,this);
-					setTimeout(function(){autoFocus(renderedCue);},50);
-				}
+				if(!renderedCue.dirty){ return; }
+				renderedCue.cleanup();
+			}
+			defRender();
+			if(renderedCue.node){
+				makeEditable(renderedCue,this);
+				setTimeout(function(){autoFocus(renderedCue);},50);
 			}
 		}else{ defRender(); }
 	};
