@@ -58,15 +58,22 @@ var CaptionEditor = (function(){
 		
 		anchor = selection.anchorNode;
 		text = anchor.nodeValue;
-		offset = selection.anchorOffset;
 		
-		//edit the caption contents
-		frag = document.createDocumentFragment();
-		if(offset > 0){ frag.appendChild(document.createTextNode(text.substr(0,offset))); }
-		frag.appendChild(node);
-		focusNode = document.createTextNode(text.substr(offset));
-		frag.appendChild(focusNode);
-		anchor.parentNode.replaceChild(frag,anchor);
+		if(text === null){
+			focusNode = document.createTextNode('');
+			anchor.appendChild(node);
+			anchor.appendChild(focusNode);
+		}else{
+			offset = selection.anchorOffset;
+			focusNode = document.createTextNode(text.substr(offset));
+			frag = document.createDocumentFragment();
+			
+			//edit the caption contents
+			if(offset > 0){ frag.appendChild(document.createTextNode(text.substr(0,offset))); }
+			frag.appendChild(node);
+			frag.appendChild(focusNode);
+			anchor.parentNode.replaceChild(frag,anchor);
+		}
 		
 		//reset the caret
 		range = document.createRange();
@@ -212,12 +219,12 @@ var CaptionEditor = (function(){
 					renderedCue.cleanup();
 				}else{ return; }
 				defRender();
-				if(renderedCue.node){ autoFocus(renderedCue); }
+				if(renderedCue.node){ setTimeout(function(){autoFocus(renderedCue);},50); }
 			}else{
 				defRender();
 				if(renderedCue.node){
 					makeEditable(renderedCue,this);
-					autoFocus(renderedCue);
+					setTimeout(function(){autoFocus(renderedCue);},50);
 				}
 			}
 		}else{ defRender(); }
