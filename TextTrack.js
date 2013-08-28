@@ -1091,7 +1091,7 @@
 		function renderSubPreview(ctx, shape, fonts, tl){
 			var direction, text, y;
 			if(this.id){
-				direction = TimedText.getTextDirection(this.id);
+				direction = TimedText.getTextDirection(this.id+"");
 				tl.cache.dir = direction;
 
 				ctx.font = fonts.idFont;
