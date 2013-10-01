@@ -1307,6 +1307,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 						success: function(track, mime){
 							track.mode = 'showing';
 							that.addTextTrack(track,mime,true);
+							that.commandStack.setFileUnsaved(file.name);
                             that.emit(new Timeline.Event("droptrack", {track:track}));
 						}
 					});
@@ -1336,6 +1337,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 							success: function(track,mime){
 								track.mode = 'showing';
 								that.addTextTrack(track,mime,true);
+							    that.commandStack.setFileUnsaved(file.name);
                                 that.emit(new Timeline.Event("droptrack", {track:track}));
 							}
 						});
