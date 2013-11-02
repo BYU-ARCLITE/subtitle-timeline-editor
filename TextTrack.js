@@ -710,7 +710,7 @@
 			s2.deleted = false;
 			s1.cue.endTime = stime;
 
-			tl.emit('split',s1,s2);
+			tl.emit(new Timeline.Event('split',{first:s1,second:s2}));
 			if(active){
 				this.textTrack.activeCues.refreshCues();
 				tl.emit(new Timeline.Event('activechange'));
