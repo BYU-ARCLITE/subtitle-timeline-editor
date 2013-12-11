@@ -114,7 +114,7 @@ var CaptionEditor = (function(){
 		e.preventDefault();
 		e.stopPropagation();
 		
-		if(~ClipBoard.types.indexOf('text/html')){
+		if(~[].indexOf.call(ClipBoard.types,'text/html')){
 			tmp = document.createElement('div');
 			tmp.innerHTML = ClipBoard.getData('text/html');
 			frag = document.createDocumentFragment();
