@@ -1287,13 +1287,14 @@ var Timeline = (function(TimedText,EditorWidgets){
 	function dragDrop(ev) {
 		ev.stopPropagation();
 		ev.preventDefault();
-		var that = this, links, name,
+		var that = this, links, types,
 			track = this.trackFromPos({x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY}),
-			files = ev.dataTransfer.files,
-			types = ev.dataTransfer.types;
+			dataTransfer = ev.dataTransfer,
+			files = dataTransfer.files;
 			
 		if(files.length){ //Load Local Files
 			[].forEach.call(files,function(file){
+				var name;
 				if(file.type.substr(0,6) === 'audio/'){ //Load audio waveform
 					name = file.name;
 					that.loadAudioTrack(file,name);
@@ -1314,30 +1315,31 @@ var Timeline = (function(TimedText,EditorWidgets){
 				}
 			});
 		}else{ //Load from URLs
+			types = [].slice.call(dataTransfer.types);
 			if(~types.indexOf('text/x-moz-url')){
-				links = ev.dataTransfer.getData('text/x-moz-url').split('\n').filter(function(e,i){ return !(i%2); });
+				links = dataTransfer.getData('text/x-moz-url').split('\n').filter(function(e,i){ return !(i%2); });
 			}else if(~types.indexOf('text/uri-list')){
-				links = ev.dataTransfer.getData('text/uri-list').split('\n').filter(function(e){ return e[0]!=='#'; });
+				links = dataTransfer.getData('text/uri-list').split('\n').filter(function(e){ return e[0]!=='#'; });
 			}else if(~types.indexOf('text/plain')){
-				links = ev.dataTransfer.getData('text/plain').split('\n');
+				links = dataTransfer.getData('text/plain').split('\n').filter(function(e){ return e.substr(0,4) === 'http'; });
 			}else{ return; }
 			links.forEach(function(url){
 			    var xhr = new XMLHttpRequest();
-				xhr.onload = function(event) {
+				xhr.onload = function(){
+					var name = /([^\/]+)\/?$/g.exec(url)[1];
 					if(/audio\//g.test(xhr.getResponseHeader("Content-Type"))){	//Load an audio waveform
-						name = /([^\/]+)\/?$/g.exec(url)[1];
 						that.loadAudioTrack(url,name);
 						if(links.length === 1 && track){
 							that.setAudioTrack(track.id,name);
 						}
 					}else{ //Load a text track
 						TextTrack.get({
-							url: url, label: /([^\/]+)\/?$/g.exec(url)[1],
+							url: url, label: name,
 							kind: 'subtitles', lang: 'zxx',
 							success: function(track,mime){
 								track.mode = 'showing';
 								that.addTextTrack(track,mime,true);
-								that.commandStack.setFileUnsaved(file.name);
+								that.commandStack.setFileUnsaved(name);
                                 that.emit(new Timeline.Event("droptrack", {track:track}));
 							}
 						});
@@ -1346,7 +1348,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 				xhr.open("HEAD", url, true);
 				xhr.send(null);
 			});
-		}		
+		}
 	}
 
 	function dragOver(ev) {
