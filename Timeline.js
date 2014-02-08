@@ -19,7 +19,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 	if(!EditorWidgets || typeof EditorWidgets.CommandStack !== 'function'){
 		throw new Error("Missing CommandStack Constructor");
 	}
-		
+
     if(!requestFrame){
         requestFrame = function(callback) {
             var currTime = +(new Date),
@@ -30,7 +30,7 @@ var Timeline = (function(TimedText,EditorWidgets){
         };
         cancelFrame = clearTimeout;
     }
-	
+
 	function Timeline(location, params) {
 		if(!(location instanceof HTMLElement)){ throw new Error("Invalid DOM Insertion Point"); }
 		if(!params){ params = {}; }
@@ -146,7 +146,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 		// Sizing
 		this.height = this.keyHeight + this.trackPadding + this.sliderHeight;
-		
+
 		//rendering control
 		this.requestedTrack = null;
 		this.requestedFrame = 0;
@@ -220,11 +220,11 @@ var Timeline = (function(TimedText,EditorWidgets){
 	Timeline.SCROLL = 6;
 	Timeline.SHIFT = 7;
 	Timeline.SPLIT = 8;
-	
+
 	Timeline.AutoCueResolved = 0;
 	Timeline.AutoCueCueing = 1;
 	Timeline.AutoCueRepeating = 2;
-	
+
 	Timeline.Event = function(name,data){
 		var that = this, prevented = false;
 		if(typeof data === 'object'){
@@ -242,7 +242,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 	Object.defineProperties(Proto,{
 		trackNames: {get: function(){ return Object.keys(this.trackIndices); }, enumerable: true }
 	});
-	
+
 	// Sizing
 	Proto.trackHeight = 50;
 	Proto.trackPadding = 10;
@@ -318,7 +318,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}
 		menu.appendChild(li);
 	}
-	
+
 	function buildLevel(pos, level, ovars, that){
 		var menu = null;
 		if(level.submenu instanceof Array){
@@ -401,7 +401,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			opt.condition = config.condition;
 		}
 	};
-	
+
 	Proto.getMenuItems = function(path){
 		var optname, idx, opt,
 			sequence = path.split('.'),
@@ -474,7 +474,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 	Proto.hasTextTrack = function(name){
 		return this.trackIndices.hasOwnProperty(name);
 	};
-	
+
 	Proto.addTextTrack = function(textTrack,mime,overwrite) {
 		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){ throw new Error("Track name already in use."); }
 		var track = new Timeline.TextTrack(this, textTrack, mime);
@@ -565,12 +565,12 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}else{
 			if(!this.trackIndices.hasOwnProperty(tid)){ throw new Error("Track does not exist"); }
 			tracks = [this.tracks[this.trackIndices[tid]]];
-		}			
+		}
 		tracks.forEach(function(track){ track.autoCue = onoff; });
 	};
-	
-	/** Audio Functions **/	
-	
+
+	/** Audio Functions **/
+
 	Proto.addAudioTrack = function(wave, id) {
 		var track;
 		if(this.audio.hasOwnProperty(id)){ throw new Error("Track with that id already loaded."); }
@@ -593,11 +593,11 @@ var Timeline = (function(TimedText,EditorWidgets){
 				this.trackHeight,
 				1/*channels*/,rate
 			);
-		
+
 		this.addAudioTrack(wave, id);
 		console.log("Initializing Audio Decoder");
 		console.time("audio "+id);
-		
+
 		reader.on('format', function(data) {
 			console.log("Decoding Audio...");
 			channels = data.channelsPerFrame;
@@ -613,7 +613,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		});
 		reader.on('ready', getData);
 		reader.start();
-		
+
 		function getData(){
 			var i, j, chan;
 			if(reader.get(buffer) !== 'filled'){
@@ -629,7 +629,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			}
 		}
 	};
-	
+
 	Proto.removeAudioTrack = function(id){
 		var i, top, ctx, track;
 		if(!this.audio.hasOwnProperty(id)){ return; }
@@ -799,7 +799,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.requestedTrack = null;
 		this.requestedFrame = 0;
 	}
-	
+
 	function render(stable) {
 		var aid, x;
 		if(this.images.complete){
@@ -823,7 +823,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.requestedFrame = requestFrame(render.bind(this,stable));
 		}
 	}
-	
+
 	Proto.renderTrack = function(track) {
 		if(this.requestedFrame !== 0){
 			if(this.requestedTrack === track){ return; }
@@ -835,7 +835,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.requestedFrame = requestFrame(renderTrack.bind(this,track));
 		}
 	};
-	
+
 	Proto.render = function(stable) {
 		if(this.requestedTrack !== null){
 			this.requestedTrack = null;
@@ -863,7 +863,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 	};
 
 	/** Time functions **/
-	
+
 	Object.defineProperties(Proto,{
 		currentTime: {
 			set: function(time){
@@ -888,17 +888,17 @@ var Timeline = (function(TimedText,EditorWidgets){
 					}
 				}
 
-				if(this.autoCueStatus === Timeline.AutoCueCueing){ 
+				if(this.autoCueStatus === Timeline.AutoCueCueing){
 					startTime = Math.min(this.autoCueStart,time);
 					endTime = Math.max(this.autoCueStart,time);
 					this.tracks.forEach(function(track){
-						track.textTrack.currentTime = time; 
+						track.textTrack.currentTime = time;
 						if(track.autoCue){ track.setPlaceholder(startTime, endTime); }
 					});
 				}else{
 					this.tracks.forEach(function(track){ track.textTrack.currentTime = time; });
 				}
-				
+
 				this.timeMarkerPos = time;
 				this.emit(new Timeline.Event('timeupdate'));
 				this.render(stable);
@@ -938,7 +938,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		else{ this.render(); }
 		this.emit(new Timeline.Event('abrepeatunset'));
 	};
-	
+
 	Proto.setRepeat = function(start,end) {
 		this.repeatA = Math.min(start,end);
 		this.repeatB = Math.max(start,end);
@@ -948,7 +948,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		else{ this.render(); }
 		this.emit(new Timeline.Event("abrepeatset"));
 	};
-	
+
 	Proto.breakPoint = function(skip){
 		var time = this.currentTime,
 			tracks = this.tracks.filter(function(track){ return track.autoCue; });
@@ -979,7 +979,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.autoCueStatus = Timeline.AutoCueResolved;
 		}
 	};
-	
+
 	/** Persistence functions **/
 
 	Proto.exportTracks = function(id) {
@@ -1284,6 +1284,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 		return false;
 	}
 
+	function addDroppedTrack(track, mime){
+		track.mode = 'showing';
+		this.addTextTrack(track,mime,true);
+		this.commandStack.setFileUnsaved(track.label);
+		this.emit(new Timeline.Event("droptrack", {track:track}));
+	}
+
 	function dragDrop(ev) {
 		ev.stopPropagation();
 		ev.preventDefault();
@@ -1291,7 +1298,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			track = this.trackFromPos({x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY}),
 			dataTransfer = ev.dataTransfer,
 			files = dataTransfer.files;
-			
+
 		if(files.length){ //Load Local Files
 			[].forEach.call(files,function(file){
 				var name;
@@ -1302,15 +1309,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 						that.setAudioTrack(track.id,name);
 					}
 				}else{ //Load text track
+					//If we don't supply a label, TextTrack will automatically use the file name with extension removed
+					//This is simpler than stripping it here, so omit that parameter unless we want to fill it in
+					//with user input at some point in the future
 					TextTrack.get({
-						file: file, label: file.name,
+						file: file, //label: file.name,
 						kind: 'subtitles', lang: 'zxx',
-						success: function(track, mime){
-							track.mode = 'showing';
-							that.addTextTrack(track,mime,true);
-							that.commandStack.setFileUnsaved(file.name);
-                            that.emit(new Timeline.Event("droptrack", {track:track}));
-						}
+						success: addDroppedTrack.bind(that)
 					});
 				}
 			});
@@ -1326,22 +1331,20 @@ var Timeline = (function(TimedText,EditorWidgets){
 			links.forEach(function(url){
 			    var xhr = new XMLHttpRequest();
 				xhr.onload = function(){
-					var name = /([^\/]+)\/?$/g.exec(url)[1];
+					var name;
 					if(/audio\//g.test(xhr.getResponseHeader("Content-Type"))){	//Load an audio waveform
+						name = /([^\/]+)\/?$/g.exec(url)[1];
 						that.loadAudioTrack(url,name);
 						if(links.length === 1 && track){
 							that.setAudioTrack(track.id,name);
 						}
 					}else{ //Load a text track
+						//If we don't supply a label, TextTrack will infer one from the URL,
+						//so omit that parameter unless we want to fill it in with user input in the future
 						TextTrack.get({
-							url: url, label: name,
+							url: url, //label: name,
 							kind: 'subtitles', lang: 'zxx',
-							success: function(track,mime){
-								track.mode = 'showing';
-								that.addTextTrack(track,mime,true);
-								that.commandStack.setFileUnsaved(name);
-                                that.emit(new Timeline.Event("droptrack", {track:track}));
-							}
+							success: addDroppedTrack.bind(that)
 						});
 					}
 				};
@@ -1365,27 +1368,27 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.showMenu({x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY});
 		ev.preventDefault();
 	}
-	
+
 	function Selection(tl,pos){
 		this.tl = tl;
 		this.dragged = false;
 		this.startPos = pos;
 	}
-	
+
 	Selection.prototype.mouseMove = function(npos){
 		var tl = this.tl,
 			spos = this.startPos,
 			ctx = tl.context;
-			
+
 		this.dragged = true;
 		tl.restore();
-		
+
 		ctx.save();
-		
+
 		ctx.fillStyle = tl.colors.selectBox;
 		ctx.strokeStyle = tl.colors.selectBorder;
 		ctx.strokeWidth = 1;
-		
+
 		ctx.beginPath();
 		ctx.rect(	Math.min(spos.x,npos.x),
 					Math.min(spos.y,npos.y),
@@ -1393,15 +1396,15 @@ var Timeline = (function(TimedText,EditorWidgets){
 					Math.abs(spos.y-npos.y));
 		ctx.fill();
 		ctx.stroke();
-		
+
 		ctx.restore();
 	};
-	
+
 	Selection.prototype.mouseUp = function(epos){
 		var tl = this.tl,
 			view = tl.view,
 			spos = this.startPos;
-		
+
 		tl.restore();
 		if(!this.dragged){
 			(function(){
@@ -1421,7 +1424,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 					bottom = Math.max(spos.y,epos.y),
 					kheight = tl.keyHeight + tl.trackPadding,
 					theight = tl.trackHeight + tl.trackPadding;
-				
+
 				i = Math.max(0,top-kheight);
 				i = Math[i%theight < tl.trackHeight?'floor':'ceil'](i/theight);
 				n = bottom >= (tl.height - tl.sliderHeight)
@@ -1439,7 +1442,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 				});
 				tl.render();
 			}());
-		}		
+		}
 	};
 
 	return Timeline;
