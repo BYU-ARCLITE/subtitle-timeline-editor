@@ -557,7 +557,8 @@
 		};
 
 		TProto.render = function(){
-			var segs, dir, id_width,
+			var segs, dir, idstr,
+				id_width, type_pos,
 				tl = this.tl,
 				ctx = tl.ctx,
 				font = tl.fonts.title,
@@ -574,10 +575,12 @@
 			ctx.font = font.font;
 			ctx.fillStyle = font.color;
 			
-			id_width = ctx.measureText(this.id).width + tl.width/25;
+			idstr = this.id + " -- " + this.kind + " (" + this.language + ")";
+			id_width = ctx.measureText(idstr).width + tl.width/25;
+			type_pos = tl.width*0.99 - ctx.measureText(this.typeName).width;
 			
-			ctx.fillText(this.id, tl.width/100, tl.trackHeight/2);
-			ctx.fillText(this.typeName, Math.max(tl.width*0.99 - ctx.measureText(this.typeName).width, id_width), tl.trackHeight/2);
+			ctx.fillText(idstr, tl.width/100, tl.trackHeight/2);
+			ctx.fillText(this.typeName, Math.max(type_pos, id_width), tl.trackHeight/2);
 			
 			ctx.fillStyle = tl.colors[tl.commandStack.isFileSaved(this.id)?'tintSaved':'tintUnsaved'];
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
@@ -715,8 +718,7 @@
 				this.textTrack.activeCues.refreshCues();
 				tl.emit(new Timeline.Event('activechange'));
 			}
-			if(visible){ tl.renderTrack(this); }
-				
+			if(visible){ tl.renderTrack(this); }	
 		}
 
 		function unsplitSeg(s1,s2){
