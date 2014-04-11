@@ -550,11 +550,14 @@ var Timeline = (function(TimedText,EditorWidgets){
 			}
 			this.trackIndices[name] = this.trackIndices[track.id];
 			delete this.trackIndices[track.id];
+			this.commandStack.renameEvents(track.id,name);
+			track.textTrack.label = name;
 		}
-		//avoid side-effects of settint track properties directly
+
+		//avoid side-effects of setting track properties directly
 		track.textTrack.kind = kind;
 		track.textTrack.language = lang;
-		track.textTrack.label = name;
+		
 		this.render();
 	};
 
