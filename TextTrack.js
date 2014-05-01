@@ -331,13 +331,14 @@
 		});
 
 		TProto.cloneTimeCodes = function(kind,lang,name){
-			var ntt = new TextTrack(kind,name,lang);
+			var ntt = new TextTrack(kind,name,lang),
+				cueType = this.cueType;
 			ntt.cues.loadCues(this.textTrack.cues.map(function(cue){
-				return new this.cueType(cue.startTime,cue.endTime,"");
+				return new cueType(cue.startTime,cue.endTime,"");
 			}));
 			ntt.readyState = TextTrack.LOADED;
 			ntt.mode = "showing";
-			return new TlTextTrack(this.tl,ntt);
+			return new TlTextTrack(this.tl,ntt,this.mime);
 		};
 
 		TProto.add = function(cue, select){
