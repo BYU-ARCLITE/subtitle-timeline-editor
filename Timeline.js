@@ -463,6 +463,15 @@ var Timeline = (function(TimedText,EditorWidgets){
 		return -1;
 	};
 
+	function resolveTrack(timeline, tid){
+		var indices = timeline.trackIndices,
+			track = (tid instanceof Timeline.TextTrack)?tid:
+					indices.hasOwnProperty(tid)?timeline.tracks[indices[tid]]:
+					null;
+		if(!track){ throw new Error("Track "+tid+" Does Not Exist"); }
+		return track;
+	}
+	
 	function swaptracks(n,o){
 		this.tracks[this.trackIndices[n.id]] = n;
 		n.render();
@@ -521,9 +530,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		if(this.trackIndices.hasOwnProperty(name)){
 			if(!overwrite){ throw new Error("Track name already in use."); }
 		}
-		var track = this.tracks[this.trackIndices[tid]];
-		if(!track){ throw new Error("Track does not exist"); }
-		track = track.cloneTimeCodes(kind, lang, name);
+		var track = resolveTrack(this, tid).cloneTimeCodes(kind, lang, name);
 		if(this.trackIndices.hasOwnProperty(name)){
 			swaptracks.call(this,track,this.tracks[this.trackIndices[name]]);
 		}else{
@@ -536,13 +543,12 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.cache.height = this.height;
 			this.render();
 			this.emit(new Timeline.Event("addtrack",{track:track}));
-		}
+		}		
+		this.commandStack.setFileUnsaved(name);
 	};
 
 	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite) {
-		var track;
-		if(!this.trackIndices.hasOwnProperty(tid)){ throw new Error("Track does not exist"); }
-		track = this.tracks[this.trackIndices[tid]];
+		var track = resolveTrack(this, tid);
 		if(name !== track.id){
 			if(this.trackIndices.hasOwnProperty(name)){
 				if(!overwrite){ throw new Error("Track name already in use."); }
@@ -562,14 +568,15 @@ var Timeline = (function(TimedText,EditorWidgets){
 	};
 
 	Proto.setAutoCue = function(onoff, tid) {
-		var tracks;
 		if(typeof tid === 'undefined'){
-			tracks = this.tracks;
-		}else{
-			if(!this.trackIndices.hasOwnProperty(tid)){ throw new Error("Track does not exist"); }
-			tracks = [this.tracks[this.trackIndices[tid]]];
+			this.tracks.forEach(function(track){ track.autoCue = onoff; });
+			return;
 		}
-		tracks.forEach(function(track){ track.autoCue = onoff; });
+		if(typeof tid.map === 'function'){
+			tid.map(resolveTrack.bind(this)).forEach(function(t){ t.autoCue = onoff; });
+		}else{
+			resolveTrack(this, tid).autoCue = onoff;
+		}
 	};
 
 	/** Audio Functions **/
@@ -650,9 +657,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 	};
 
 	Proto.setAudioTrack = function(tid, aid){
-		var track;
-		if(!this.trackIndices.hasOwnProperty(tid)){ return; }
-		track = this.tracks[this.trackIndices[tid]];
+		var track = resolveTrack(this, tid);
 		if(this.audio.hasOwnProperty(track.audioId)){ this.audio[track.audioId].references--; }
 		track.audioId = aid;
 		if(this.audio.hasOwnProperty(aid)){
@@ -662,10 +667,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 	};
 
 	Proto.unsetAudioTrack = function(tid){
-		var track, audio;
-		if(!this.trackIndices.hasOwnProperty(tid)){ return; }
-		track = this.tracks[this.trackIndices[tid]];
-		audio = this.audio[track.audioId];
+		var track = resolveTrack(this, tid),
+			audio = this.audio[track.audioId];
 		if(audio){
 			track.audioId = null;
 			audio.references--;
@@ -674,8 +677,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 	};
 
 	Proto.addSegment = function(tid, cue, select){
-		if(!this.trackIndices.hasOwnProperty(tid)){ return; }
-		this.tracks[this.trackIndices[tid]].add(cue, select);
+		resolveTrack(this, tid).add(cue, select);
 	};
 
 	/** Drawing functions **/
@@ -770,10 +772,11 @@ var Timeline = (function(TimedText,EditorWidgets){
 		ctx.restore();
 	}
 
-	function renderTrack(track) {
+	function renderTrack(tid) {
 		var left, right, ctx,
-			height = this.trackHeight,
+			track = resolveTrack(this, tid),
 			top = this.getTrackTop(track),
+			height = this.trackHeight,
 			x = this.view.timeToPixel(this.timeMarkerPos)-1;
 
 		track.render();
@@ -827,7 +830,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}
 	}
 
-	Proto.renderTrack = function(track) {
+	Proto.renderTrack = function(tid) {
+		var track = resolveTrack(this, tid);
 		if(this.requestedFrame !== 0){
 			if(this.requestedTrack === track){ return; }
 			cancelFrame(this.requestedFrame);
@@ -989,20 +993,18 @@ var Timeline = (function(TimedText,EditorWidgets){
 		var that = this;
 		return (function(){
 			var track;
-			if(typeof id === 'string'){ //save a single track
-				track = that.getTrack(id);
-				if(track === null){ throw new Error("Track "+id+" Does Not Exist."); }
-				return [track];
+			if(typeof id === 'undefined'){
+				//save all tracks
+				return that.tracks;
 			}
-			if(id instanceof Array){ //save multiple tracks
+			if(typeof id.map === 'function'){ //save multiple tracks
 				return id.map(function(tid){
-					track = that.getTrack(tid);
-					if(track === null){ throw new Error("Track "+tid+" Does Not Exist"); }
-					return track;
+					return resolveTrack(that, tid);
 				});
 			}
-			//save all tracks
-			return that.tracks;
+			
+			//save a single track
+			return [resolveTrack(that, id)];
 		}()).map(function(track){
 			return {
 				collection:"tracks",
