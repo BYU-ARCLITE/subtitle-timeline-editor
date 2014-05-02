@@ -1,4 +1,4 @@
-(function(Timeline,TimedText,global){
+(function(Timeline,TimedText){
 	"use strict";
 	
 	var idCounter = 0;
@@ -180,72 +180,72 @@
 		if(this.visible){ tl.renderTrack(this.track); }
 	}
 
+	function remerge(segs,mseg,text){
+		var tl = this.tl;
+		segs.forEach(function(seg){ seg.deleted = true; });
+		mseg.cue.text = text;
+		mseg.cue.endTime = segs[segs.length-1].endTime;
+		tl.emit(new Timeline.Event('merge',{merged:mseg,removed:segs}));
+		tl.emit(new Timeline.Event('delete',{segments:segs}));
+		if(mseg.active){
+			this.textTrack.activeCues.refreshCues();
+			tl.emit(new Timeline.Event('activechange'));
+		}
+		if(mseg.visible){ tl.renderTrack(this); }
+	}
+
+	function unmerge(segs,mseg,text,end){
+		var tl = this.tl,
+			visible = mseg.visible,
+			active = mseg.active;
+		segs.forEach(function(seg){	seg.deleted = false; });
+		mseg.cue.text = text;
+		mseg.cue.endTime = end;
+		tl.emit(new Timeline.Event('unmerge',{merged:mseg,removed:segs}));
+		tl.emit(new Timeline.Event('create',{segments:segs}));
+		if(active){
+			this.textTrack.activeCues.refreshCues();
+			tl.emit(new Timeline.Event('activechange'));
+		}
+		if(mseg.visible || visible){ tl.renderTrack(this); }
+	}
+
+	function merge(list){
+		var tl = this.tl,
+			ssegs = tl.selectedSegments,
+			mseg, oldend, oldtext, newtext;
+
+		list.sort(order);
+		newtext = list.map(function(seg){ return seg.text; }).join('');
+
+		mseg = list.shift();
+		oldend = mseg.endTime;
+		mseg.cue.endTime = list[list.length-1].endTime;
+		oldtext = mseg.text;
+		mseg.cue.text = newtext;
+
+		list.forEach(function(seg){
+			seg.deleted = true;
+			seg.selected = false;
+			ssegs.splice(ssegs.indexOf(seg),1);
+		});
+
+		tl.commandStack.push({
+			file: this.textTrack.label,
+			context: this,
+			redo: remerge.bind(this,list,mseg,newtext),
+			undo: unmerge.bind(this,list,mseg,oldtext,oldend)
+		});
+		tl.emit(new Timeline.Event('merge',{merged:mseg,removed:list}));
+		tl.emit(new Timeline.Event('delete',{segments:list}));
+		if(mseg.active){
+			this.textTrack.activeCues.refreshCues();
+			tl.emit(new Timeline.Event('activechange'));
+		}
+		tl.renderTrack(this);
+	}
+	
 	(function(TProto){
-
-		function remerge(segs,mseg,text){
-			var tl = this.tl;
-			segs.forEach(function(seg){ seg.deleted = true; });
-			mseg.cue.text = text;
-			mseg.cue.endTime = segs[segs.length-1].endTime;
-			tl.emit(new Timeline.Event('merge',{merged:mseg,removed:segs}));
-			tl.emit(new Timeline.Event('delete',{segments:segs}));
-			if(mseg.active){
-				this.textTrack.activeCues.refreshCues();
-				tl.emit(new Timeline.Event('activechange'));
-			}
-			if(mseg.visible){ tl.renderTrack(this); }
-		}
-
-		function unmerge(segs,mseg,text,end){
-			var tl = this.tl,
-				visible = mseg.visible,
-				active = mseg.active;
-			segs.forEach(function(seg){	seg.deleted = false; });
-			mseg.cue.text = text;
-			mseg.cue.endTime = end;
-			tl.emit(new Timeline.Event('unmerge',{merged:mseg,removed:segs}));
-			tl.emit(new Timeline.Event('create',{segments:segs}));
-			if(active){
-				this.textTrack.activeCues.refreshCues();
-				tl.emit(new Timeline.Event('activechange'));
-			}
-			if(mseg.visible || visible){ tl.renderTrack(this); }
-		}
-
-		function merge(list){
-			var tl = this.tl,
-				ssegs = tl.selectedSegments,
-				mseg, oldend, oldtext, newtext;
-
-			list.sort(order);
-			newtext = list.map(function(seg){ return seg.text; }).join('');
-
-			mseg = list.shift();
-			oldend = mseg.endTime;
-			mseg.cue.endTime = list[list.length-1].endTime;
-			oldtext = mseg.text;
-			mseg.cue.text = newtext;
-
-			list.forEach(function(seg){
-				seg.deleted = true;
-				seg.selected = false;
-				ssegs.splice(ssegs.indexOf(seg),1);
-			});
-
-			tl.commandStack.push({
-				file: this.textTrack.label,
-				context: this,
-				redo: remerge.bind(this,list,mseg,newtext),
-				undo: unmerge.bind(this,list,mseg,oldtext,oldend)
-			});
-			tl.emit(new Timeline.Event('merge',{merged:mseg,removed:list}));
-			tl.emit(new Timeline.Event('delete',{segments:list}));
-			if(mseg.active){
-				this.textTrack.activeCues.refreshCues();
-				tl.emit(new Timeline.Event('activechange'));
-			}
-			tl.renderTrack(this);
-		}
 
 		function repaste(segs){
 			var tl = this.tl, visible = false, active = false;
@@ -515,6 +515,7 @@
 		TProto.paste = function(toCopy){
 			var added, tl = this.tl,
 				that = this,
+				cueType = this.cueType,
 				textTrack = this.textTrack,
 				segments = this.segments,
 				visible = false,
@@ -522,7 +523,7 @@
 
 			added = toCopy.map(function(seg){
 				var cue = seg.cue,
-					ncue = new this.cueType(cue.startTime,cue.endTime,cue.text),
+					ncue = new cueType(cue.startTime,cue.endTime,cue.text),
 					nseg = new Segment(that, ncue);
 					
 				//TODO: Make cue-type independent
@@ -815,7 +816,7 @@
 		};
 
 		SProto.select = function(){
-			var id, tl = this.tl,
+			var tl = this.tl,
 				trackmap = {};
 			if(this.selected){ return; }
 			this.selected = true;
@@ -830,9 +831,9 @@
 			}else{
 				tl.selectedSegments.push(this);
 			}
-			for(id in trackmap){
+			Object.keys(trackmap).forEach(function(id){
 				tl.renderTrack(trackmap[id]);
-			}
+			});
 			tl.emit(new Timeline.Event('select',{segments:[this]}));
 		};
 
@@ -854,7 +855,6 @@
 
 		SProto.del = function(){
 			var i, tl = this.tl,
-				visible = this.visible,
 				active = this.active,
 				s_segs = tl.selectedSegments;
 
@@ -901,7 +901,7 @@
 			tl.renderTrack(track);
 		};
 
-		SProto.mergeWithSelected = function(pos){
+		SProto.mergeWithSelected = function(){
 			var track = this.track,
 				selected = this.tl.selectedSegments.filter(function(seg){return seg.track === track;});
 			if(selected.length === 0){ return; }
@@ -1170,15 +1170,18 @@
 				shape = this.calcShape(),
 				x = shape.x,
 				y = shape.y,
-				padding = tl.segmentTextPadding,
-				direction, text;
+				padding = tl.segmentTextPadding;
 
 			ctx.save();
 			ctx.translate(x, y);
 
-			this.selected?renderImage(ctx, shape, images.segmentLeftSel, images.segmentRightSel, images.segmentMidSel):
-			this.selectable?renderImage(ctx, shape, images.segmentLeft, images.segmentRight, images.segmentMid):
-			renderImage(ctx, shape, images.segmentLeftDark, images.segmentRightDark, images.segmentMidDark);
+			if(this.selected){
+				renderImage(ctx, shape, images.segmentLeftSel, images.segmentRightSel, images.segmentMidSel);
+			}else if(this.selectable){
+				renderImage(ctx, shape, images.segmentLeft, images.segmentRight, images.segmentMid);
+			}else{
+				renderImage(ctx, shape, images.segmentLeftDark, images.segmentRightDark, images.segmentMidDark);
+			}
 
 			if(shape.width > 2*padding){
 				// Set the clipping bounds
@@ -1187,10 +1190,6 @@
 				ctx.clip();
 
 				switch(this.track.kind){
-				default:
-				case 'subtitles':
-					renderSubPreview.call(this, ctx, shape, fonts.subtitles, tl);
-					break;
 				case 'captions':
 					renderSubPreview.call(this, ctx, shape, fonts.captions, tl);
 					break;
@@ -1202,6 +1201,10 @@
 					break;
 				case 'metadata':
 					renderMetaPreview.call(this, ctx, shape, fonts.metadata, tl);
+					break;
+				case 'subtitles':
+				default:
+					renderSubPreview.call(this, ctx, shape, fonts.subtitles, tl);
 					break;
 				}
 			}
@@ -1217,7 +1220,7 @@
 				top = tl.getTrackTop(this.track);
 			ctx.save();
 			ctx.fillStyle = tl.colors.placeholder;
-			ctx.globalAlpha = .5;
+			ctx.globalAlpha = 0.5;
 			ctx.fillRect(this.startx, top, this.endx - this.startx, tl.trackHeight);
 			ctx.restore();
 		};
@@ -1229,13 +1232,10 @@
 		};
 
 		PProto.mouseUp = function(pos) {
-			var view = this.tl.view,
-				track = this.track;
-
 			this.startx = Math.min(this.startx, pos.x);
 			this.endx = Math.max(this.startx, pos.x);
-			track.resolvePlaceholder();
+			this.track.resolvePlaceholder();
 		};
 	}(Placeholder.prototype));
 
-}(window.Timeline,window.TimedText,window));
+}(window.Timeline,window.TimedText));
