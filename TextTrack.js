@@ -1,6 +1,6 @@
 (function(Timeline,TimedText){
 	"use strict";
-	
+
 	var idCounter = 0;
 
 	if(!Timeline){
@@ -17,13 +17,13 @@
 			locked = false,
 			autoCue = false,
 			typeInfo = TimedText.getTypeInfo(mime);
-			
+
 		cueTrack.cues.forEach(function(cue){
 			if(!typeInfo.isCueCompatible(cue)){
 				throw new Error("TextTrackCue objects do not match the given mime type");
 			}
 		});
-		
+
 		this.tl = tl;
 		this.segments = cueTrack.cues.map(function(cue){ return new Segment(that, cue); });
 		this.visibleSegments = [];
@@ -34,25 +34,25 @@
 		function set_mime(newmime, newCues){
 			var i = 0, oldmime = mime,
 				segments = that.segments;
-			
+
 			mime = newmime;
 			typeInfo = TimedText.getTypeInfo(mime);
-			
+
 			cueTrack.cues.length = 0;
 			cueTrack.cues.loadCues(newCues);
 			cueTrack.activeCues.refreshCues();
-			
+
 			segments.forEach(function(seg){
 				if(!seg.deleted){ seg.cue = newCues[i++]; }
 			});
-			
+
 			tl.renderTrack(this);
 			tl.emit(new Timeline.Event("convert",{track:this,oldtype:oldmime}));
 			if(this.segments.some(function(seg){ return seg.active; })){
 				tl.emit(new Timeline.Event("activechange"));
 			}
 		}
-		
+
 		Object.defineProperties(this,{
 			cueType: { get: function(){ return typeInfo.cueType; }, enumerable: true },
 			typeName: { get: function(){ return typeInfo.name; }, enumerable: true },
@@ -89,22 +89,22 @@
 					var oldmime = mime,
 						oldCues, newCues;
 					if(newmime === mime){ return mime; }
-					
+
 					oldCues = cueTrack.cues.slice();
 					newCues = oldCues.map(TimedText.getCueConverter(oldmime, newmime));
-					
+
 					tl.commandStack.push({
 						file: cueTrack.label,
 						context: this,
 						redo: set_mime.bind(this,newmime,newCues),
 						undo: set_mime.bind(this,oldmime,oldCues)
 					});
-					
+
 					set_mime.call(this, newmime, newCues);
-					
+
 					return mime;
 				}, enumerable: true
-			}					
+			}
 		});
 	}
 
@@ -244,7 +244,7 @@
 		}
 		tl.renderTrack(this);
 	}
-	
+
 	(function(TProto){
 
 		function repaste(segs){
@@ -351,7 +351,7 @@
 			this.segments.sort(order);
 
 			if(select){ seg.select(); }
-			
+
 			// Save the action
 			tl.commandStack.push({
 				file: this.textTrack.label,
@@ -452,7 +452,7 @@
 			this.placeholder.endx = view.timeToPixel(end);
 			this.tl.renderTrack(this);
 		};
-		
+
 		TProto.resolvePlaceholder = function(){
 			if(this.placeholder === null){ return; }
 			var seg, view = this.tl.view,
@@ -470,7 +470,7 @@
 				), this.tl.autoSelect);
 			this.tl.emit(new Timeline.Event("segcomplete",{track:this,segment:seg}));
 		};
-		
+
 		TProto.deleteSelected = function(){
 			var that = this, tl = this.tl,
 				visible = false, active = false,
@@ -513,45 +513,29 @@
 		};
 
 		TProto.paste = function(toCopy){
-			var added, tl = this.tl,
-				that = this,
-				cueType = this.cueType,
+			var ncues, added,
+				toMime = this.mime,
+				that = this, tl = this.tl,
 				textTrack = this.textTrack,
-				segments = this.segments,
-				visible = false,
-				active = false;
+				segments = this.segments;
 
-			added = toCopy.map(function(seg){
-				var cue = seg.cue,
-					ncue = new cueType(cue.startTime,cue.endTime,cue.text),
-					nseg = new Segment(that, ncue);
-					
-				//TODO: Make cue-type independent
-				ncue.vertical = cue.vertical;
-				ncue.align = cue.align;
-				ncue.line = cue.line;
-				ncue.size = cue.size;
-				ncue.position = cue.position;
+			//can't use push because tracks aren't arraylike
+			ncues = toCopy.map(function(seg){ return TimedText.getCueConverter(seg.track.mime, toMime)(seg.cue); });
+			ncues.forEach(function(cue){ textTrack.addCue(cue); });
 
-				textTrack.addCue(ncue);
-				segments.push(nseg);
-				visible = visible || nseg.visible;
-				active = active || nseg.active;
-
-				return nseg;
-			});
-
+			added = ncues.map(function(cue){ return new Segment(that, cue); });
+			[].push.apply(segments, added);
 			segments.sort(order);
 
 			tl.commandStack.push({
-				file: this.textTrack.label,
 				context: this,
+				file: this.textTrack.label,
 				redo: repaste.bind(this,added),
 				undo: unpaste.bind(this,added)
 			});
 			tl.emit(new Timeline.Event('paste',{segments:added}));
 			tl.emit(new Timeline.Event('create',{segments:added}));
-			if(active){
+			if(added.some(function(seg){return seg.active;})){
 				this.textTrack.activeCues.refreshCues();
 				tl.emit(new Timeline.Event('activechange'));
 			}
@@ -565,7 +549,7 @@
 				ctx = tl.ctx,
 				font = tl.fonts.title,
 				selected = [];
-			
+
 			ctx.save();
 
 			ctx.translate(0,tl.getTrackTop(this));
@@ -576,14 +560,14 @@
 			ctx.textBaseline = 'middle';
 			ctx.font = font.font;
 			ctx.fillStyle = font.color;
-			
+
 			idstr = this.id + " -- " + this.kind + " (" + this.language + ")";
 			id_width = ctx.measureText(idstr).width + tl.width/25;
 			type_pos = tl.width*0.99 - ctx.measureText(this.typeName).width;
-			
+
 			ctx.fillText(idstr, tl.width/100, tl.trackHeight/2);
 			ctx.fillText(this.typeName, Math.max(type_pos, id_width), tl.trackHeight/2);
-			
+
 			ctx.fillStyle = tl.colors[tl.commandStack.isFileSaved(this.id)?'tintSaved':'tintUnsaved'];
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
 
@@ -591,7 +575,7 @@
 			ctx.save();
 
 			ctx.textBaseline = 'top';
-			
+
 			dir = tl.cache.dir;
 			segs = this.segments.filter(function(seg){return seg.visible;});
 			this.visibleSegments = segs;
@@ -602,7 +586,7 @@
 			selected.forEach(function(seg){ seg.render(); });
 			if(this.placeholder !== null){ this.placeholder.render(); }
 			tl.cache.dir = dir;
-			
+
 			ctx.restore();
 		};
 
@@ -720,7 +704,7 @@
 				this.textTrack.activeCues.refreshCues();
 				tl.emit(new Timeline.Event('activechange'));
 			}
-			if(visible){ tl.renderTrack(this); }	
+			if(visible){ tl.renderTrack(this); }
 		}
 
 		function unsplitSeg(s1,s2){
@@ -1136,7 +1120,7 @@
 			ctx.fillStyle = fonts.textColor;
 			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
 		}
-		
+
 		function renderMetaPreview(ctx, shape, fonts, tl){
 			var direction, text, y;
 			if(this.id){
@@ -1159,7 +1143,7 @@
 			ctx.fillStyle = fonts.textColor;
 			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
 		}
-		
+
 		SProto.render = function() {
 			if(this.deleted){ return; }
 
