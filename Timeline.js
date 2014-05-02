@@ -34,7 +34,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 	function Timeline(location, params) {
 		if(!(location instanceof HTMLElement)){ throw new Error("Invalid DOM Insertion Point"); }
 		if(!params){ params = {}; }
-		var canvas = document.createElement('canvas'),
+		var getFor = params.getFor,
+			canvas = document.createElement('canvas'),
 			overlay = document.createElement('canvas'),
 			cache = document.createElement('canvas'),
 			node = document.createElement('div'),
@@ -48,6 +49,32 @@ var Timeline = (function(TimedText,EditorWidgets){
 			that = this;
 
 		Object.defineProperties(this,{
+			canGetFor: {
+				value: (typeof params.canGet === 'function')
+					?params.canGetFor:function(){ return false; }
+			},
+			getFor: {
+				value: (typeof getFor === 'function')
+					?function(whatfor,data,defs){
+						var undef;
+						return Promise.all(getFor(whatfor,data).map(function(p,i){
+							var key = data[i];
+							//make sure errors for data with defaults provided are replaced with those defaults
+							if((typeof p.then === 'function') && defs.hasOwnProperty(key)){
+								return p.then(undef,function(err){ resolve(defs[key]); });
+							}
+							return p;
+						}));
+					}:function(_,data,defs){
+						var i, missing;
+						for(i=0;missing=data[i];i++){
+							if(!defs.hasOwnProperty(missing)){ break; }
+						}
+						return missing?
+							Promise.reject(new Error('Cannot retrieve '+missing+' data.')):
+							Promise.resolve(data.map(function(key){ return defs[key]; }));
+					}
+			},
 			fonts: {
 				get: function(){ return fonts; },
 				set: function(obj){ fonts = obj; this.render(); },
@@ -471,7 +498,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		if(!track){ throw new Error("Track "+tid+" Does Not Exist"); }
 		return track;
 	}
-	
+
 	function swaptracks(n,o){
 		this.tracks[this.trackIndices[n.id]] = n;
 		n.render();
@@ -543,7 +570,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.cache.height = this.height;
 			this.render();
 			this.emit(new Timeline.Event("addtrack",{track:track}));
-		}		
+		}
 		this.commandStack.setFileUnsaved(name);
 	};
 
@@ -563,7 +590,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		//avoid side-effects of setting track properties directly
 		track.textTrack.kind = kind;
 		track.textTrack.language = lang;
-		
+
 		this.render();
 	};
 
@@ -1002,7 +1029,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 					return resolveTrack(that, tid);
 				});
 			}
-			
+
 			//save a single track
 			return [resolveTrack(that, id)];
 		}()).map(function(track){

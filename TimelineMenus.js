@@ -6,6 +6,26 @@
 	}
 	
 	Timeline.Menu = [
+		{name:"New Track",
+			condition:function(){return !!this.timeline.canGetFor('newtrack',[]); },
+			action:function(){
+				var tl = this.timeline;
+				tl.getFor('newtrack',
+					['kind','name','lang','mime','overwrite'],
+					{
+						kind: 'subtitles',
+						name: 'untitled',
+						lang: 'zxx',
+						mime: 'text/vtt',
+						overwrite: false
+					}
+				).then(function(values){
+					var track = new TextTrack(values[0], values[1], values[2]); //kind, name, lang
+					timeline.addTextTrack(track, values[3], values[4]);
+					timeline.commandStack.setFileUnsaved(name);
+				});
+			}
+		},
 		{name:"Track",
 			condition:function(){return !!this.track; },
 			vars: {
