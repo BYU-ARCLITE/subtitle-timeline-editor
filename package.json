@@ -6,6 +6,7 @@
   "dependencies": {
     "ayamel.js": "0.1.x",
     "timed-text": "0.1.x",
-    "editor-widgets": "0.1.x"
+    "editor-widgets": "0.1.x",
+    "jquery": "1.11.0"
   }
 }
