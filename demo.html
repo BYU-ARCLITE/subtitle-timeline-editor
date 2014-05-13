@@ -107,12 +107,8 @@ function createEmptyTrack(name) {
 };
 
 function saveTracks(target){
-	var i, opt, savable = [];
-	for(i=0;opt=atracks.options[i];i++){
-		if(opt.selected){ savable.push(opt.value); }
-	}
-	EditorWidgets.Save(timeline.exportTracks('text/vtt',savable),target)
-}
+	EditorWidgets.Save(timeline.exportTracks(),target);
+};
 
 // Set up the editor and player
 var captionEditor;
@@ -187,7 +183,7 @@ document.getElementById("undo_btn").addEventListener('click',function(){
 document.getElementById("redo_btn").addEventListener('click',function(){
 	timeline.commandStack.redo();
 },false);
-document.getElementById("save_to_server_btn").addEventListener('click',saveTracks.bind(null,'ajax/saver.php'),false);
+document.getElementById("save_to_server_btn").addEventListener('click',saveTracks.bind(null,'/foo'),false);
 document.getElementById("save_locally_btn").addEventListener('click',saveTracks.bind(null,'file'),false);
 
 createEmptyTrack("New Track");
