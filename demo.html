@@ -62,20 +62,25 @@
 </head>
 
 <body>
+
 <div id="ayamel_player_container"></div>
-<button id="tbtn">Add Empty Track</button>
-<button id="ubtn">Add Track From URL</button>
-<button id="selb">SELECT</button>
-<button id="movb"> MOVE </button>
-<button id="creb">CREATE</button>
-<button id="delb">DELETE</button>
-<button id="repb">REPEAT</button>
-<button id="scrb">SCROLL</button>
-<button id="ordb">ORDER</button>
-<button id="undb"> UNDO </button>
-<button id="redb"> REDO </button>
-<button id="savs"> Save to Server </button>
-<button id="savl"> Save Locally </button>
+
+<div id="toolbar">
+<button id="new_track_btn">Add Empty Track</button>
+<button id="url_track_btn">Add Track From URL</button>
+<button id="select_tool_btn">SELECT</button>
+<button id="move_tool_btn">MOVE</button>
+<button id="create_tool_btn">CREATE</button>
+<button id="delete_tool_btn">DELETE</button>
+<button id="repeat_tool_btn">REPEAT</button>
+<button id="scroll_tool_btn">SCROLL</button>
+<button id="order_tool_btn">ORDER</button>
+<button id="undo_btn">UNDO</button>
+<button id="redo_btn">REDO</button>
+<button id="save_to_server_btn">Save to Server</button>
+<button id="save_locally_btn">Save Locally</button>
+</div>
+
 <div id="timeline"></div>
 
 <script type="text/javascript">
@@ -93,11 +98,20 @@ timeline.on('activechange', function(){ player.captionRenderer.rebuildCaptions()
 timeline.on('addtrack',function(evt){
 	player.addTextTrack(evt.track.textTrack);
 });
+
 function createEmptyTrack(name) {
 	var track = new TextTrack('subtitles', name, 'en');
 	timeline.addTextTrack(track, "text/vtt");
 	timeline.render();
 };
+
+function saveTracks(target){
+	var i, opt, savable = [];
+	for(i=0;opt=atracks.options[i];i++){
+		if(opt.selected){ savable.push(opt.value); }
+	}
+	EditorWidgets.Save(timeline.exportTracks('text/vtt',savable),target)
+}
 
 // Set up the editor and player
 var captionEditor;
@@ -132,53 +146,48 @@ captionEditor = CaptionEditor({
 });
 
 //Bind the toolbar buttons
-document.getElementById('tbtn').addEventListener('click', function() {
+document.getElementById('new_track_btn').addEventListener('click', function() {
 	var name = prompt("Track name");
 	if (!name) { return; }
 	createEmptyTrack(name);
 },false);
-document.getElementById('ubtn').addEventListener('click', function() {
-	timeline.loadTextTrack(prompt("Enter URL:"),'subtitles','en',"foo");
+document.getElementById('url_track_btn').addEventListener('click', function() {
+	var url = prompt("Enter URL:");
+	if (!url) { return; }
+	var name = prompt("Track name");
+	if (!name) { return; }
+	timeline.loadTextTrack(url,'subtitles','en',name);
 	timeline.render();
 }, false);
-document.getElementById("selb").addEventListener('click',function(){
+document.getElementById("select_tool_btn").addEventListener('click',function(){
 	timeline.currentTool = Timeline.SELECT;
 },false);
-document.getElementById("movb").addEventListener('click',function(){
+document.getElementById("move_tool_btn").addEventListener('click',function(){
 	timeline.currentTool = Timeline.MOVE;
 },false);
-document.getElementById("creb").addEventListener('click',function(){
+document.getElementById("create_tool_btn").addEventListener('click',function(){
 	timeline.currentTool = Timeline.CREATE;
 },false);
-document.getElementById("delb").addEventListener('click',function(){
+document.getElementById("delete_tool_btn").addEventListener('click',function(){
 	timeline.currentTool = Timeline.DELETE;
 },false);
-document.getElementById("repb").addEventListener('click',function(){
+document.getElementById("repeat_tool_btn").addEventListener('click',function(){
 	timeline.currentTool = Timeline.REPEAT;		
 },false);
-document.getElementById("scrb").addEventListener('click',function(){
+document.getElementById("scroll_tool_btn").addEventListener('click',function(){
 	timeline.currentTool = Timeline.SCROLL;		
 },false);
-document.getElementById("ordb").addEventListener('click',function(){
+document.getElementById("order_tool_btn").addEventListener('click',function(){
 	timeline.currentTool = Timeline.ORDER;		
 },false);
-document.getElementById("undb").addEventListener('click',function(){
+document.getElementById("undo_btn").addEventListener('click',function(){
 	timeline.commandStack.undo();
 },false);
-document.getElementById("redb").addEventListener('click',function(){
+document.getElementById("redo_btn").addEventListener('click',function(){
 	timeline.commandStack.redo();
 },false);
-
-function saveTracks(target){
-	var i, opt, savable = [];
-	for(i=0;opt=atracks.options[i];i++){
-		if(opt.selected){ savable.push(opt.value); }
-	}
-	EditorWidgets.Save(timeline.exportTracks('text/vtt',savable),target)
-}
-
-document.getElementById("savs").addEventListener('click',saveTracks.bind(null,'ajax/saver.php'),false);
-document.getElementById("savl").addEventListener('click',saveTracks.bind(null,'file'),false);
+document.getElementById("save_to_server_btn").addEventListener('click',saveTracks.bind(null,'ajax/saver.php'),false);
+document.getElementById("save_locally_btn").addEventListener('click',saveTracks.bind(null,'file'),false);
 
 createEmptyTrack("New Track");
 
