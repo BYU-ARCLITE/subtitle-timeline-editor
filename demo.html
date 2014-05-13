@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<script src="node_modules/jquery/dist/jquery.min.js"></script>
+	<script src="node_modules/timed-text/js/TimedText.js"></script>
+	<script src="node_modules/timed-text/js/CaptionRenderer.js"></script>
+	<script src="node_modules/timed-text/js/TextTrackCue.js"></script>
+	<script src="node_modules/timed-text/js/TextTrack.js"></script>
+	<script src="node_modules/timed-text/js/plugins/WebVTT.js"></script>
+	<script src="node_modules/timed-text/js/plugins/SRT.js"></script>
+	<script src="node_modules/ayamel.js/js/async.js"></script>
+	<script src="node_modules/ayamel.js/js/Resource.js"></script>
+	<script src="node_modules/ayamel.js/js/swfobject.js"></script>
+	<script src="node_modules/ayamel.js/js/Ayamel.js"></script>
+	<script src="node_modules/ayamel.js/js/AnimationHandler.js"></script>
+	<script src="node_modules/ayamel.js/js/AyamelPlayer.js"></script>
+	<script src="node_modules/ayamel.js/js/CaptionsTraversal.js"></script>
+	<script src="node_modules/ayamel.js/js/CaptionTrackLoader.js"></script>
+	<script src="node_modules/ayamel.js/js/ControlBar.js"></script>
+	<script src="node_modules/ayamel.js/js/KeyBinder.js"></script>
+	<script src="node_modules/ayamel.js/js/LangCodes.js"></script>
+	<script src="node_modules/ayamel.js/js/MediaPlayer.js"></script>
+	<script src="node_modules/ayamel.js/js/Mobile.js"></script>
+	<script src="node_modules/ayamel.js/js/ProgressBar.js"></script>
+	<script src="node_modules/ayamel.js/js/Text.js"></script>
+	<script src="node_modules/ayamel.js/js/plugins/youtube.js"></script>
+	<script src="node_modules/ayamel.js/js/plugins/flashVideo.js"></script>
+	<script src="node_modules/ayamel.js/js/plugins/html5Video.js"></script>
+	<script src="node_modules/ayamel.js/js/plugins/html5Audio.js"></script>
+	<script src="node_modules/ayamel.js/js/controls/PlayButton.js"></script>
+	<script src="node_modules/ayamel.js/js/controls/TimeCode.js"></script>
+	<script src="node_modules/editor-widgets/js/CommandStack.js"></script>
+	<script src="node_modules/editor-widgets/js/Save.js"></script>
+	<script src="node_modules/editor-widgets/js/LocalFiles.js"></script>
+
+	<script src="Timeline.js"></script>
+	<script src="CaptionEditor.js"></script>
+	<script src="Slider.js"></script>
+	<script src="TimelineSkin.js"></script>
+	<script src="TimelineView.js"></script>
+	<script src="TextTrack.js"></script>
+	<script src="WaveForm.js"></script>
+	<script src="AudioTrack.js"></script>
+	<script src="Resampler.js"></script>
+	<script src="aurora/aurora.js"></script>
+	<script src="aurora/mp3.js"></script>
+
+	<link rel="stylesheet" href="node_modules/ayamel.js/css/player.css">
+	<link rel="stylesheet" href="node_modules/timed-text/css/timed-text.css">
+	<style type="text/css">
+		body {
+			margin: 0;
+			padding: 0;
+		}
+		#ayamel_player_container {
+			margin-left: auto;
+			margin-right: auto;
+			width: 50%;
+		}
+	</style>
+</head>
+
+<body>
+<div id="ayamel_player_container"></div>
+<button id="tbtn">Add Empty Track</button>
+<button id="ubtn">Add Track From URL</button>
+<button id="selb">SELECT</button>
+<button id="movb"> MOVE </button>
+<button id="creb">CREATE</button>
+<button id="delb">DELETE</button>
+<button id="repb">REPEAT</button>
+<button id="scrb">SCROLL</button>
+<button id="ordb">ORDER</button>
+<button id="undb"> UNDO </button>
+<button id="redb"> REDO </button>
+<button id="savs"> Save to Server </button>
+<button id="savl"> Save Locally </button>
+<div id="timeline"></div>
+
+<script type="text/javascript">
+
+// Set up the timeline
+var timeline = new Timeline(document.getElementById("timeline"), {
+	width: window.innerWidth,
+	length: 7000,
+	start: 0,
+	end: 240
+});
+window.addEventListener('resize',function(){ timeline.width = window.innerWidth; }, false);
+timeline.on('jump', function(event){ player.currentTime = event.time; });
+timeline.on('activechange', function(){ player.captionRenderer.rebuildCaptions(); });
+timeline.on('addtrack',function(evt){
+	player.addTextTrack(evt.track.textTrack);
+});
+function createEmptyTrack(name) {
+	var track = new TextTrack('subtitles', name, 'en');
+	track.mode = "showing";
+	track.readyState = TextTrack.LOADED;
+	timeline.addTextTrack(track, "text/vtt");
+	timeline.render();
+};
+
+// Set up the editor and player
+var captionEditor;
+var player = new Ayamel.classes.AyamelPlayer({
+	components: {
+		left: ["play"],
+		right: ["timeCode"]
+	},
+	$holder: $(document.getElementById("ayamel_player_container")),
+	resource: {
+		type: "video",
+		content: {
+			files: [{
+				streamUri: "https://www.youtube.com/watch?v=tdLWBn1nDBk"
+			}]
+		}
+	},
+	renderCue: function(renderedCue, area, renderFunc) {
+		return captionEditor.make(renderedCue, area, renderFunc);
+	}
+});
+player.addEventListener("timeupdate", function() {
+	timeline.currentTime = player.currentTime;
+},false);
+player.addEventListener("durationchange", function() {
+	timeline.length = player.duration;
+},false);
+captionEditor = CaptionEditor({
+	stack: timeline.commandStack,
+	renderer: player.captionRenderer,
+	timeline: timeline
+});
+
+//Bind the toolbar buttons
+document.getElementById('tbtn').addEventListener('click', function() {
+	var name = prompt("Track name");
+	if (!name) { return; }
+	createEmptyTrack(name);
+},false);
+document.getElementById('ubtn').addEventListener('click', function() {
+	timeline.loadTextTrack(prompt("Enter URL:"),'html','en');
+	timeline.render();
+}, false);
+document.getElementById("selb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.SELECT;
+},false);
+document.getElementById("movb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.MOVE;
+},false);
+document.getElementById("creb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.CREATE;
+},false);
+document.getElementById("delb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.DELETE;
+},false);
+document.getElementById("repb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.REPEAT;		
+},false);
+document.getElementById("scrb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.SCROLL;		
+},false);
+document.getElementById("ordb").addEventListener('click',function(){
+	timeline.currentTool = Timeline.ORDER;		
+},false);
+document.getElementById("undb").addEventListener('click',function(){
+	timeline.commandStack.undo();
+},false);
+document.getElementById("redb").addEventListener('click',function(){
+	timeline.commandStack.redo();
+},false);
+
+function saveTracks(target){
+	var i, opt, savable = [];
+	for(i=0;opt=atracks.options[i];i++){
+		if(opt.selected){ savable.push(opt.value); }
+	}
+	EditorWidgets.Save(timeline.exportTracks('text/vtt',savable),target)
+}
+
+document.getElementById("savs").addEventListener('click',saveTracks.bind(null,'ajax/saver.php'),false);
+document.getElementById("savl").addEventListener('click',saveTracks.bind(null,'file'),false);
+
+createEmptyTrack("New Track");
+
+</script>
+
+</body>
+</html>
