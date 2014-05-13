@@ -95,8 +95,6 @@ timeline.on('addtrack',function(evt){
 });
 function createEmptyTrack(name) {
 	var track = new TextTrack('subtitles', name, 'en');
-	track.mode = "showing";
-	track.readyState = TextTrack.LOADED;
 	timeline.addTextTrack(track, "text/vtt");
 	timeline.render();
 };
@@ -140,7 +138,7 @@ document.getElementById('tbtn').addEventListener('click', function() {
 	createEmptyTrack(name);
 },false);
 document.getElementById('ubtn').addEventListener('click', function() {
-	timeline.loadTextTrack(prompt("Enter URL:"),'html','en');
+	timeline.loadTextTrack(prompt("Enter URL:"),'subtitles','en',"foo");
 	timeline.render();
 }, false);
 document.getElementById("selb").addEventListener('click',function(){
