@@ -35,7 +35,6 @@ var Timeline = (function(TimedText,EditorWidgets){
 		if(!(location instanceof HTMLElement)){ throw new Error("Invalid DOM Insertion Point"); }
 		if(!params){ params = {}; }
 		var getFor = params.getFor,
-			controls = !!(params.showControls && Timeline.ControlBar),
 			canvas = document.createElement('canvas'),
 			overlay = document.createElement('canvas'),
 			cache = document.createElement('canvas'),
@@ -242,8 +241,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 		node.appendChild(canvas);
 		node.appendChild(overlay);
 		node.appendChild(cache);
-		if(controls){
-			node.insertBefore((new Timeline.ControlBar(this, Timeline.Controls)).node, canvas);
+		if(!params.hideControls && Timeline.ControlBar){
+			node.insertBefore(Timeline.ControlBar(this, params.controls), canvas);
 		}
 
 		node.addEventListener('drop', dragDrop.bind(this), false);
