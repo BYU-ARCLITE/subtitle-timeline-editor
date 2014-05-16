@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<script src="node_modules/jquery/dist/jquery.min.js"></script>
+	<script src="node_modules/timed-text/js/TimedText.js"></script>
+	<script src="node_modules/timed-text/js/CaptionRenderer.js"></script>
+	<script src="node_modules/timed-text/js/TextTrackCue.js"></script>
+	<script src="node_modules/timed-text/js/TextTrack.js"></script>
+	<script src="node_modules/timed-text/js/plugins/WebVTT.js"></script>
+	<script src="node_modules/timed-text/js/plugins/SRT.js"></script>
+	<script src="node_modules/ayamel.js/js/async.js"></script>
+	<script src="node_modules/ayamel.js/js/Resource.js"></script>
+	<script src="node_modules/ayamel.js/js/swfobject.js"></script>
+	<script src="node_modules/ayamel.js/js/Ayamel.js"></script>
+	<script src="node_modules/ayamel.js/js/AnimationHandler.js"></script>
+	<script src="node_modules/ayamel.js/js/AyamelPlayer.js"></script>
+	<script src="node_modules/ayamel.js/js/CaptionsTraversal.js"></script>
+	<script src="node_modules/ayamel.js/js/CaptionTrackLoader.js"></script>
+	<script src="node_modules/ayamel.js/js/ControlBar.js"></script>
+	<script src="node_modules/ayamel.js/js/KeyBinder.js"></script>
+	<script src="node_modules/ayamel.js/js/LangCodes.js"></script>
+	<script src="node_modules/ayamel.js/js/MediaPlayer.js"></script>
+	<script src="node_modules/ayamel.js/js/Mobile.js"></script>
+	<script src="node_modules/ayamel.js/js/ProgressBar.js"></script>
+	<script src="node_modules/ayamel.js/js/Text.js"></script>
+	<script src="node_modules/ayamel.js/js/plugins/youtube.js"></script>
+	<script src="node_modules/ayamel.js/js/plugins/flashVideo.js"></script>
+	<script src="node_modules/ayamel.js/js/plugins/html5Video.js"></script>
+	<script src="node_modules/ayamel.js/js/plugins/html5Audio.js"></script>
+	<script src="node_modules/ayamel.js/js/controls/PlayButton.js"></script>
+	<script src="node_modules/ayamel.js/js/controls/TimeCode.js"></script>
+	<script src="node_modules/editor-widgets/js/CommandStack.js"></script>
+	<script src="node_modules/editor-widgets/js/Save.js"></script>
+	<script src="node_modules/editor-widgets/js/LocalFiles.js"></script>
+
+	<script src="Timeline.js"></script>
+	<script src="CaptionEditor.js"></script>
+	<script src="Slider.js"></script>
+	<script src="TimelineSkin.js"></script>
+	<script src="TimelineView.js"></script>
+	<script src="TextTrack.js"></script>
+	<script src="WaveForm.js"></script>
+	<script src="AudioTrack.js"></script>
+	<script src="Resampler.js"></script>
+	<script src="aurora/aurora.js"></script>
+	<script src="aurora/mp3.js"></script>
+
+	<link rel="stylesheet" href="node_modules/ayamel.js/css/player.css">
+	<link rel="stylesheet" href="node_modules/timed-text/css/timed-text.css">
+	<link rel="stylesheet" href="node_modules/font-awesome/css/font-awesome.min.css">
+	<style type="text/css">
+		body {
+			margin: 0;
+			padding: 0;
+		}
+		#ayamel_player_container {
+			margin-left: auto;
+			margin-right: auto;
+			width: 50%;
+		}
+	</style>
+</head>
+
+<body>
+
+<div id="ayamel_player_container"></div>
+
+<div id="toolbar">
+<button id="new_track_btn">Add Empty Track</button>
+<button id="url_track_btn">Add Track From URL</button>
+<button id="select_tool_btn">SELECT</button>
+<button id="move_tool_btn">MOVE</button>
+<button id="create_tool_btn">CREATE</button>
+<button id="delete_tool_btn">DELETE</button>
+<button id="repeat_tool_btn">REPEAT</button>
+<button id="scroll_tool_btn">SCROLL</button>
+<button id="order_tool_btn">ORDER</button>
+<button id="undo_btn">UNDO</button>
+<button id="redo_btn">REDO</button>
+<button id="save_to_server_btn">Save to Server</button>
+<button id="save_locally_btn">Save Locally</button>
+</div>
+
+<div id="timeline"></div>
+
+<script type="text/javascript">
+
+// Set up the timeline
+var timeline = new Timeline(document.getElementById("timeline"), {
+	width: window.innerWidth,
+	length: 7000,
+	start: 0,
+	end: 240
+});
+window.addEventListener('resize',function(){ timeline.width = window.innerWidth; }, false);
+timeline.on('jump', function(event){ player.currentTime = event.time; });
+timeline.on('activechange', function(){ player.captionRenderer.rebuildCaptions(); });
+timeline.on('addtrack',function(evt){
+	player.addTextTrack(evt.track.textTrack);
+});
+
+function createEmptyTrack(name) {
+	var track = new TextTrack('subtitles', name, 'en');
+	timeline.addTextTrack(track, "text/vtt");
+	timeline.render();
+};
+
+function saveTracks(target){
+	EditorWidgets.Save(timeline.exportTracks(),target);
+};
+
+// Set up the editor and player
+var captionEditor;
+var player = new Ayamel.classes.AyamelPlayer({
+	components: {
+		left: ["play"],
+		right: ["timeCode"]
+	},
+	$holder: $(document.getElementById("ayamel_player_container")),
+	resource: {
+		type: "video",
+		content: {
+			files: [{
+				streamUri: "https://www.youtube.com/watch?v=tdLWBn1nDBk"
+			}]
+		}
+	},
+	renderCue: function(renderedCue, area, renderFunc) {
+		return captionEditor.make(renderedCue, area, renderFunc);
+	}
+});
+player.addEventListener("timeupdate", function() {
+	timeline.currentTime = player.currentTime;
+},false);
+player.addEventListener("durationchange", function() {
+	timeline.length = player.duration;
+},false);
+captionEditor = CaptionEditor({
+	stack: timeline.commandStack,
+	renderer: player.captionRenderer,
+	timeline: timeline
+});
+
+//Bind the toolbar buttons
+document.getElementById('new_track_btn').addEventListener('click', function() {
+	var name = prompt("Track name");
+	if (!name) { return; }
+	createEmptyTrack(name);
+},false);
+document.getElementById('url_track_btn').addEventListener('click', function() {
+	var url = prompt("Enter URL:");
+	if (!url) { return; }
+	var name = prompt("Track name");
+	if (!name) { return; }
+	timeline.loadTextTrack(url,'subtitles','en',name);
+	timeline.render();
+}, false);
+document.getElementById("select_tool_btn").addEventListener('click',function(){
+	timeline.currentTool = Timeline.SELECT;
+},false);
+document.getElementById("move_tool_btn").addEventListener('click',function(){
+	timeline.currentTool = Timeline.MOVE;
+},false);
+document.getElementById("create_tool_btn").addEventListener('click',function(){
+	timeline.currentTool = Timeline.CREATE;
+},false);
+document.getElementById("delete_tool_btn").addEventListener('click',function(){
+	timeline.currentTool = Timeline.DELETE;
+},false);
+document.getElementById("repeat_tool_btn").addEventListener('click',function(){
+	timeline.currentTool = Timeline.REPEAT;		
+},false);
+document.getElementById("scroll_tool_btn").addEventListener('click',function(){
+	timeline.currentTool = Timeline.SCROLL;		
+},false);
+document.getElementById("order_tool_btn").addEventListener('click',function(){
+	timeline.currentTool = Timeline.ORDER;		
+},false);
+document.getElementById("undo_btn").addEventListener('click',function(){
+	timeline.commandStack.undo();
+},false);
+document.getElementById("redo_btn").addEventListener('click',function(){
+	timeline.commandStack.redo();
+},false);
+document.getElementById("save_to_server_btn").addEventListener('click',saveTracks.bind(null,'/foo'),false);
+document.getElementById("save_locally_btn").addEventListener('click',saveTracks.bind(null,'file'),false);
+
+createEmptyTrack("New Track");
+
+</script>
+
+</body>
+</html>

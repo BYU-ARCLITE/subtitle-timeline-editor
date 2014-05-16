@@ -528,6 +528,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	Proto.addTextTrack = function(textTrack,mime,overwrite) {
 		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){ throw new Error("Track name already in use."); }
+		textTrack.mode = "showing";
+		textTrack.readyState = TextTrack.LOADED;
 		var track = new Timeline.TextTrack(this, textTrack, mime);
 		if(this.trackIndices.hasOwnProperty(textTrack.label)){
 			swaptracks.call(this,track,this.tracks[this.trackIndices[track.id]]);
