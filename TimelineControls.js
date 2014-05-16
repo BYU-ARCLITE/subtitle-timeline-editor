@@ -18,7 +18,7 @@
 			cmap = Timeline.Controls;
 		
 		if(!(controls && typeof controls.forEach === 'function')){
-			controls = ['undo','tracks','tools','settings','timestamp'];
+			controls = ['actions','tracks','tools','settings','timestamp'];
 		}
 		controls.forEach(function(c){
 			var constructor = cmap[c];
@@ -250,13 +250,6 @@
 			tl.on('abrepeatdisabled',function(){ set(false); });
 			return btn;
 		}());
-		
-		//Clear Repeat
-		group.appendChild(function(){
-			var btn = parseNode('<button class="tl-btn" title="Clear Repeat"><i class="icon-ban-circle"></i></button>');
-			setupButton(btn,'active',function(){ tl.clearRepeat(); });
-			return btn;
-		}());
 
 		//track seeker
 		group.appendChild(function(){
@@ -269,6 +262,20 @@
 			set(tl.trackSeeker);
 			tl.on('trackseekeron',function(){ set(true); });
 			tl.on('trackseekeroff',function(){ set(false); });
+			return btn;
+		}());
+		
+		//autocue repeat
+		group.appendChild(function(){
+			var set, btn;
+			btn = parseNode('<button class="tl-btn" title="Auto Repeat">Auto<i class="icon-refresh"></i></button>');
+			set = setupToggle(btn,'active',
+				function(){ tl.autoCueRepeat = true; },
+				function(){ tl.autoCueRepeat = false; }
+			);
+			set(tl.autoCueRepeat);
+			tl.on('cuerepeaton',function(){ set(true); });
+			tl.on('cuerepeatoff',function(){ set(false); });
 			return btn;
 		}());
 		
@@ -293,17 +300,30 @@
 		return node;
 	}
 	
-	function UndoButtons(tl){
-		var node = parseNode('<div class="tl-toolbar"></div>'),
+	function Actions(tl){
+		var btn, node = parseNode('<div class="tl-toolbar"><strong>Actions:&nbsp</strong></div>'),
 			group = parseNode('<div class="tl-btn-group"></div>'),
-			ubtn = parseNode('<button class="tl-btn" title="Undo"><i class="icon-undo"></i></button>'),
-			rbtn = parseNode('<button class="tl-btn" title="Redo"><i class="icon-repeat"></i></button>'),
 			stack = tl.commandStack;
-		setupButton(ubtn,'active',stack.undo.bind(stack));
-		setupButton(rbtn,'active',stack.redo.bind(stack));
+		
+		//undo/redo
+		btn = parseNode('<button class="tl-btn" title="Undo"><i class="icon-undo"></i></button>');
+		setupButton(btn,'active',stack.undo.bind(stack));
+		group.appendChild(btn);
+		btn = parseNode('<button class="tl-btn" title="Redo"><i class="icon-repeat"></i></button>');
+		setupButton(btn,'active',stack.redo.bind(stack));
+		group.appendChild(btn);
+		
+		//Clear Repeat
+		btn = parseNode('<button class="tl-btn" title="Clear Repeat"><i class="icon-ban-circle"></i></button>');
+		setupButton(btn,'active',function(){ tl.clearRepeat(); });
+		group.appendChild(btn);
+		
+		//AutoCue Breakpoint
+		btn = parseNode('<button class="tl-btn" title="AutoCue Breakpoint"><b>||</b></button>');
+		setupButton(btn,'active',function(){ tl.breakPoint(); });
+		group.appendChild(btn);
+		
 		node.appendChild(group)
-		group.appendChild(ubtn);
-		group.appendChild(rbtn);
 		return node;
 	}
 	
@@ -318,7 +338,7 @@
 				{title:"Time Shift Tool",icon:"icon-resize-horizontal",value:Timeline.SHIFT},
 				{title:"Split Tool",icon:"icon-cut",value:Timeline.SPLIT},
 				{title:"Delete Tool",icon:"icon-trash",value:Timeline.DELETE},
-				{title:"Set Repeat Tool",icon:"icon-repeat",value:Timeline.REPEAT},
+				{title:"Set Repeat Tool",icon:"icon-refresh",value:Timeline.REPEAT},
 				{title:"Scroll Tool",icon:"icon-ellipsis-horizontal",value:Timeline.SCROLL},
 				{title:"Reorder Tool",icon:"icon-random",value:Timeline.ORDER},
 			], rgroup;
@@ -338,7 +358,7 @@
 	Object.defineProperty(Timeline,'Controls',{
 		value: {
 			'tools': ToolSelector,
-			'undo': UndoButtons,
+			'actions': Actions,
 			'settings': Settings,
 			'tracks': TrackControls,
 			'timestamp': Timestamp

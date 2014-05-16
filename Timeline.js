@@ -46,6 +46,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			cursors = params.cursors || new Timeline.Cursors({}),
 			width = params.width || location.offsetWidth,
 			length = params.length || 1800,
+			autoCueRepeat = !!params.autoCueRepeat,
 			trackSeeker = params.hasOwnProperty('trackSeeker')?!!params.trackSeeker:true,
 			currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT,
 			automove = !!params.automove,
@@ -177,6 +178,16 @@ var Timeline = (function(TimedText,EditorWidgets){
 					if(val === automove){ return val; }
 					automove = val;
 					this.emit(new Timeline.Event(val?'automoveon':'automoveoff'));
+					return val;
+				}
+			},
+			autoCueRepeat: {
+				get: function(){ return autoCueRepeat; },
+				set: function(val){
+					val = !!val;
+					if(val === autoCueRepeat){ return val; }
+					autoCueRepeat = val;
+					this.emit(new Timeline.Event(val?'cuerepeaton':'cuerepeatoff'));
 					return val;
 				}
 			}
@@ -1066,7 +1077,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.emit(new Timeline.Event("abrepeatset"));
 	};
 
-	Proto.breakPoint = function(skip){
+	Proto.breakPoint = function(){
 		var time = this.currentTime,
 			tracks = this.tracks.filter(function(track){ return track.autoCue; });
 		if(!tracks.length){ return; }
@@ -1074,25 +1085,22 @@ var Timeline = (function(TimedText,EditorWidgets){
 		case Timeline.AutoCueResolved:
 			this.autoCueStatus = Timeline.AutoCueCueing;
 			this.autoCueStart = time;
-			tracks.forEach(function(track){
-				track.setPlaceholder(time, time);
-				track.resolvePlaceholder();
-			});
 			break;
 		case Timeline.AutoCueCueing:
-			if(!skip){
-				this.autoCueStatus = Timeline.AutoCueRepeating;
-				this.setRepeat(this.autoCueStart,time);
-				this.autoCueStart -= .01;
-				time += .01;
-				break;
-			}
 			tracks.forEach(function(track){
-				track.setPlaceholder(this.autoCueStart, time);
+				track.setPlaceholder(this.autoCueStart-.01, time+.01);
 				track.resolvePlaceholder();
 			},this);
-		default:
+			if(this.autoCueRepeat){
+				this.autoCueStatus = Timeline.AutoCueRepeating;
+				this.setRepeat(this.autoCueStart+.01,time-.01);
+			}else{
+				this.autoCueStatus = Timeline.AutoCueResolved;
+			}
+			break;
+		case Timeline.AutoCueRepeating:
 			this.clearRepeat();
+		default: // invalid state recovery
 			this.autoCueStatus = Timeline.AutoCueResolved;
 		}
 	};
