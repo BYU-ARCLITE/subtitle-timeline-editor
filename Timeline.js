@@ -1234,7 +1234,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	function mouseMove(ev) {
 		var i, active, swap,
-			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY};
+			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey};
 
 		this.mousePos = pos;
 
@@ -1314,9 +1314,10 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	function mouseDown(ev) {
 		if(ev.button > 0){ return; }
-		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey},
 			track,i;
-
+		
+		ev.preventDefault();
 		document.activeElement.blur();
 		if(this.activeMenu){
 			this.activeMenu.parentNode.removeChild(this.activeMenu);
@@ -1348,31 +1349,32 @@ var Timeline = (function(TimedText,EditorWidgets){
 			if(this.emit(new Timeline.Event("jump", {time:i}))){
 				this.currentTime = i;
 			}
-		}else switch(this.currentTool){
+		}else if(!pos.ctrl){
+			switch(this.currentTool){
 			case Timeline.REPEAT:
 				this.abRepeatSetting = true;
 				(this.abRepeatSet?updateABPoints:resetABPoints).call(this,pos);
-				break;
+				return;
 			case Timeline.SCROLL:
 				initScroll.call(this);
-				break;
+				return;
 			case Timeline.ORDER:
 				this.activeIndex = this.indexFromPos(pos);
-				break;
+				return;
 			case Timeline.SELECT:
 				this.activeElement = new Selection(this,pos);
-				break;
-			default: // Check tracks
-				track = this.trackFromPos(pos);
-				this.activeElement = track;
-				track && track.mouseDown(pos);
+				return;
+			}
 		}
-		ev.preventDefault();
+		// Check tracks
+		track = this.trackFromPos(pos);
+		this.activeElement = track;
+		track && track.mouseDown(pos);
 	}
 
 	function mouseWheel(ev) {
 		var i, that = this,
-			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY},
+			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey},
 			delta =  ev.detail?(ev.detail>0?-1:1):(ev.wheelDelta>0?1:-1);
 
 		if(this.activeMenu){

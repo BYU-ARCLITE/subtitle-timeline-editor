@@ -30,6 +30,7 @@
 		this.audioId = null;
 		this.placeholder = null;
 		this.lastPos = null;
+		this.ctrl = false;
 
 		function set_mime(newmime, newCues){
 			var i = 0, oldmime = mime,
@@ -613,6 +614,14 @@
 		TProto.mouseDown = function(pos){
 			if(typeof pos !== 'object' || this.locked){ return; }
 			var tl = this.tl, seg, selected;
+			if(pos.ctrl){ //copy on click / drag
+				this.ctrl = true;
+				seg = this.segFromPos(pos);
+				if(seg === null){ return; }
+				if(seg.selected){ this.copySelected(); }
+				else{ seg.copy(); }
+				return;
+			}
 			if(tl.currentTool === Timeline.CREATE){
 				this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
 			}else if(tl.currentTool === Timeline.SHIFT){
@@ -631,7 +640,7 @@
 
 		TProto.mouseMove = function(pos){
 			var change;
-			if(typeof pos !== 'object' || this.locked){ return; }
+			if(typeof pos !== 'object' || this.locked || this.ctrl){ return; }
 			if(this.tl.currentTool === Timeline.SHIFT){
 				change = this.segments.reduce(function(acc,seg){ return acc || seg.mouseMove(pos); }, false);
 				if(change){
@@ -643,9 +652,13 @@
 		};
 
 		TProto.mouseUp = function(pos){
-			var selected, delta, tl = this.tl;
+			var selected, delta, target, tl = this.tl;
 			if(typeof pos !== 'object' || this.locked){ return; }
-			if(tl.currentTool === Timeline.SHIFT){
+			if(this.ctrl){ //copy on drag
+				this.ctrl = false;
+				target = tl.trackFromPos(pos);
+				if(this !== target){ target.paste(tl.toCopy); }
+			}else if(tl.currentTool === Timeline.SHIFT){
 				selected = this.segments.filter(function(seg){ return seg.selected; });
 				if(selected.length < 2){ selected = this.segments; }
 				selected.forEach(function(seg){ seg.moving = false; });
