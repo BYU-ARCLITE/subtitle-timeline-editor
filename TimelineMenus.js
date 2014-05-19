@@ -55,6 +55,23 @@
 					label:function(){ return this.track.autoCue?"Stop Auto Cue":"Start Auto Cue"; },
 					condition:function(){ return !this.track.locked; },
 					action:function(pos){ this.track.autoCue = !this.track.autoCue; }},
+				{name:"Auto Fill",
+					label:function(){ return this.track.autoFill?"Stop Auto Fill":"Start Auto Fill"; },
+					condition:function(){ return !this.track.locked && this.track.linebuffer.length; },
+					action:function(pos){ this.track.autoFill = !this.track.autoFill; }},
+				{name:"Clear Buffer",
+					label:function(){ return this.track.autoFill?"Stop Auto Fill":"Start Auto Fill"; },
+					condition:function(){ return !this.track.locked && this.track.linebuffer.length; },
+					action:function(pos){ this.track.linebuffer = []; }},
+				{name:"Add to Line Buffer",
+					condition:function(){ return !this.track.locked && !!this.timeline.canGetFor('loadlines',['linesrc']); },
+					action:function(pos){
+						var tl = this.timeline,
+							tid = this.track.id;
+						tl.getFor('loadlines',['linesrc'],{}).then(function(values){
+							tl.loadLineBuffer(tid,values[0]);
+						});
+					}},
 				{name:"Lock",
 					label:function(){ return this.track.locked?"Unlock":"Lock"; },
 					action:function(){ this.track.locked = !this.track.locked; }},
@@ -70,26 +87,19 @@
 				{name:"Set Audio",
 					condition: function(){ return global.Reader && global.WaveForm && global.Resampler && !this.track.locked; },
 					submenu:[
-						{name: "From Disk",
+						{name: "Load New",
+							condition: function(){ return !!this.timeline.canGetFor('loadaudio',['audiosrc','name']); },
 							action: function(){
 								var tl = this.timeline,
-									track = this.track,
-									f = document.createElement('input');
-								f.type = "file";
-								f.addEventListener('change',function(evt){
-									tl.loadAudioTrack(evt.target.files[0],file.name);
-									tl.setAudioTrack(track.id,file.name);
+									track = this.track;
+								tl.getFor('loadaudio',
+									['audiosrc','name'],
+									{name: void 0}
+								).then(function(values){
+									var name = values[1];
+									tl.loadAudioTrack(values[0],name);
+									tl.setAudioTrack(track.id,name);
 								});
-								f.click();	
-							}
-						},{name: "From URL",
-							action: function(){
-								var tl = this.timeline, name,
-									url = prompt("URL of Audio File:","http://");
-								if(!url){ return; }
-								name = /([^\/]+)\/?$/g.exec(url)[1];
-								tl.loadAudioTrack(url,name);
-								tl.setAudioTrack(this.track.id,name);
 							}
 						},{name: "None",
 							condition: function(){ return !!this.track.audioId; },

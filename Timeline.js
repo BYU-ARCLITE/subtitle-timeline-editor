@@ -791,6 +791,45 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}
 	};
 
+	function getLineBuffer(source){
+		return (new Promise(function(resolve,reject){
+			var reader;
+			if(source instanceof File){
+				reader = new FileReader();
+				reader.onerror = reject;
+				reader.onload = function(evt) {
+					resolve([evt.target.result,source.type || TimedText.inferType(source.name)]);
+				};
+				reader.readAsText(source);
+			}else if(typeof source === "string" || source instanceof String){
+				reader = new XMLHttpRequest();
+				reader.open('GET', source, true);
+				reader.onerror = reject;
+				reader.onload = function() {
+					resolve([this.responseText,this.getResponseHeader('content-type')]);
+				};
+				reader.send(null);
+			}else if(source instanceof Object){
+				resolve([source.content,source.mime || TimedText.inferType(source.name)]);
+			}
+		})).then(function(arr){
+			try{ return TimedText.parse(mime,text).cueList.map(function(cue){ return cue.text; }); }
+			catch(_){ return text.split('\n'); }
+		});
+	};
+	
+	Proto.loadLineBuffer = function(tid,src){
+		var track = resolveTrack(this, tid);
+		getLineBuffer(src).then(function(lines){
+			lines.reverse();
+			track.linebuffer = lines;
+		});
+	};
+	
+	Proto.clearLineBuffer = function(tid){
+		resolveTrack(this, tid).linebuffer = [];
+	};
+	
 	Proto.addSegment = function(tid, cue, select){
 		resolveTrack(this, tid).add(cue, select);
 	};

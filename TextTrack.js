@@ -31,6 +31,8 @@
 		this.placeholder = null;
 		this.lastPos = null;
 		this.ctrl = false;
+		this.autoFill = false;
+		this.linebuffer = [];
 
 		function set_mime(newmime, newCues){
 			var i = 0, oldmime = mime,
@@ -342,7 +344,7 @@
 			return new TlTextTrack(this.tl,ntt,this.mime);
 		};
 
-		TProto.add = function(cue, select){
+		function cue2seg(cue, select){
 			var tl = this.tl, seg;
 
 			this.textTrack.addCue(cue);
@@ -353,14 +355,6 @@
 
 			if(select){ seg.select(); }
 
-			// Save the action
-			tl.commandStack.push({
-				file: this.textTrack.label,
-				context: seg,
-				undo: deleteSeg,
-				redo: recreateSeg
-			});
-
 			tl.emit(new Timeline.Event('addcue',{cue:cue,segment:seg}));
 			tl.emit(new Timeline.Event('create',{segments:[seg]}));
 			if(seg.active){
@@ -368,6 +362,17 @@
 				tl.emit(new Timeline.Event('activechange'));
 			}
 			tl.renderTrack(this);
+			return seg;
+		}
+		
+		TProto.add = function(cue, select){
+			var seg = cue2seg.call(this, cue, select);
+			tl.commandStack.push({
+				file: this.textTrack.label,
+				context: seg,
+				undo: deleteSeg,
+				redo: recreateSeg
+			});
 			return seg;
 		};
 
@@ -456,7 +461,8 @@
 
 		TProto.resolvePlaceholder = function(){
 			if(this.placeholder === null){ return; }
-			var seg, tl = this.tl,
+			var seg, text,
+				tl = this.tl,
 				view = tl.view,
 				placeholder = this.placeholder,
 				startx = placeholder.startx,
@@ -464,12 +470,40 @@
 
 			this.placeholder = null;
 			if(startx === endx){ return; }
-			seg = this.add(
-				new this.cueType(
-					view.pixelToTime(startx),
-					view.pixelToTime(endx),
-					""
-				), tl.autoSelect);
+			if(this.autoFill && this.linebuffer.length){
+				text = this.linebuffer.pop();
+				seg = cue2seg.call(this,
+					new this.cueType(
+						view.pixelToTime(startx),
+						view.pixelToTime(endx),
+						text
+					), tl.autoSelect);
+				tl.commandStack.push({
+					file: this.textTrack.label,
+					context: seg,
+					undo: function(){
+						this.track.linebuffer.push(text);
+						deleteSeg.call(this);
+					},
+					redo: function(){
+						this.track.linebuffer.pop();
+						recreateSeg.call(this);
+					}
+				});
+			}else{
+				seg = cue2seg.call(this,
+					new this.cueType(
+						view.pixelToTime(startx),
+						view.pixelToTime(endx),
+						""
+					), tl.autoSelect);
+				tl.commandStack.push({
+					file: this.textTrack.label,
+					context: seg,
+					undo: deleteSeg,
+					redo: recreateSeg
+				});
+			}
 			if(tl.automove){ tl.currentTool = Timeline.MOVE; }
 			tl.emit(new Timeline.Event("segcomplete",{track:this,segment:seg}));
 		};
