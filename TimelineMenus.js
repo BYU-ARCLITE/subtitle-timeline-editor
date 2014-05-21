@@ -78,11 +78,13 @@
 				{name:"Remove",
 					action:function(){
 						var track = this.track;
-						if(confirm(
+						this.timeline.confirm(
 							this.timeline.commandStack.isFileSaved(track.id)
 							?"Are You Sure You Want To Remove "+track.id+"?"
 							:track.id+" has unsaved changes. Are you sure you want to remove it?")
-						){ this.timeline.removeTextTrack(track.id); }
+						.then(function(b){
+							if(b){ this.timeline.removeTextTrack(track.id); }
+						});
 					}},
 				{name:"Set Audio",
 					condition: function(){ return global.Reader && global.WaveForm && global.Resampler && !this.track.locked; },
@@ -122,9 +124,8 @@
 								{name: "<i>"+TimedText.getTypeName(mime)+"</i>"}:
 								{name: TimedText.getTypeName(mime),
 									action: function(){
-										if(confirm("Converting File Types May Cause Loss of Formatting.\nAre you sure you want to continue?")){
-											this.track.mime = mime;
-										}
+										this.timeline.confirm("Converting File Types May Cause Loss of Formatting.\nAre you sure you want to continue?"))
+										.then(function(b){ if(b){ this.track.mime = mime; } });
 									}
 								}
 							);
