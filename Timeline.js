@@ -573,10 +573,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 		return this.trackIndices.hasOwnProperty(name);
 	};
 
-	Proto.addTextTrack = function(textTrack,mime,overwrite) {
-		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){ throw new Error("Track name already in use."); }
-		var track = new Timeline.TextTrack(this, textTrack, mime);
-		if(this.trackIndices.hasOwnProperty(textTrack.label)){
+	function addTlTextTrack(track){
+		if(this.trackIndices.hasOwnProperty(track.id)){
 			swaptracks.call(this,track,this.tracks[this.trackIndices[track.id]]);
 		}else{
 			this.trackIndices[track.id] = this.tracks.length;
@@ -589,6 +587,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.render();
 			this.emit(new Timeline.Event("addtrack",{track:track}));
 		}
+	}
+	
+	Proto.addTextTrack = function(textTrack,mime,overwrite) {
+		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){
+			throw new Error("Track name already in use.");
+		}
+		addTlTextTrack.call(this, new Timeline.TextTrack(this, textTrack, mime));
 	};
 
 	Proto.removeTextTrack = function(id) {
@@ -615,24 +620,19 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}
 	};
 
-	Proto.cloneTimeCodes = function(tid, kind, lang, name, overwrite) {
-		if(this.trackIndices.hasOwnProperty(name)){
-			if(!overwrite){ throw new Error("Track name already in use."); }
+	Proto.cloneTimeCodes = function(tid, kind, lang, name, mime, overwrite) {
+		if(!overwrite && this.trackIndices.hasOwnProperty(name)){
+			throw new Error("Track name already in use.");
 		}
-		var track = resolveTrack(this, tid).cloneTimeCodes(kind, lang, name);
-		if(this.trackIndices.hasOwnProperty(name)){
-			swaptracks.call(this,track,this.tracks[this.trackIndices[name]]);
-		}else{
-			this.trackIndices[name] = this.tracks.length;
-			this.tracks.push(track);
-			// Adjust the height
-			this.height += this.trackHeight + this.trackPadding;
-			this.canvas.height = this.height;
-			this.overlay.height = this.height;
-			this.cache.height = this.height;
-			this.render();
-			this.emit(new Timeline.Event("addtrack",{track:track}));
+		addTlTextTrack.call(this, resolveTrack(this, tid).cloneTimeCodes(kind, lang, name, mime));
+		this.commandStack.setFileUnsaved(name);
+	};
+	
+	Proto.cloneTrack = function(tid, kind, lang, name, mime, overwrite) {
+		if(!overwrite && this.trackIndices.hasOwnProperty(name)){
+			throw new Error("Track name already in use.");
 		}
+		addTlTextTrack.call(this, resolveTrack(this, tid).cloneTrack(kind, lang, name, mime));
 		this.commandStack.setFileUnsaved(name);
 	};
 
@@ -817,6 +817,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 				resolve([source.content,source.mime || TimedText.inferType(source.name)]);
 			}
 		})).then(function(arr){
+			var text = arr[0], mime = arr[1];
 			try{ return TimedText.parse(mime,text).cueList.map(function(cue){ return cue.text; }); }
 			catch(_){ return text.split('\n'); }
 		});
