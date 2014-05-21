@@ -203,7 +203,7 @@
 	function SaveTrackBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="Save tracks"><i class="icon-save"></i></button>');
 		setupButton(btn,'active',function(){
-			tl.getFor('save',
+			tl.getFor('savetrack',
 				['saver','tidlist'],
 				{tidlist: void 0}
 			).then(function(values){
@@ -224,7 +224,7 @@
 	function LoadTrackBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="Load track"><i class="icon-folder-open"></i></button>');
 		setupButton(btn,'active',function(){
-			tl.getFor('load',
+			tl.getFor('loadtrack',
 				['tracksrc','kind','lang','name','overwrite','handler'],
 				{
 					handler: function(){},
@@ -246,8 +246,8 @@
 		node.appendChild(group);
 		if(!!tl.canGetFor('newtrack',[])){ group.appendChild(NewTrackBtn(tl)); }
 		if(!!tl.canGetFor('edittrack',[])){ group.appendChild(EditTrackBtn(tl)); }
-		if(!!tl.canGetFor('save',['saver'])){ group.appendChild(SaveTrackBtn(tl)); }
-		if(!!tl.canGetFor('load',['tracksrc'])){ group.appendChild(LoadTrackBtn(tl)); }
+		if(!!tl.canGetFor('savetrack',['saver'])){ group.appendChild(SaveTrackBtn(tl)); }
+		if(!!tl.canGetFor('loadtrack',['tracksrc'])){ group.appendChild(LoadTrackBtn(tl)); }
 		return node;
 	}
 	

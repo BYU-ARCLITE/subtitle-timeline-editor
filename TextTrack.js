@@ -333,15 +333,26 @@
 			}
 		});
 
-		TProto.cloneTimeCodes = function(kind,lang,name){
-			var ntt = new TextTrack(kind,name,lang),
-				cueType = this.cueType;
+		TProto.cloneTimeCodes = function(kind,lang,name,mime){
+			var ntt = new TextTrack(kind||this.kind,name,lang||this.language),
+				cueType = mime?TimedText.getTypeInfo(mime).cueType:this.cueType;
 			ntt.cues.loadCues(this.textTrack.cues.map(function(cue){
 				return new cueType(cue.startTime,cue.endTime,"");
 			}));
 			ntt.readyState = TextTrack.LOADED;
 			ntt.mode = "showing";
-			return new TlTextTrack(this.tl,ntt,this.mime);
+			return new TlTextTrack(this.tl,ntt,mime||this.mime);
+		};
+
+		TProto.cloneTrack = function(kind,lang,name,mime){
+			var ntt = new TextTrack(kind||this.kind,name,lang||this.language);
+			if(!mime){ mime = this.mime; }
+			ntt.cues.loadCues(this.textTrack.cues.map(
+				TimedText.getCueConverter(this.mime, mime)
+			));
+			ntt.readyState = TextTrack.LOADED;
+			ntt.mode = "showing";
+			return new TlTextTrack(this.tl,ntt,mime);
 		};
 
 		function cue2seg(cue, select){
@@ -364,7 +375,7 @@
 			tl.renderTrack(this);
 			return seg;
 		}
-		
+
 		TProto.add = function(cue, select){
 			var seg = cue2seg.call(this, cue, select);
 			tl.commandStack.push({
