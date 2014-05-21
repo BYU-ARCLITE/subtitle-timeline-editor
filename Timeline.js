@@ -306,9 +306,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 	Timeline.CREATE = 3;
 	Timeline.DELETE = 4;
 	Timeline.REPEAT = 5;
-	Timeline.SCROLL = 6;
+	Timeline.SPLIT = 6;
 	Timeline.SHIFT = 7;
-	Timeline.SPLIT = 8;
 
 	Timeline.AutoCueResolved = 0;
 	Timeline.AutoCueCueing = 1;
@@ -1257,21 +1256,16 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 		// Check the slider
 		i = this.slider.onHandle(pos);
-		if(i === 1) {
-			cursor = 'resizeR';
-		}else if(i === -1) {
-			cursor = 'resizeL';
-		}else if(this.slider.containsPoint(pos)) {
-			cursor = 'move';
-		}else
-		// Check the key
-		if(pos.y < this.keyHeight+this.trackPadding) {
-			cursor = 'skip';
-		}else if(this.currentTool === Timeline.REPEAT){
-			cursor = !(this.abRepeatOn || this.abRepeatSetting) || pos.x < this.view.timeToPixel((this.repeatA + this.repeatB) / 2)?'repeatA':'repeatB';
-		}else if(this.currentTool === Timeline.SCROLL){
+		if(i === 1){ cursor = 'resizeR'; }
+		else if(i === -1){ cursor = 'resizeL'; }
+		else if(this.slider.onBar(pos)){ cursor = 'move'; }
+		// scrubbing
+		else if(pos.y < this.keyHeight+this.trackPadding){ cursor = 'skip'; }
+		else if(pos.shift){ // navigation
 			cursor =	(this.mousePos.y < (this.height - this.sliderHeight - this.trackPadding))?'move':
 						(this.mousePos.x < this.slider.middle)?'resizeL':'resizeR';
+		}else if(this.currentTool === Timeline.REPEAT){
+			cursor = !(this.abRepeatOn || this.abRepeatSetting) || pos.x < this.view.timeToPixel((this.repeatA + this.repeatB) / 2)?'repeatA':'repeatB';
 		}else if(track = this.trackFromPos(pos)){ // Are we on a track?
 			cursor = 	(this.currentTool === Timeline.ORDER)?'order':
 						(this.currentTool === Timeline.SHIFT)?'move':
@@ -1286,7 +1280,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	function mouseMove(ev) {
 		var i, active, swap,
-			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey};
+			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey, shift: ev.shiftKey};
 
 		this.mousePos = pos;
 
@@ -1366,7 +1360,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	function mouseDown(ev) {
 		if(ev.button > 0){ return; }
-		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey},
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey, shift: ev.shiftKey},
 			track,i;
 		
 		ev.preventDefault();
@@ -1380,11 +1374,12 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.mouseDownPos = pos;
 		this.mousePos = pos;
 
-		if(pos.y > this.height - this.sliderHeight - this.trackPadding){ // Check the slider
-			if(this.slider.containsPoint(pos)) {
-				this.slider.mouseDown(pos);
-				this.sliderActive = true;
-			}else if(this.currentTool === Timeline.SCROLL){
+		// Check the slider
+		if(this.slider.containsPoint(pos)){
+			this.slider.mouseDown(pos);
+			this.sliderActive = true;
+		}else if(this.slider.onBar(pos)){
+			if(pos.shift){
 				initResize.call(this);
 			}else{
 				this.slider.middle = pos.x;
@@ -1395,38 +1390,43 @@ var Timeline = (function(TimedText,EditorWidgets){
 					this.canvas.style.cursor = this.cursors.move;
 				}
 			}
-		}else if(pos.y < this.keyHeight+this.trackPadding) { // Check the key
+		}else
+		// Check the key
+		if(pos.y < this.keyHeight+this.trackPadding){
 			this.scrubActive = true;
 			i = this.view.pixelToTime(pos.x);
 			if(this.emit(new Timeline.Event("jump", {time:i}))){
 				this.currentTime = i;
 			}
-		}else if(!pos.ctrl){
-			switch(this.currentTool){
-			case Timeline.REPEAT:
-				this.abRepeatSetting = true;
-				(this.abRepeatSet?updateABPoints:resetABPoints).call(this,pos);
-				return;
-			case Timeline.SCROLL:
-				initScroll.call(this);
-				return;
-			case Timeline.ORDER:
-				this.activeIndex = this.indexFromPos(pos);
-				return;
-			case Timeline.SELECT:
-				this.activeElement = new Selection(this,pos);
-				return;
+		}else
+		// Check navigation
+		if(pos.shift){ initScroll.call(this); }
+		// Check tool activation
+		else{
+			if(!pos.ctrl){
+				switch(this.currentTool){
+				case Timeline.REPEAT:
+					this.abRepeatSetting = true;
+					(this.abRepeatSet?updateABPoints:resetABPoints).call(this,pos);
+					return;
+				case Timeline.ORDER:
+					this.activeIndex = this.indexFromPos(pos);
+					return;
+				case Timeline.SELECT:
+					this.activeElement = new Selection(this,pos);
+					return;
+				}
 			}
+			// Check tracks
+			track = this.trackFromPos(pos);
+			this.activeElement = track;
+			track && track.mouseDown(pos);
 		}
-		// Check tracks
-		track = this.trackFromPos(pos);
-		this.activeElement = track;
-		track && track.mouseDown(pos);
 	}
 
 	function mouseWheel(ev) {
 		var i, that = this,
-			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey},
+			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey, shift: ev.shiftKey},
 			delta =  ev.detail?(ev.detail>0?-1:1):(ev.wheelDelta>0?1:-1);
 
 		if(this.activeMenu){

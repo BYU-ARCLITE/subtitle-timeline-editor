@@ -247,7 +247,6 @@
 			]
 		},
 		{name:"Navigation",submenu:[
-			{name:"Scroll Tool",action:function(){ this.timeline.currentTool = Timeline.SCROLL; }},
 			{name:"Order Tool",action:function(){ this.timeline.currentTool = Timeline.ORDER; }},
 			{name:"Zoom To Repeat",
 				condition:function(){ return this.timeline.abRepeatSet; },
