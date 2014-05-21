@@ -372,7 +372,6 @@
 				{title:"Split Tool",icon:"icon-cut",value:Timeline.SPLIT},
 				{title:"Delete Tool",icon:"icon-trash",value:Timeline.DELETE},
 				{title:"Set Repeat Tool",icon:"icon-refresh",value:Timeline.REPEAT},
-				{title:"Scroll Tool",icon:"icon-ellipsis-horizontal",value:Timeline.SCROLL},
 				{title:"Reorder Tool",icon:"icon-random",value:Timeline.ORDER},
 			],'active',function(tool){
 			return parseNode('<button class="tl-btn" title="'+tool.title+'"><i class="'+tool.icon+'"></i></button>');
