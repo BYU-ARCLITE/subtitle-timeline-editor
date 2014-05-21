@@ -439,14 +439,14 @@ var Timeline = (function(TimedText,EditorWidgets){
 			menu.style.left = left + 2 + "px";
 		}else{
 			menu.className = "tl-context-menu tl-menu-right";
-			menu.style.right = (cvs.offsetWidth-left) + "px";
+			menu.style.right = (cvs.parentNode.offsetWidth-left) + "px";
 		}
 
 		menu.style.top = top + "px";
 		cvs.parentNode.appendChild(menu);
 		if(menu.getBoundingClientRect().bottom > window.innerHeight){
 			menu.style.top = 'auto';
-			menu.style.bottom = (cvs.offsetHeight-top) + "px";
+			menu.style.bottom = (cvs.parentNode.offsetHeight-top) + "px";
 		}
 		this.activeMenu = menu;
 	};
