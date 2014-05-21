@@ -47,6 +47,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			width = params.width || location.offsetWidth,
 			length = params.length || 1800,
 			autoCueRepeat = !!params.autoCueRepeat,
+			lconf = (typeof params.confirm === 'function')?params.confirm:window.confirm,
 			trackSeeker = params.hasOwnProperty('trackSeeker')?!!params.trackSeeker:true,
 			currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT,
 			automove = !!params.automove,
@@ -193,6 +194,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 			}
 		});
 
+		this.confirm = function(txt){
+			return Promise.resolve(lconf(txt));
+		};
 		this.autoSelect = !!params.autoSelect;
 		this.autoCueStatus = Timeline.AutoCueResolved;
 		this.autoCueStart = 0;
