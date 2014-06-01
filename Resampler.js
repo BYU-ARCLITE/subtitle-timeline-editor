@@ -2,260 +2,304 @@
 
 var Resampler = (function(){
 	"use strict";
-	
+
 	var blobURL = URL.createObjectURL(
 		new Blob(
 			['(' + workerFn.toString() + ')();'],
 			{type: "text/javascript"}
 		)
 	);
-	
-	//Constructor
-	return function(fromRate, toRate, channels) {
-		var worker, that = this;
-		
+
+	var arrayTypes = {
+		8: Int8Array,
+		16: Int16Array,
+		32: Float32Array,
+		64: Float64Array
+	};
+
+	function Resampler(opts){
+		var worker, that = this,
+			fromRate = +opts.from || 0,
+			toRate = +opts.to || 0,
+			channels = +opts.channels || 0,
+			cons = arrayTypes[opts.bitrate] || Float32Array;
+
 		//Perform some checks:
 		if (fromRate <= 0 || toRate <= 0 || channels <= 0) {
 			throw new Error("Invalid Resampler Settings");
 		}
-		this.receive = function(){};
+
+		//TODO: Implement Reset properly
+
+		this.events = {};
 		if (fromRate === toRate) {
-			this.run = Bypass;
+			//Bypass- copy inputs to outputs of the appropriate type
+			//TODO: make this respect the output buffer size option
+			this.append = function(inputs) {
+				this.emit('data',inputs.map(function(a){ return new cons(a); }));
+			};
+			this.flush = function(){
+				var i, buffers = [];
+				for(i = 0; i < channels; ++i){ buffers.push(new ArrayBuffer(0)); }
+				this.emit('data',buffers);
+			};
+			this.reset = function(){};
 		} else {
 			worker = new Worker(blobURL);
 			worker.postMessage({
-				type: "setup",
-				channels: channels || 1,
-				ratio: fromRate / toRate
+				cmd: "init",
+				bitrate: opts.bitrate,
+				channels: channels,
+				ratio: fromRate / toRate,
+				outLength: +opts.bufferSize || 4096
 			});
 			worker.addEventListener('message',function(e){
-				var data = e.data;
-				data.inBuffer = new Float32Array(data.inBuffer);
-				data.outBuffer = new Float32Array(data.outBuffer);
-				that.receive(data);
+				that.emit('data',e.data);
 			},false);
-			this.run = function(inBuffer, outBuffer){
-				//Have to transfer ArrayBuffers, not TypedArrays
+			worker.addEventListener('error',function(e){
+				console.log(e);
+				that.emit('error',e);
+			},false);
+			this.append = function(inputs){
 				worker.postMessage({
-					type: "exec",
-					inBuffer: inBuffer.buffer,
-					outBuffer: outBuffer.buffer
-				},[inBuffer.buffer,outBuffer.buffer]);
-			};			
+					cmd: "exec",
+					inputs: inputs
+				});
+			};
+			this.flush = function(){ worker.postMessage({cmd: "flush"}); };
+			this.reset = function(){};
 		}
 	}
 
-	function Bypass(inbuf,outbuf) {
-		var offset = Math.min(inbuf.length,outbuf.length);
-		outbuf.set(inbuf.subarray(0,offset));
-		this.receive({
-			inBuffer: inbuf,
-			outBuffer: outbuf,
-			sourceOffset: offset,
-			outputOffset: offset
-		});
+	Resampler.prototype.on = function(ename, handler){
+		if(!this.events.hasOwnProperty(ename)){
+			this.events[ename] = [handler];
+		}else{
+			this.events[ename].push(handler);
+		}
+	};
+
+	Resampler.prototype.off = function(ename, handler){
+		var i, evlist = this.events[ename];
+		if(!evlist){ return; }
+		i = evlist.indexOf(handler);
+		if(~i){ evlist.splice(i,1); }
+	};
+
+	Resampler.prototype.emit = function(ename, obj){
+		var evlist = this.events[ename];
+		if(!evlist){ return; }
+		evlist.forEach(function(h){ h.call(this, obj); }, this);
 	}
-	
+
+	return Resampler;
+
 	function workerFn(){
-		this.addEventListener('message',function(e){
+		"use strict";
+		var alg = null,
+			buffers = null,
+			excessLength = 0,
+			channels,
+			olen, cons;
+
+		self.addEventListener('message',function(e){
 			"use strict";
-			var data = e.data, offsets;
-			switch(data.type){
-			case "exec":
-				offsets = this.exec(new Float32Array(data.inBuffer),new Float32Array(data.outBuffer));
-				this.postMessage({
-					inBuffer: data.inBuffer,
-					outBuffer: data.outBuffer,
-					sourceOffset: offsets.sourceOffset,
-					outputOffset: offsets.outputOffset
-				},[data.inBuffer,data.outBuffer])
+			var data = e.data,
+				i, ratio, len;
+			switch(data.cmd){
+			case "init":
+				cons = {
+					8: Int8Array,
+					16: Int16Array,
+					32: Float32Array,
+					64: Float64Array
+				}[data.bitrate] || Float32Array;
+				ratio = data.ratio;
+				channels = data.channels;
+				olen = data.outLength;
+				buffers = [];
+				for(i = 0; i < channels; ++i){ buffers.push(new cons(olen)); }
+				alg = new Algorithm(ratio, channels);
 				break;
-			case "setup":
-				this.lastOutput = 0; //for mono
-				if (data.ratio < 1) {
-					// Use generic linear interpolation for upsampling
-					this.exec = data.channels === 1?
-								MonoLinearInterp.bind(this,data.ratio):
-								LinearInterp.bind(this,data.ratio,new Float32Array(data.channels),data.channels);
-					this.lastWeight = 1;
-				} else {
-					//Downsampling based on algorithm by Grant Galitz
-					//https://github.com/grantgalitz/XAudioJS
-					this.exec = data.channels === 1?
-								MonoMultiTap.bind(this,data.ratio):
-								MultiTap.bind(this,data.ratio,new Float32Array(data.channels),data.channels);
-					this.tailExists = false;
-					this.lastWeight = 0;
-				}
-				
+			case "exec":
+				len = Math.min.apply(Math, data.inputs.map(function(a){ return a.length; }));
+				if(isFinite(len)){ Exec(data.inputs, len); }
+				break;
+			case "flush":
+				Flush();
+				alg.reset();
+				break;
 			}
 		},false);
 
-		function MonoLinearInterp(ratioWeight, inBuffer, outBuffer) {
-			var weight = this.lastWeight,
+		//Re-use the same output buffers over and over,
+		//copying them to the main thread when they become
+		//full, until we exhaust the available input
+		function Exec(inArrays, inLength){
+			var offsets,
+				outOffset, inOffset,
+				outArrays, outLength;
+
+			//Acquire output arrays
+			if(excessLength > 0){
+				outLength = excessLength;
+				outOffset = olen - excessLength;
+				outArrays = buffers.map(function(b){ return b.subarray(outOffset); });
+			}else{
+				outLength = olen;
+				outArrays = buffers;
+			}
+
+			do {
+				offsets = alg.exec(inLength, outLength, inArrays, outArrays);
+				outOffset = offsets.outputOffset;
+				inOffset = offsets.inputOffset;
+
+				if(outOffset >= outLength){
+					//copy output buffers to main thread
+					self.postMessage(buffers);
+					//reset output arrays
+					outLength = olen;
+					outArrays = buffers;
+				}
+
+				if(inOffset >= inLength){ break; } //input was exhausted
+				//Otherwise, shift the inputs
+				inLength -= inOffset;
+				inArrays = inArrays.map(function(a){ return a.subarray(inOffset); });
+			}while(true);
+			excessLength = outLength - outOffset;
+		}
+
+		function Flush(){
+			var nbufs, index;
+			if(excessLength > 0){
+				index = olen = excessLength;
+				self.postMessage(buffers.map(function(b){ return b.subarray(index); }));
+				excessLength = 0;
+			}else{
+				self.postMessage(buffers.map(function(){ return new cons(0); }));
+			}
+		}
+
+		function Algorithm(ratio,channels){
+			this.channels = channels;
+			this.ratio = ratio;
+			this.lastWeight = 0;
+			this.lastOutput = new Float64Array(channels);
+			//TODO: create mono-optimized versions
+			this.exec = ratio < 1?LinearInterp:FractionalMean;
+		}
+
+		Algorithm.prototype.reset = function(){
+			var i;
+			this.lastWeight = 0;
+			for(i = 0; i < this.channels; ++i){
+				this.lastOutput[i] = 0;
+			}
+		};
+
+		/*
+		 * Each output sample consists of the sum of some window of input samples,
+		 * plus some fraction of a prior sample and some fraction of a following
+		 * sample, all scaled according to the resampling ratio.
+		 */
+		function FractionalMean(inLength, outLength, inBuffers, outBuffers) {
+			var ratio = this.ratio,
 				lastOutput = this.lastOutput,
-				inLength = inBuffer.length,
-				outLength = outBuffer.length,
-				firstWeight = 0,
-				secondWeight = 0,
-				sourceOffset = 0,
-				outputOffset = 0;
-				
-			if(inLength > 0 && outLength > 0){		
-				for (; weight < 1; weight += ratioWeight) {
-					secondWeight = weight % 1;
-					firstWeight = 1 - secondWeight;
-					outBuffer[outputOffset++] = (lastOutput * firstWeight) + (inBuffer[0] * secondWeight);
-				}
-				weight -= 1;
-				for (inLength -= channels, sourceOffset = Math.floor(weight); outputOffset < outLength && sourceOffset < bufferLength;) {
-					secondWeight = weight % 1;
-					firstWeight = 1 - secondWeight;
-					outBuffer[outputOffset++] = (inBuffer[sourceOffset] * firstWeight) + (inBuffer[sourceOffset+1] * secondWeight);
-					weight += ratioWeight;
-					sourceOffset = Math.floor(weight);
-				}
-				this.lastOutput = inBuffer[sourceOffset];
-				this.lastWeight = weight % 1;
-			}else{ sourceOffset = -1; }
-			return {
-				sourceOffset: sourceOffset+1,
-				outputOffset: outputOffset
-			};
-		}
-
-		function LinearInterp(ratioWeight, lastOutput, channels, inBuffer, outBuffer) {
-			var inLength = inBuffer.length,
-				outLength = outBuffer.length,
-				weight = this.lastWeight,
-				firstWeight = 0,
-				secondWeight = 0,
-				sourceOffset = 0,
+				channels = this.channels,
+				inputOffset = 0,
 				outputOffset = 0,
-				sourceEnd, c, c2;
-				
-			inLength -= inLength % channels;
-			outLength -= outLength % channels;
-			if(inLength > 0 && outLength > 0){ 
-				for (; weight < 1; weight += ratioWeight) {
-					secondWeight = weight % 1;
-					firstWeight = 1 - secondWeight;
-					for(c = 0; c < channels; ++c){
-						outBuffer[outputOffset++] = (lastOutput[c] * firstWeight) + (inBuffer[c] * secondWeight);
-					}
-				}
-				weight -= 1;
-				for (bufferLength -= channels, sourceOffset = Math.floor(weight) * channels; outputOffset < outLength && sourceOffset < inLength;) {
-					secondWeight = weight % 1;
-					firstWeight = 1 - secondWeight;
-					sourceEnd = channels + sourceOffset;
-					c2 = sourceOffset + channels;
-					for(c = sourceOffset; c < sourceEnd; ++c){
-						outBuffer[outputOffset++] = (inBuffer[c] * firstWeight) + (inBuffer[c2++] * secondWeight);
-					}
-					weight += ratioWeight;
-					sourceOffset = Math.floor(weight) * channels;
-				}
-				lastOutput.set(inBuffer.subarray(sourceOffset));
-				this.lastWeight = weight % 1;
-			}else{ sourceOffset -= channels; }
-			return {
-				sourceOffset: sourceOffset+channels,
-				outputOffset: outputOffset
-			};
-		}
+				buffer, weight,
+				postWeight, preWeight,
+				start, sum, c, i;
 
-		function MonoMultiTap(ratioWeight, inBuffer, outBuffer) {
-			var inLength = inBuffer.length,
-				outLength = outBuffer.length,
-				weight = 0,
-				amountToNext = 0,
-				processTail = this.tailExists,
-				sourceOffset = 0,
-				outputOffset = 0,
-				currentPosition = 0,
-				output;
-			
 			if (inLength > 0 && outLength > 0){
-				do {
-					if (processTail) {
-						weight = this.lastWeight;
-						output = this.lastOutput;
-						processTail = false;
-					} else {
-						weight = ratioWeight;
-						output = 0;
-					}
-					while (weight > 0 && sourceOffset < inLength) {
-						amountToNext = 1 + sourceOffset - currentPosition;
-						if (weight >= amountToNext) {
-							output += inBuffer[sourceOffset++] * amountToNext;
-							currentPosition = sourceOffset;
-							weight -= amountToNext;
-						} else {
-							output += inBuffer[sourceOffset] * weight;
-							currentPosition += weight;
-							weight = 0;
-						}
-					}
-					if (weight != 0) { break; }
-					outBuffer[outputOffset++] = output / ratioWeight;
-				} while (sourceOffset < inLength && outputOffset < outLength);
-					
-				this.lastWeight = weight;
-				this.lastOutput = output;
-				this.tailExists = true;
-			}	
-			return {
-				sourceOffset: sourceOffset,
-				outputOffset: outputOffset
-			};
-		}
 
-		function MultiTap(ratioWeight, output, channels, inBuffer, outBuffer) {
-			var inLength = inBuffer.length,
-				outLength = outBuffer.length,
-				weight = 0,
-				amountToNext = 0,
-				processTail = this.tailExists,
-				sourceOffset = 0,
-				outputOffset = 0,
-				currentPosition = 0,
-				c, c2;
-			
-			inLength -= inLength % channels;
-			outLength -= outLength % channels;
-			if (inLength > 0 && outLength > 0){ 	
-				do {
-					if (processTail) {
-						weight = this.lastWeight;
-						processedTail = false;
-					} else {
-						weight = ratioWeight;
-						for(c = 0; c < channels; ++c){ output[c] = 0; }
+				weight = (this.lastWeight >= 1)?this.lastWeight:(ratio - this.lastWeight);
+				start = inputOffset;
+				inputOffset = Math.min(start + Math.floor(weight), inLength);
+				postWeight = weight - (inputOffset - start);
+
+				while(postWeight < 1 && outputOffset < outLength && inputOffset < inLength) {
+					//we can produce a complete output sample
+					preWeight = 1-postWeight;
+					//Do one channel at a time to optimize data locality
+					for(c = 0; c < channels; ++c){
+						buffer = inBuffers[c];
+						sum = lastOutput[c]; //partial prior sample
+						//Sum intermediate full samples
+						for (i = start; i < inputOffset; ++i) { sum += buffer[i];	}
+						//add partial following sample and normalize
+						outBuffers[c][outputOffset] = (sum + buffer[i] * postWeight) / ratio;
+						//setup prior partials for the next iteration
+						lastOutput[c] = (preWeight < 1)?buffer[i] * preWeight:0;
 					}
-					while (weight > 0 && sourceOffset < inLength) {
-						amountToNext = 1 + sourceOffset - currentPosition;
-						if (weight >= amountToNext) {
-							for(c = 0; c < channels; ++c){ output[c] += inBuffer[sourceOffset++] * amountToNext; }
-							currentPosition = sourceOffset;
-							weight -= amountToNext;
-						} else {
-							c2 = sourceOffset;
-							for(c = 0; c < channels; ++c){ output[c] += inBuffer[c2++] * weight; }
-							currentPosition += weight;
-							weight = 0;
-						}
-					}
-					if (weight != 0) { break; }
-					for(c = 0; c < channels; ++c){ outBuffer[outputOffset++] = output[c] / ratioWeight; }
-				} while (sourceOffset < bufferLength && outputOffset < outLength);
-				
-				this.lastWeight = weight;
-				this.tailExists = true;
+
+					weight = ratio - preWeight;
+					start = inputOffset+1;
+					inputOffset = Math.min(start + Math.floor(weight), inLength);
+					postWeight = weight - (inputOffset - start);
+
+					outputOffset++;
+				}
+				//produce partial samples
+				this.lastWeight = postWeight;
+				for(c = 0; c < channels; ++c){
+					buffer = inBuffers[c];
+					sum = lastOutput[c]; //partial prior sample
+					//Get as many full input samples as we can
+					for (sum = 0, i = start; i < inputOffset; ++i) { sum += buffer[i];	}
+					lastOutput[c] = sum;
+				}
 			}
 			return {
-				sourceOffset: sourceOffset,
+				inputOffset: inputOffset,
+				outputOffset: outputOffset
+			};
+		}
+
+		function LinearInterp(inLength, outLength, inBuffers, outBuffers) {
+			var ratioWeight = this.ratio,
+				lastOutput = this.lastOutput,
+				channels = this.channels,
+				outputOffset = 0,
+				inputOffset = 0,
+				weight,	preweight,
+				firstSamples,
+				ibuf, c;
+
+			if(inLength > 0 && outLength > 0){
+				inputOffset = 1;
+				weight = this.lastWeight;
+				firstSamples = inBuffers.map(function(a){ return a[0]; });
+				while(weight < 1 && outputOffset < outLength){
+					preweight = 1 - weight;
+					for(c = 0; c < channels; ++c){
+						outBuffers[c][outputOffset] = (lastOutput[c] * preweight) + (firstSamples[c] * weight);
+					}
+					weight += ratioWeight;
+					outputOffset++;
+				}
+				weight -= 1;
+				while(outputOffset < outLength && inputOffset < inLength) {
+					preweight = 1 - weight;
+					for(c = 0; c < channels; ++c){
+						ibuf = inBuffers[c];
+						outBuffers[c][outputOffset] = (ibuf[inputOffset-1] * preweight) + (ibuf[inputOffset] * weight);
+					}
+					weight += ratioWeight;
+					outputOffset++;
+					if(weight >= 1){
+						inputOffset++;
+						weight -= 1;
+					}
+				}
+				for(c = 0; c < channels; ++c){ lastOutput[c] = inBuffers[c][inputOffset]; }
+				this.lastWeight = weight % 1;
+			}
+			return {
+				inputOffset: inputOffset,
 				outputOffset: outputOffset
 			};
 		}

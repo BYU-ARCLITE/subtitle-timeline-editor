@@ -39,6 +39,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			overlay = document.createElement('canvas'),
 			cache = document.createElement('canvas'),
 			node = document.createElement('div'),
+			cnode = document.createElement('div'),
 			media = (params.syncWith && typeof params.syncWith.addEventListener === 'function')?params.syncWith:null,
 			fonts = params.fonts || new Timeline.Fonts({}),
 			colors = params.colors || new Timeline.Colors({}),
@@ -275,12 +276,14 @@ var Timeline = (function(TimedText,EditorWidgets){
 		cache.style.display = 'none';
 
 		node.style.position = "relative";
-		node.appendChild(canvas);
-		node.appendChild(overlay);
-		node.appendChild(cache);
+		cnode.style.position = "relative";
+		cnode.appendChild(canvas);
+		cnode.appendChild(overlay);
+		cnode.appendChild(cache);
 		if(!params.hideControls && Timeline.ControlBar){
-			node.insertBefore(Timeline.ControlBar(this, params.controls), canvas);
+			node.appendChild(Timeline.ControlBar(this, params.controls));
 		}
+		node.appendChild(cnode);
 
 		node.addEventListener('drop', dragDrop.bind(this), false);
 		node.addEventListener('dragover', dragOver.bind(this), false);
@@ -714,7 +717,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	Proto.loadAudioTrack = function(source, id) {
 		var rate = 1001, bufsize = 10000,
-			chansize, framesize, buffer, channels, resampler,
+			chansize, buffer, channels, resampler,
 			reader = Reader[(source instanceof File?"fromFile":"fromURL")](source),
 			wave = new WaveForm(
 				this.width,
@@ -732,12 +735,18 @@ var Timeline = (function(TimedText,EditorWidgets){
 			bufsize -= bufsize%channels;
 			buffer = new Float32Array(bufsize);
 			chansize = bufsize/channels;
-			framesize = Math.ceil(bufsize*rate/(data.sampleRate*channels));
-			resampler = new Resampler(data.sampleRate,rate,1);
-			resampler.receive = function(data){
-				wave.addFrame(data.outBuffer); //addFrame emits redraw
-				getData();
-			};
+			resampler = new Resampler({
+				from: data.sampleRate,
+				to: rate,
+				bitrate: 32,
+				channels: 1,
+				//smaller buffers mean smoother drawing
+				//large buffers mean slight speed increases
+				bufferSize: 256
+			});
+			resampler.on('data', function(channels){
+				wave.addFrame(channels[0]); //addFrame emits redraw
+			});
 		});
 		reader.on('ready', getData);
 		reader.start();
@@ -745,6 +754,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		function getData(){
 			var i, j, chan;
 			if(reader.get(buffer) !== 'filled'){
+				resampler.flush();
 				console.log("Finished Decoding");
 				console.timeEnd("audio "+id);
 			}else{
@@ -753,7 +763,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 				for(i=0,j=0;j<bufsize;i++,j+=channels){
 					chan[i] = buffer[j];
 				}
-				resampler.run(chan,new Float32Array(framesize));
+				resampler.append([chan]);
+				setTimeout(getData,0);
 			}
 		}
 	};
