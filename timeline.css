@@ -64,6 +64,44 @@
 	color: #fff;
 }
 
-	
+.tl-toolbar-holder {
+    text-align: center;
+    margin: 5px 0;
+    width: auto;
+    overflow-x: auto;
+    white-space: nowrap;
+}
 
+.tl-toolbar {
+    background: #eee;
+    padding: 5px;
+    margin: 5px;
+    display: inline-block;
+    -webkit-border-radius: 8px;
+    -moz-border-radius: 8px;
+    border-radius: 8px;
+    -webkit-box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.5);
+    -moz-box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.5);
+    box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.5);
+}
+
+.tl-timestamp {
+    color: white;
+    background: #222;
+    padding: 5px;
+    margin: 5px;
+    display: inline-block;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+    white-space: nowrap;
+    -webkit-box-shadow: inset 1px 2px 7px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.2);
+    -moz-box-shadow: inset 1px 2px 7px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.2);
+    box-shadow: inset 1px 2px 7px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.2);
 	
+    /*overflow: hidden;*/
+    text-align: center;
+    text-overflow: ellipsis;
+    min-width: 80px;
+}
+

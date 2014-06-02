@@ -35,6 +35,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		if(!(location instanceof HTMLElement)){ throw new Error("Invalid DOM Insertion Point"); }
 		if(!params){ params = {}; }
 		var getFor = params.getFor,
+			controls = !!(params.showControls && Timeline.ControlBar),
 			canvas = document.createElement('canvas'),
 			overlay = document.createElement('canvas'),
 			cache = document.createElement('canvas'),
@@ -45,26 +46,28 @@ var Timeline = (function(TimedText,EditorWidgets){
 			cursors = params.cursors || new Timeline.Cursors({}),
 			width = params.width || location.offsetWidth,
 			length = params.length || 1800,
+			currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT,
 			abRepeatOn = false,
 			that = this;
 
 		Object.defineProperties(this,{
 			canGetFor: {
-				value: (typeof params.canGet === 'function')
+				value: (typeof params.canGetFor === 'function')
 					?params.canGetFor:function(){ return false; }
 			},
 			getFor: {
 				value: (typeof getFor === 'function')
 					?function(whatfor,data,defs){
-						var undef;
-						return Promise.all(getFor(whatfor,data).map(function(p,i){
-							var key = data[i];
-							//make sure errors for data with defaults provided are replaced with those defaults
-							if((typeof p.then === 'function') && defs.hasOwnProperty(key)){
-								return p.then(undef,function(err){ resolve(defs[key]); });
-							}
-							return p;
-						}));
+						var datap = Promise.resolve(getFor(whatfor,data));
+						return datap.then(function(values){
+							//make sure errors for data with defaults are replaced with defaults
+							var defvalues = values.map(function(p,i){
+								var key = data[i];
+								if(typeof p.then !== 'function' || !defs.hasOwnProperty(key)){ return p; }
+								return p.then(void 0,function(){ return defs[key]; });
+							});
+							return Promise.all(defvalues);
+						});
 					}:function(_,data,defs){
 						var i, missing;
 						for(i=0;missing=data[i];i++){
@@ -143,12 +146,22 @@ var Timeline = (function(TimedText,EditorWidgets){
 					}
 					return on;
 				}
+			},
+			currentTool: {
+				get: function(){ return currentTool; },
+				set: function(tool){
+					var ot = currentTool;
+					if(typeof tool === 'number' && tool !== currentTool){
+						currentTool = tool;
+						this.emit(new Timeline.Event('toolchange',{oldtool: ot, newtool: tool}));
+					}
+					return currentTool;
+				}
 			}
 		});
 
 		this.multi = !!params.multi;
 		this.autoSelect = !!params.autoSelect;
-		this.currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT;
 		this.autoCueStatus = Timeline.AutoCueResolved;
 		this.autoCueStart = 0;
 
@@ -229,6 +242,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 		node.appendChild(canvas);
 		node.appendChild(overlay);
 		node.appendChild(cache);
+		if(controls){
+			node.insertBefore((new Timeline.ControlBar(this, Timeline.Controls)).node, canvas);
+		}
 
 		node.addEventListener('drop', dragDrop.bind(this), false);
 		node.addEventListener('dragover', dragOver.bind(this), false);
@@ -574,9 +590,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.commandStack.setFileUnsaved(name);
 	};
 
-	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite) {
+	function undoAlterTextTrack(tid, kind, lang, name, overwrite){
 		var track = resolveTrack(this, tid);
-		if(name !== track.id){
+		if((typeof name !== 'undefined') && (name !== track.id)){
 			if(this.trackIndices.hasOwnProperty(name)){
 				if(!overwrite){ throw new Error("Track name already in use."); }
 				this.removeTextTrack(name);
@@ -588,11 +604,41 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}
 
 		//avoid side-effects of setting track properties directly
-		track.textTrack.kind = kind;
-		track.textTrack.language = lang;
+		if(typeof kind !== 'undefined'){ track.textTrack.kind = kind; }
+		if(typeof lang !== 'undefined'){ track.textTrack.language = lang; }
 
 		this.render();
 	};
+	
+	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite){
+		var undo, redo, 
+			track = resolveTrack(this, tid),
+			oname = track.textTrack.label,
+			okind = track.textTrack.kind,
+			olang = track.textTrack.language;
+		
+		//Set up the undo/redo functions
+		undo = undoAlterTextTrack.bind(
+			this, name,
+			okind, olang,
+			oname, overwrite
+		);
+		redo = undoAlterTextTrack.bind(
+			this, oname,
+			kind, lang,
+			name, overwrite
+		);
+		this.commandStack.push({
+			file: oname,
+			redo: redo,
+			undo: undo
+		});
+
+		//perform the edit
+		redo();
+	}
+	
+	
 
 	Proto.setAutoCue = function(onoff, tid) {
 		if(typeof tid === 'undefined'){
@@ -1034,6 +1080,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			return [resolveTrack(that, id)];
 		}()).map(function(track){
 			return {
+				track: track.textTrack, //temporary hack for back-compatibility
 				collection:"tracks",
 				mime: track.mime,
 				name: TimedText.addExt(track.mime,track.id),
@@ -1042,17 +1089,21 @@ var Timeline = (function(TimedText,EditorWidgets){
 		});
 	};
 
-	Proto.loadTextTrack = function(url, kind, lang, name, overwrite){
-		var that = this,
-			params = {
+	Proto.loadTextTrack = function(src, kind, lang, name, overwrite){ 
+		var that = this;
+		return new Promise(function(resolve,reject){
+			TextTrack.get({
+				src: src,
 				kind: kind,
 				lang: lang,
 				label: name,
-				success: function(track, mime){ that.addTextTrack(track,mime,overwrite); },
-				error: function(){ alert("There was an error loading the track."); }
-			};
-		params[(url instanceof File)?'file':'url'] = url;
-		TextTrack.get(params);
+				success: function(track, mime){
+					that.addTextTrack(track,mime,overwrite);
+					resolve(track);
+				},
+				error: reject
+			});
+		});
 	};
 
 	/** Scroll Tool Functions **/
