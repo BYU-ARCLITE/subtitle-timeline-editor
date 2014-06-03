@@ -39,13 +39,16 @@ var Timeline = (function(TimedText,EditorWidgets){
 			overlay = document.createElement('canvas'),
 			cache = document.createElement('canvas'),
 			node = document.createElement('div'),
+			media = (params.syncWith && typeof params.syncWith.addEventListener === 'function')?params.syncWith:null,
 			fonts = params.fonts || new Timeline.Fonts({}),
 			colors = params.colors || new Timeline.Colors({}),
 			images = params.images || new Timeline.Images({}),
 			cursors = params.cursors || new Timeline.Cursors({}),
 			width = params.width || location.offsetWidth,
 			length = params.length || 1800,
+			trackSeeker = params.hasOwnProperty('trackSeeker')?!!params.trackSeeker:true,
 			currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT,
+			automove = !!params.automove,
 			abRepeatOn = false,
 			that = this;
 
@@ -146,6 +149,16 @@ var Timeline = (function(TimedText,EditorWidgets){
 					return on;
 				}
 			},
+			trackSeeker: {
+				get: function(){ return trackSeeker; },
+				set: function(val){
+					val = !!val;
+					if(val === trackSeeker){ return val; }
+					trackSeeker = val;
+					this.emit(new Timeline.Event(val?'trackseekeron':'trackseekeroff'));
+					return val;
+				}
+			},
 			currentTool: {
 				get: function(){ return currentTool; },
 				set: function(tool){
@@ -156,10 +169,19 @@ var Timeline = (function(TimedText,EditorWidgets){
 					}
 					return currentTool;
 				}
+			},
+			automove: {
+				get: function(){ return automove; },
+				set: function(val){
+					val = !!val;
+					if(val === automove){ return val; }
+					automove = val;
+					this.emit(new Timeline.Event(val?'automoveon':'automoveoff'));
+					return val;
+				}
 			}
 		});
 
-		this.multi = !!params.multi;
 		this.autoSelect = !!params.autoSelect;
 		this.autoCueStatus = Timeline.AutoCueResolved;
 		this.autoCueStart = 0;
@@ -249,8 +271,18 @@ var Timeline = (function(TimedText,EditorWidgets){
 		node.addEventListener('dragover', dragOver.bind(this), false);
 
 		location.appendChild(node);
-
+		
+		if(media){
+			media.addEventListener('loadedmetadata',setlen,false);
+			media.addEventListener('durationchange',setlen,false);
+			media.addEventListener("timeupdate",function(){ that.currentTime = media.currentTime; },false);
+			//this is simpler than updating every site that emits jump events
+			this.on('jump',function(e){ media.currentTime = e.time; });
+		}
+		
 		this.render();
+		
+		function setlen(){ that.length = media.duration; }
 	}
 
 	Timeline.ORDER = 0;
@@ -954,15 +986,21 @@ var Timeline = (function(TimedText,EditorWidgets){
 					}
 				}
 
-				//move the view
-				if(time < this.view.startTime){
-					this.view.center(time - this.view.length/4);
-				}else if(time > this.view.endTime) {
-					this.view.center(time + this.view.length/4);
-				}else{
+				isstable: {
+					if(this.trackSeeker){
+						//move the view
+						if(time < this.view.startTime){
+							this.view.center(time - this.view.length/4);
+							break isstable;
+						}else if(time > this.view.endTime) {
+							this.view.center(time + this.view.length/4);
+							break isstable;
+						}
+					}
 					stable = true;
+					//erase old time marker if necessary
 					x = this.view.timeToPixel(this.timeMarkerPos)-1;
-					if(x > -1 && x < this.width){ //erase old time marker
+					if(x > -1 && x < this.width){
 						this.context.drawImage(this.cache,x,0,2,this.height,x,0,2,this.height);
 					}
 				}
@@ -1322,10 +1360,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 				this.activeIndex = this.indexFromPos(pos);
 				break;
 			case Timeline.SELECT:
-				if(this.multi){
-					this.activeElement = new Selection(this,pos);
-					break;
-				}
+				this.activeElement = new Selection(this,pos);
+				break;
 			default: // Check tracks
 				track = this.trackFromPos(pos);
 				this.activeElement = track;

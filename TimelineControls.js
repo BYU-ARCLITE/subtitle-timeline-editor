@@ -231,22 +231,7 @@
 			group = parseNode('<div class="tl-btn-group"></div>');
 		//TODO: Handle enabled / disabled states
 		node.appendChild(group);
-		/*//move after add
-		group.appendChild(function(){
-			var set, btn;
-			btn = parseNode('<button class="btn btn-small btn-inverse" title="Move After Add" data-toggle="button">\
-								<i class="icon-plus"></i>\
-								<i class="icon-angle-right"></i>\
-								<i class="icon-move"></i>\
-							</button>');
-			set = setupToggle(btn,'active',
-				function(){ tl.automove = true; },
-				function(){ tl.automove = false; },
-			);
-			tl.on('automoveon',function(){ set(true); });
-			tl.on('automoveoff',function(){ set(false); });
-			return btn;
-		}());*/
+
 		//AB Repeat Enable
 		group.appendChild(function(){
 			var set, btn;
@@ -265,12 +250,46 @@
 			tl.on('abrepeatdisabled',function(){ set(false); });
 			return btn;
 		}());
+		
 		//Clear Repeat
 		group.appendChild(function(){
 			var btn = parseNode('<button class="tl-btn" title="Clear Repeat"><i class="icon-ban-circle"></i></button>');
 			setupButton(btn,'active',function(){ tl.clearRepeat(); });
 			return btn;
 		}());
+
+		//track seeker
+		group.appendChild(function(){
+			var set, btn;
+			btn = parseNode('<button class="tl-btn" title="Anchor View to Seeker"><i class="icon-anchor"></i></button>');
+			set = setupToggle(btn,'active',
+				function(){ tl.trackSeeker = true; },
+				function(){ tl.trackSeeker = false; }
+			);
+			set(tl.trackSeeker);
+			tl.on('trackseekeron',function(){ set(true); });
+			tl.on('trackseekeroff',function(){ set(false); });
+			return btn;
+		}());
+		
+		//move after add
+		group.appendChild(function(){
+			var set, btn;
+			btn = parseNode('<button class="tl-btn" title="Move After Add">\
+								<i class="icon-plus"></i>\
+								<i class="icon-angle-right"></i>\
+								<i class="icon-move"></i>\
+							</button>');
+			set = setupToggle(btn,'active',
+				function(){ tl.automove = true; },
+				function(){ tl.automove = false; }
+			);
+			set(tl.automove);
+			tl.on('automoveon',function(){ set(true); });
+			tl.on('automoveoff',function(){ set(false); });
+			return btn;
+		}());
+
 		return node;
 	}
 	
@@ -301,7 +320,7 @@
 				{title:"Delete Tool",icon:"icon-trash",value:Timeline.DELETE},
 				{title:"Set Repeat Tool",icon:"icon-repeat",value:Timeline.REPEAT},
 				{title:"Scroll Tool",icon:"icon-ellipsis-horizontal",value:Timeline.SCROLL},
-				{title:"Reorder Tool",icon:"icon-reorder",value:Timeline.ORDER},
+				{title:"Reorder Tool",icon:"icon-random",value:Timeline.ORDER},
 			], rgroup;
 		
 		rgroup = makeRadioGroup(tools,'active',function(tool){
