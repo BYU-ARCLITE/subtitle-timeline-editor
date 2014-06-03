@@ -455,7 +455,8 @@
 
 		TProto.resolvePlaceholder = function(){
 			if(this.placeholder === null){ return; }
-			var seg, view = this.tl.view,
+			var seg, tl = this.tl,
+				view = tl.view,
 				placeholder = this.placeholder,
 				startx = placeholder.startx,
 				endx = placeholder.endx;
@@ -467,8 +468,9 @@
 					view.pixelToTime(startx),
 					view.pixelToTime(endx),
 					""
-				), this.tl.autoSelect);
-			this.tl.emit(new Timeline.Event("segcomplete",{track:this,segment:seg}));
+				), tl.autoSelect);
+			if(tl.automove){ tl.currentTool = Timeline.MOVE; }
+			tl.emit(new Timeline.Event("segcomplete",{track:this,segment:seg}));
 		};
 
 		TProto.deleteSelected = function(){
@@ -805,16 +807,7 @@
 			if(this.selected){ return; }
 			this.selected = true;
 			if(this.visible){ trackmap[this.track.id] = this.track; }
-			if(!tl.multi){
-				tl.selectedSegments.forEach(function(seg){
-					seg.selected = false;
-					if(seg.visible){ trackmap[seg.track.id] = seg.track; }
-					tl.emit(new Timeline.Event('unselect',{segments:[this]}));
-				});
-				tl.selectedSegments = [this];
-			}else{
-				tl.selectedSegments.push(this);
-			}
+			tl.selectedSegments.push(this);
 			Object.keys(trackmap).forEach(function(id){
 				tl.renderTrack(trackmap[id]);
 			});
