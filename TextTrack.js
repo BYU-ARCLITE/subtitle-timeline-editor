@@ -378,7 +378,7 @@
 
 		TProto.add = function(cue, select){
 			var seg = cue2seg.call(this, cue, select);
-			tl.commandStack.push({
+			this.tl.commandStack.push({
 				file: this.textTrack.label,
 				context: seg,
 				undo: deleteSeg,
