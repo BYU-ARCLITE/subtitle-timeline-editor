@@ -205,13 +205,14 @@
 				{name:"Remove",
 					condition:function(){ return !this.track.locked; },
 					action:function(){
-						var track = this.track;
-						this.timeline.confirm(
-							this.timeline.commandStack.isFileSaved(track.id)
+						var track = this.track,
+							tl = this.timeline;
+						tl.confirm(
+							tl.commandStack.isFileSaved(track.id)
 							?"Are You Sure You Want To Remove "+track.id+"?"
 							:track.id+" has unsaved changes. Are you sure you want to remove it?")
 						.then(function(b){
-							if(b){ this.timeline.removeTextTrack(track.id); }
+							if(b){ tl.removeTextTrack(track.id); }
 						});
 					}}
 			]
