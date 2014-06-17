@@ -1496,7 +1496,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 					//This is simpler than stripping it here, so omit that parameter unless we want to fill it in
 					//with user input at some point in the future
 					TextTrack.get({
-						file: file, //label: file.name,
+						src: file, //label: file.name,
 						kind: 'subtitles', lang: 'zxx',
 						success: addDroppedTrack.bind(that)
 					});
@@ -1525,7 +1525,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 						//If we don't supply a label, TextTrack will infer one from the URL,
 						//so omit that parameter unless we want to fill it in with user input in the future
 						TextTrack.get({
-							url: url, //label: name,
+							src: url, //label: name,
 							kind: 'subtitles', lang: 'zxx',
 							success: addDroppedTrack.bind(that)
 						});
