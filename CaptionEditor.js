@@ -96,6 +96,15 @@ var CaptionEditor = (function(){
             case 27: //escape key
                 this.node.blur();
                 break;
+            case 66: // bold key
+                if(e.ctrlKey){document.execCommand('bold',false,null); e.preventDefault(); }
+                break;
+            case 73: // italics key
+                if(e.ctrlKey){document.execCommand('italic',false,null); e.preventDefault(); }
+                break;
+            case 85: // underline key
+                if(e.ctrlKey){document.execCommand('underline',false,null); e.preventDefault(); }
+                break;
             case 89: //undo and redo keys
             case 90:
                 if(e.ctrlKey){ e.preventDefault(); }
