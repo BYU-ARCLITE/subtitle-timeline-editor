@@ -17,25 +17,25 @@ var CaptionEditor = (function(){
 							params.stack instanceof EditorWidgets.CommandStack ? params.stack :
 							null;
 	}
-	
+
 	CaptionEditor.prototype.refresh = function(cue){
 		if(this.renderer && cue.active){ this.renderer.refreshLayout(); }
 		if(this.timeline && this.timeline.spanInView(cue.startTime, cue.endTime)){ this.timeline.render(); }
 	};
-	
+
 	CaptionEditor.prototype.rebuild = function(cue){
 		if(this.renderer && cue.active){ this.renderer.rebuildCaptions(); }
 		if(this.timeline && this.timeline.spanInView(cue.startTime, cue.endTime)){ this.timeline.render(); }
 	};
-	
+
 	//Called in the context of a CaptionEditor
 	function editorInput(renderedCue){
 		var cue = renderedCue.cue,
 			oldtext = cue.text,
 			newtext = renderedCue.typeInfo.textFromHTML(renderedCue.node);
-		
+
 		if(oldtext === newtext){ return; }
-		
+
 		if(this.commandStack){
 			this.commandStack.push({
 				context: cue,
@@ -44,21 +44,21 @@ var CaptionEditor = (function(){
 				undo: genTextChange(oldtext,this)
 			});
 		}
-		
+
 		cue.text = newtext;
 		renderedCue.updateContent();
 		this.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
 	}
-	
+
 	function replaceSelectionWith(node){
 		var anchor, text, offset, frag,
 			focusNode, range, selection = getSelection();
-		
+
 		if(!selection.isCollapsed){ selection.getRangeAt(0).deleteContents(); }
-		
+
 		anchor = selection.anchorNode;
 		text = anchor.nodeValue;
-		
+
 		if(text === null){
 			focusNode = document.createTextNode('');
 			anchor.appendChild(node);
@@ -67,14 +67,14 @@ var CaptionEditor = (function(){
 			offset = selection.anchorOffset;
 			focusNode = document.createTextNode(text.substr(offset));
 			frag = document.createDocumentFragment();
-			
+
 			//edit the caption contents
 			if(offset > 0){ frag.appendChild(document.createTextNode(text.substr(0,offset))); }
 			frag.appendChild(node);
 			frag.appendChild(focusNode);
 			anchor.parentNode.replaceChild(frag,anchor);
 		}
-		
+
 		//reset the caret
 		range = document.createRange();
 		range.setStart(focusNode,0);
@@ -82,38 +82,66 @@ var CaptionEditor = (function(){
 		selection.removeAllRanges();
 		selection.addRange(range);
 	}
-	
+
 	//Called in the context of a RenderedCue
 	function editorKeyDown(editor,e){
 		switch(e.keyCode){
-			case 13: //enter key, which must be dealt with safely for contenteditable does terrible default things
-				replaceSelectionWith(document.createElement('br'));
-				editorInput.call(editor,this);
-				
-				e.preventDefault();
-				e.stopPropagation();
-				break;
-			case 27: //escape key
-				this.node.blur();
-				break;
-			case 89: //undo and redo keys
-			case 90:
-				if(e.ctrlKey){ e.preventDefault(); }
-				break;
-			default:
-				e.stopPropagation(); //space key, and any other keys that might be hot-keys for other stuff
-				break;
+
+		/*	keys that need to be allowed to bubble	*/
+
+		//escape key
+		case 27:
+			this.node.blur();
+			return;
+
+		//undo and redo keys
+		case 89: //CTRL+y
+		case 90: //CTRL+z
+			if(e.ctrlKey){ e.preventDefault(); }
+			return;
+
+		/*	Keys that need to prevent the default action.
+			These fall through to the end of the function.	*/
+
+		case 13: //enter key, which must be dealt with safely for contenteditable does terrible default things
+			replaceSelectionWith(document.createElement('br'));
+			editorInput.call(editor,this);
+			break;
+
+		/*	Some browsers do the right thing with these keys
+			by default. Others don't. Preventing default and
+			doing it manually smooths out the differences.	*/
+
+		case 66: // bold key
+			if(e.ctrlKey){ document.execCommand('bold',false,null); }
+			break;
+		case 73: // italics key
+			if(e.ctrlKey){ document.execCommand('italic',false,null); }
+			break;
+		case 85: // underline key
+			if(e.ctrlKey){ document.execCommand('underline',false,null); }
+			break;
+
+		/*	By default, stop propagation
+			to avoid firing hot-keys for other stuff	*/
+
+		default:
+			e.stopPropagation();
+			return;
 		}
+
+		e.stopPropagation();
+		e.preventDefault();
 	}
-	
+
 	//Called in the context of a RenderedCue
 	function filterPasteData(editor,e){
 		var tmp, frag, format,
 			ClipBoard = e.clipboardData;
-		
+
 		e.preventDefault();
 		e.stopPropagation();
-		
+
 		if(~[].indexOf.call(ClipBoard.types,'text/html')){
 			tmp = document.createElement('div');
 			tmp.innerHTML = ClipBoard.getData('text/html');
@@ -126,24 +154,24 @@ var CaptionEditor = (function(){
 		}else{
 			frag = document.createTextNode(ClipBoard.getData('text/plain'));
 		}
-		
+
 		replaceSelectionWith(frag);
 		editorInput.call(editor,this);
 	}
-	
+
 	//Called in the context of a RenderedCue
 	function onInput(editor,e){
 		e.stopPropagation();
 		editorInput.call(editor,this);
 	}
-	
+
 	function cancelEvent(e){
 		e.stopPropagation();
 	}
-	
+
 	function makeEditable(renderedCue,editor){
 		var node;
-		
+
 		if(typeof renderedCue.typeInfo.attachEditor === 'function'){
 			renderedCue.typeInfo.attachEditor(renderedCue, {
 				//registerAttrChange: function(){ ... }
@@ -160,17 +188,17 @@ var CaptionEditor = (function(){
 				}
 			})
 		}
-		
+
 		node = renderedCue.node;
-		node.contentEditable = 'true'; 
+		node.contentEditable = 'true';
 		node.style.border = "1px solid silver";
 		node.addEventListener('input',onInput.bind(renderedCue,editor),false);
 		node.addEventListener('paste',filterPasteData.bind(renderedCue,editor),false);
 		node.addEventListener('keydown',editorKeyDown.bind(renderedCue,editor),false);
 		node.addEventListener('keyup',cancelEvent,false);
-		node.addEventListener('keypress',cancelEvent,false);		
+		node.addEventListener('keypress',cancelEvent,false);
 	}
-	
+
 	function isFocusEditable(){
 		var node = getSelection().focusNode;
 		while(node !== null){
@@ -183,7 +211,7 @@ var CaptionEditor = (function(){
 		}
 		return false;
 	}
-	
+
 	function autoFocus(renderedCue){
 		var observer, fn, node = renderedCue.node;
 		if(isFocusEditable()){ return; }
@@ -198,20 +226,20 @@ var CaptionEditor = (function(){
 				range = document.createRange();
 				range.selectNodeContents(node);
 				range.collapse(false); //false moves to the end instead of the beginning
-				
+
 				selection = getSelection();
 				selection.removeAllRanges();
 				selection.addRange(range);
-				
+
 				node.focus();
 				observer.disconnect();
 				renderedCue.removeFinalizer(fn);
-			}    
+			}
 		});
 		observer.observe(renderedCue.renderer.appendCueCanvasTo,{childList:true,subtree:true});
 		renderedCue.addFinalizer(fn);
 	}
-	
+
 	CaptionEditor.prototype.make = function(renderedCue,area,defRender){
 		if(renderedCue.editable){
 			if(renderedCue.done){
@@ -225,6 +253,6 @@ var CaptionEditor = (function(){
 			}
 		}else{ defRender(); }
 	};
-	
+
 	return CaptionEditor;
 }());
