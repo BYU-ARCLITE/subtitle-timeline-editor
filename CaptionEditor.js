@@ -87,7 +87,37 @@ var CaptionEditor = (function(){
 	function editorKeyDown(editor,e){
 		switch(e.keyCode){
 
-		/*	keys that need to be allowed to bubble	*/
+		case 13: //enter key, which must be dealt with safely for contenteditable does terrible default things
+			e.preventDefault();
+			replaceSelectionWith(document.createElement('br'));
+			editorInput.call(editor,this);
+			break;
+
+		/*	Some browsers do the right thing with these keys
+			by default. Others don't. Preventing default and
+			doing it manually smooths out the differences.	*/
+
+		case 66: // bold key
+			if(e.ctrlKey){
+				document.execCommand('bold',false,null);
+				e.preventDefault();
+			}
+			break;
+		case 73: // italics key
+			if(e.ctrlKey){
+				document.execCommand('italic',false,null);
+				e.preventDefault();
+			}
+			break;
+		case 85: // underline key
+			if(e.ctrlKey){
+				document.execCommand('underline',false,null);
+				e.preventDefault();
+			}
+			break;
+
+		/*	Keys that need to be allowed to bubble.
+			Everything else falls through to the bottom.	*/
 
 		//escape key
 		case 27:
@@ -100,38 +130,12 @@ var CaptionEditor = (function(){
 			if(e.ctrlKey){ e.preventDefault(); }
 			return;
 
-		/*	Keys that need to prevent the default action.
-			These fall through to the end of the function.	*/
-
-		case 13: //enter key, which must be dealt with safely for contenteditable does terrible default things
-			replaceSelectionWith(document.createElement('br'));
-			editorInput.call(editor,this);
-			break;
-
-		/*	Some browsers do the right thing with these keys
-			by default. Others don't. Preventing default and
-			doing it manually smooths out the differences.	*/
-
-		case 66: // bold key
-			if(e.ctrlKey){ document.execCommand('bold',false,null); }
-			break;
-		case 73: // italics key
-			if(e.ctrlKey){ document.execCommand('italic',false,null); }
-			break;
-		case 85: // underline key
-			if(e.ctrlKey){ document.execCommand('underline',false,null); }
-			break;
+		}
 
 		/*	By default, stop propagation
 			to avoid firing hot-keys for other stuff	*/
 
-		default:
-			e.stopPropagation();
-			return;
-		}
-
 		e.stopPropagation();
-		e.preventDefault();
 	}
 
 	//Called in the context of a RenderedCue
