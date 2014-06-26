@@ -20,16 +20,16 @@ var Timeline = (function(TimedText,EditorWidgets){
 		throw new Error("Missing CommandStack Constructor");
 	}
 
-    if(!requestFrame){
-        requestFrame = function(callback) {
-            var currTime = +(new Date),
-                timeToCall = Math.max(0, 16 - (currTime - lastTime)),
-                id = window.setTimeout(function() { callback(currTime + timeToCall); }, timeToCall);
-            lastTime = currTime + timeToCall;
-            return id;
-        };
-        cancelFrame = clearTimeout;
-    }
+	if(!requestFrame){
+		requestFrame = function(callback) {
+			var currTime = +(new Date),
+				timeToCall = Math.max(0, 16 - (currTime - lastTime)),
+				id = window.setTimeout(function() { callback(currTime + timeToCall); }, timeToCall);
+			lastTime = currTime + timeToCall;
+			return id;
+		};
+		cancelFrame = clearTimeout;
+	}
 
 	function Timeline(location, params) {
 		if(!(location instanceof HTMLElement)){ throw new Error("Invalid DOM Insertion Point"); }
@@ -237,6 +237,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 		//context menu
 		this.activeMenu = null;
+		this.menuClick = false;
 		this.menuOptions = Timeline.Menu?[].slice.call(Timeline.Menu):[]; //just in case .Menu is overwritten
 
 		// Canvas
@@ -252,7 +253,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		canvas.addEventListener('DOMMouseScroll', mouseWheel.bind(this), false); //Firefox
 		canvas.addEventListener('contextmenu', contextMenu.bind(this), false);
 		document.addEventListener('click', function(){
-			if(that.activeMenu){
+			if(that.activeMenu && !that.menuClick){
 				that.activeMenu.parentNode.removeChild(that.activeMenu);
 				that.activeMenu = null;
 			}
@@ -289,7 +290,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		node.addEventListener('dragover', dragOver.bind(this), false);
 
 		location.appendChild(node);
-		
+
 		if(media){
 			media.addEventListener('loadedmetadata',setlen,false);
 			media.addEventListener('durationchange',setlen,false);
@@ -297,9 +298,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 			//this is simpler than updating every site that emits jump events
 			this.on('jump',function(e){ media.currentTime = e.time; });
 		}
-		
+
 		this.render();
-		
+
 		function setlen(){ that.length = media.duration; }
 	}
 
@@ -590,7 +591,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.emit(new Timeline.Event("addtrack",{track:track}));
 		}
 	}
-	
+
 	Proto.addTextTrack = function(textTrack,mime,overwrite) {
 		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){
 			throw new Error("Track name already in use.");
@@ -629,7 +630,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		addTlTextTrack.call(this, resolveTrack(this, tid).cloneTimeCodes(kind, lang, name, mime));
 		this.commandStack.setFileUnsaved(name);
 	};
-	
+
 	Proto.cloneTrack = function(tid, kind, lang, name, mime, overwrite) {
 		if(!overwrite && this.trackIndices.hasOwnProperty(name)){
 			throw new Error("Track name already in use.");
@@ -657,14 +658,14 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 		this.render();
 	};
-	
+
 	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite){
-		var undo, redo, 
+		var undo, redo,
 			track = resolveTrack(this, tid),
 			oname = track.textTrack.label,
 			okind = track.textTrack.kind,
 			olang = track.textTrack.language;
-		
+
 		//Set up the undo/redo functions
 		undo = undoAlterTextTrack.bind(
 			this, name,
@@ -685,8 +686,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 		//perform the edit
 		redo();
 	}
-	
-	
+
+
 
 	Proto.setAutoCue = function(onoff, tid) {
 		if(typeof tid === 'undefined'){
@@ -832,7 +833,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			catch(_){ return text.split('\n'); }
 		});
 	};
-	
+
 	Proto.loadLineBuffer = function(tid,src){
 		var track = resolveTrack(this, tid);
 		getLineBuffer(src).then(function(lines){
@@ -840,11 +841,11 @@ var Timeline = (function(TimedText,EditorWidgets){
 			track.linebuffer = lines;
 		});
 	};
-	
+
 	Proto.clearLineBuffer = function(tid){
 		resolveTrack(this, tid).linebuffer = [];
 	};
-	
+
 	Proto.addSegment = function(tid, cue, select){
 		resolveTrack(this, tid).add(cue, select);
 	};
@@ -1188,7 +1189,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		});
 	};
 
-	Proto.loadTextTrack = function(src, kind, lang, name, overwrite){ 
+	Proto.loadTextTrack = function(src, kind, lang, name, overwrite){
 		var that = this;
 		return new Promise(function(resolve,reject){
 			TextTrack.get({
@@ -1373,7 +1374,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		if(ev.button > 0){ return; }
 		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey, shift: ev.shiftKey},
 			track,i;
-		
+
 		ev.preventDefault();
 		document.activeElement.blur();
 		if(this.activeMenu){
@@ -1544,6 +1545,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 	}
 
 	function contextMenu(ev) {
+		this.menuClick = true;
 		if(this.activeMenu){
 			this.activeMenu.parentNode.removeChild(this.activeMenu);
 			this.activeMenu = null;
@@ -1587,6 +1589,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 		var tl = this.tl,
 			view = tl.view,
 			spos = this.startPos;
+
+		this.menuClick = false;
 
 		tl.restore();
 		if(!this.dragged){
