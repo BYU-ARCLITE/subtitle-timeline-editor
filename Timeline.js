@@ -41,6 +41,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			node = document.createElement('div'),
 			cnode = document.createElement('div'),
 			media = (params.syncWith && typeof params.syncWith.addEventListener === 'function')?params.syncWith:null,
+			saveLocation = (params.saveLocation === void 0)?void 0:""+params.saveLocation,
 			fonts = params.fonts || new Timeline.Fonts({}),
 			colors = params.colors || new Timeline.Colors({}),
 			images = params.images || new Timeline.Images({}),
@@ -99,6 +100,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 				get: function(){ return cursors; },
 				set: function(obj){ cursors = obj; this.render(); },
 				enumerable:true
+			},saveLocation: {
+				get: function(){ return saveLocation; },
+				set: function(loc){
+					saveLocation = (loc === void 0)?loc:""+loc;
+					this.render();
+					return saveLocation;
+				},enumerable: true
 			},length: { // In seconds
 				get: function(){ return length; },
 				set: function(val){

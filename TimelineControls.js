@@ -204,15 +204,16 @@
 		var btn = parseNode('<button class="tl-btn" title="Save tracks"><i class="icon-save"></i></button>');
 		setupButton(btn,'active',function(){
 			tl.getFor('savetrack',
-				['saver','tidlist'],
-				{tidlist: void 0}
+				['saver','location','tidlist'],
+				{location: void 0, tidlist: void 0}
 			).then(function(values){
-				var tidlist = values[1] && values[1].filter(function(trackName){
-					return !tl.commandStack.isFileSaved(trackName);
-				});
+				var loc = values[1],
+					tidlist = values[2] && values[2].filter(function(trackName){
+						return !tl.commandStack.isFileSaved(trackName, loc);
+					});
 				values[0](Promise.resolve(tl.exportTracks(tidlist))).then(function(savedlist){
 					savedlist.forEach(function(tid){
-						tl.commandStack.setFileSaved(tid);
+						tl.commandStack.setFileSaved(tid, loc);
 					});
 					tl.render();
 				});

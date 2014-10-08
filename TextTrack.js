@@ -616,7 +616,7 @@
 			ctx.fillText(idstr, tl.width/100, tl.trackHeight/2);
 			ctx.fillText(this.typeName, Math.max(type_pos, id_width), tl.trackHeight/2);
 
-			ctx.fillStyle = tl.colors[tl.commandStack.isFileSaved(this.id)?'tintSaved':'tintUnsaved'];
+			ctx.fillStyle = tl.colors[tl.commandStack.isFileSaved(this.id,tl.saveLocation)?'tintSaved':'tintUnsaved'];
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
 
 			ctx.restore();
