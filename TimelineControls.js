@@ -1,10 +1,10 @@
 (function(Timeline){
 	"use strict";
-	
+
 	if(!Timeline){
 		throw new Error("Timeline Uninitialized");
 	}
-	
+
 	var parseNode = (function(){
 		var node = document.createElement('div');
 		return function(text){
@@ -12,25 +12,26 @@
 			return node.firstChild;
 		};
 	})();
-	
+
 	Timeline.ControlBar = function(timeline,controls){
 		var node = document.createElement('div'),
 			cmap = Timeline.Controls.Groups;
-		
+
 		if(!(controls && typeof controls.forEach === 'function')){
-			controls = ['actions','tracks','tools','settings','timestamp'];
+			controls = ['actions','tracks','tools','settings','location','timestamp'];
 		}
 		controls.forEach(function(c){
-			var constructor = cmap[c];
+			var control, constructor = cmap[c];
 			if(typeof constructor === 'function'){
-				node.appendChild(constructor(timeline));
+				control = constructor(timeline);
+				if(control){ node.appendChild(control); }
 			}
 		});
-		
+
 		node.className = 'tl-toolbar-holder';
 		return node;
 	};
-	
+
 	function setupToggle(btn,aclass,activate,deactivate){
 		var down = false,
 			active = btn.classList.contains(aclass);
@@ -47,12 +48,12 @@
 			down = false;
 			toggle();
 		});
-		
+
 		return function(val){
 			if(!!val === active){ return; }
 			toggle();
 		};
-		
+
 		function toggle(){
 			if(active){
 				active = false;
@@ -69,7 +70,7 @@
 			}
 		}
 	}
-	
+
 	function setupButton(btn,aclass,activate){
 		var down = false;
 		btn.classList.remove(aclass);
@@ -89,7 +90,7 @@
 			}
 		});
 	}
-	
+
 	function makeRadioGroup(buttons,aclass,mkNode,cb){
 		var activebtn,
 			values = {},
@@ -101,7 +102,7 @@
 
 			values[value] = bnode;
 			frag.appendChild(bnode);
-			
+
 			bnode.classList.remove(aclass);
 			bnode.addEventListener('mousedown',function(){
 				this.classList.add(aclass);
@@ -134,7 +135,7 @@
 			}
 		};
 	}
-	
+
 	function BuildSection(tl,title,groups){
 		var node = parseNode('<div class="tl-toolbar"></div>'),
 			cmap = Timeline.Controls.Elements;
@@ -151,13 +152,42 @@
 		});
 		return node;
 	}
-	
+
 	function Timestamp(tl){
 		var node = parseNode('<div class="tl-timestamp">0:00:00</div>');
 		tl.on('timeupdate',function(){ node.textContent = tl.timeCode; });
 		return node;
 	}
-	
+
+	function LocationBtn(tl){
+		var nameMap = {},
+			btn = parseNode('<button class="tl-btn" title="Select Save Location"></button>');
+		if(tl.saveLocation === void 0){ btn.textContent = "Default"; }
+		tl.getFor('locationNames',['names']).then(function(values){
+			nameMap = values[0];
+			btn.textContent = tl.saveLocation === void 0?"Default":(nameMap[tl.saveLocation] || tl.saveLocation);
+		});
+		setupButton(btn,'active',function(){
+			tl.getFor('location',['location']).then(function(values){
+				var location = values[0];
+				tl.saveLocation = location;
+				btn.textContent = location === void 0?"Default":(nameMap[location] || location);
+			});
+		});
+		return btn;
+	}
+
+	function Location(tl){
+		var node, group;
+		if(!tl.canGetFor('location',['location'])){ return null; }
+		node = parseNode('<div class="tl-toolbar"><strong>Location:&nbsp;</strong></div>');
+		group = parseNode('<div class="tl-btn-group"></div>');
+
+		group.appendChild(LocationBtn(tl));
+		node.appendChild(group);
+		return node;
+	}
+
 	function NewTrackBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="Create a new track"><i class="icon-file"></i></button>');
 		setupButton(btn,'active',function(){
@@ -181,7 +211,7 @@
 		});
 		return btn;
 	}
-	
+
 	function EditTrackBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="Edit track metadata"><i class="icon-pencil"></i></button>');
 		setupButton(btn,'active',function(){
@@ -199,7 +229,7 @@
 		});
 		return btn;
 	}
-	
+
 	function SaveTrackBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="Save tracks"><i class="icon-save"></i></button>');
 		setupButton(btn,'active',function(){
@@ -221,7 +251,7 @@
 		});
 		return btn;
 	}
-	
+
 	function LoadTrackBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="Load track"><i class="icon-folder-open"></i></button>');
 		setupButton(btn,'active',function(){
@@ -240,19 +270,19 @@
 		});
 		return btn;
 	}
-	
+
 	function TrackControls(tl){
 		var btn, node = parseNode('<div class="tl-toolbar"><strong>Tracks:&nbsp;</strong></div>'),
 			group = parseNode('<div class="tl-btn-group"></div>');
 		node.appendChild(group);
-		if(!!tl.canGetFor('newtrack',[])){ group.appendChild(NewTrackBtn(tl)); }
-		if(!!tl.canGetFor('edittrack',[])){ group.appendChild(EditTrackBtn(tl)); }
-		if(!!tl.canGetFor('savetrack',['saver'])){ group.appendChild(SaveTrackBtn(tl)); }
-		if(!!tl.canGetFor('loadtrack',['tracksrc'])){ group.appendChild(LoadTrackBtn(tl)); }
-		return node;
+		if(tl.canGetFor('newtrack',[])){ group.appendChild(NewTrackBtn(tl)); }
+		if(tl.canGetFor('edittrack',[])){ group.appendChild(EditTrackBtn(tl)); }
+		if(tl.canGetFor('savetrack',['saver'])){ group.appendChild(SaveTrackBtn(tl)); }
+		if(tl.canGetFor('loadtrack',['tracksrc'])){ group.appendChild(LoadTrackBtn(tl)); }
+		return group.childNodes.length?node:null;
 	}
-	
-	function ABRepeatBtn(tl){	
+
+	function ABRepeatBtn(tl){
 		var set, btn;
 		btn = parseNode('<button class="tl-btn" title="Enable Repeat"><i class="icon-circle-blank"></i></button>');
 		set = setupToggle(btn,'active',function(){
@@ -269,7 +299,7 @@
 		tl.on('abrepeatdisabled',function(){ set(false); });
 		return btn;
 	}
-	
+
 	function AnchorViewBtn(tl){
 		var set, btn;
 		btn = parseNode('<button class="tl-btn" title="Anchor View to Seeker"><i class="icon-anchor"></i></button>');
@@ -282,7 +312,7 @@
 		tl.on('trackseekeroff',function(){ set(false); });
 		return btn;
 	}
-	
+
 	function AutoCueRepeatBtn(tl){
 		var set, btn;
 		btn = parseNode('<button class="tl-btn" title="Auto Repeat">Auto<i class="icon-refresh"></i></button>');
@@ -295,7 +325,7 @@
 		tl.on('cuerepeatoff',function(){ set(false); });
 		return btn;
 	}
-	
+
 	function MoveAfterAddBtn(tl){
 		var set, btn;
 		btn = parseNode('<button class="tl-btn" title="Move After Add">\
@@ -312,7 +342,7 @@
 		tl.on('automoveoff',function(){ set(false); });
 		return btn;
 	}
-	
+
 	function Settings(tl){
 		var node = parseNode('<div class="tl-toolbar"><strong>Settings:&nbsp;</strong></div>'),
 			group = parseNode('<div class="tl-btn-group"></div>');
@@ -331,39 +361,39 @@
 		setupButton(btn,'active',tl.commandStack.undo.bind(tl.commandStack));
 		return btn;
 	}
-	
+
 	function RedoBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="Redo"><i class="icon-repeat"></i></button>');
 		setupButton(btn,'active',tl.commandStack.redo.bind(tl.commandStack));
 		return btn;
 	}
-	
+
 	function ClearRepBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="Clear Repeat"><i class="icon-ban-circle"></i></button>');
 		setupButton(btn,'active',function(){ tl.clearRepeat(); });
 		return btn;
 	}
-	
+
 	function BreakPntBtn(tl){
 		var btn = parseNode('<button class="tl-btn" title="AutoCue Breakpoint"><b>||</b></button>');
 		setupButton(btn,'active',function(){ tl.breakPoint(); });
 		return btn;
 	}
-	
+
 	function Actions(tl){
 		var btn, node = parseNode('<div class="tl-toolbar"><strong>Actions:&nbsp</strong></div>'),
 			group = parseNode('<div class="tl-btn-group"></div>'),
 			stack = tl.commandStack;
-		
+
 		group.appendChild(UndoBtn(tl));
 		group.appendChild(RedoBtn(tl));
 		group.appendChild(ClearRepBtn(tl));
 		group.appendChild(BreakPntBtn(tl));
-		
+
 		node.appendChild(group)
 		return node;
 	}
-	
+
 	function ToolBtns(tl){
 		var rgroup = makeRadioGroup([
 				{title:"Select Tool",icon:"icon-ok",value:Timeline.SELECT},
@@ -377,32 +407,33 @@
 			],'active',function(tool){
 			return parseNode('<button class="tl-btn" title="'+tool.title+'"><i class="'+tool.icon+'"></i></button>');
 		},function(value){ tl.currentTool = value; });
-		
+
 		rgroup.set(tl.currentTool);
 		tl.on('toolchange',function(event){ rgroup.set(event.newtool); });
-		
+
 		return rgroup.buttons;
 	}
-	
+
 	function ToolSelector(tl){
 		var node = parseNode('<div class="tl-toolbar"><strong>Tools:&nbsp;</strong></div>'),
 			group = parseNode('<div class="tl-btn-group"></div>');
-		
+
 		group.appendChild(ToolBtns(tl));
 		node.appendChild(group);
 		return node;
 	}
-	
+
 	Timeline.Controls = {
 		MakeGroup: function(title, groups){
 			return function(tl){ return BuildSection(tl,title,groups); };
 		},
 		Groups: {
-			'tools': ToolSelector,
-			'actions': Actions,
-			'settings': Settings,
-			'tracks': TrackControls,
-			'timestamp': Timestamp
+			tools: ToolSelector,
+			actions: Actions,
+			settings: Settings,
+			tracks: TrackControls,
+			location: Location,
+			timestamp: Timestamp
 		},
 		Elements: {
 			newtrackbtn: NewTrackBtn,
@@ -420,5 +451,5 @@
 			toolbtns: ToolBtns
 		}
 	};
-	
+
 }(Timeline));
