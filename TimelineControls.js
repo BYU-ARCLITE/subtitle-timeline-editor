@@ -204,7 +204,7 @@
 			).then(function(values){
 				var track = new TextTrack(values[0], values[1], values[2]); //kind, name, lang
 				track.readyState = TextTrack.LOADED;
-				tl.addTextTrack(track, values[3], values[4]);
+				tl.addTextTrack(track, values[3], void 0, values[4]);
 				tl.commandStack.setFileUnsaved(name);
 				values[5](Promise.resolve(track));
 			});
@@ -256,12 +256,13 @@
 		var btn = parseNode('<button class="tl-btn" title="Load track"><i class="icon-folder-open"></i></button>');
 		setupButton(btn,'active',function(){
 			tl.getFor('loadtrack',
-				['tracksrc','kind','lang','name','overwrite','handler'],
+				['tracksrc','kind','lang','name','location','overwrite','handler'],
 				{
 					handler: function(){},
 					kind: void 0,
 					lang: void 0,
 					name: void 0,
+					location: void 0,
 					overwrite: false
 				}
 			).then(function(values){

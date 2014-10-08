@@ -206,6 +206,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.confirm = function(txt){
 			return Promise.resolve(lconf(txt));
 		};
+		this.dropLocation = (params.dropLocation === void 0)?void 0:""+params.dropLocation;
 		this.autoSelect = !!params.autoSelect;
 		this.autoCueStatus = Timeline.AutoCueResolved;
 		this.autoCueStart = 0;
@@ -584,7 +585,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		return this.trackIndices.hasOwnProperty(name);
 	};
 
-	function addTlTextTrack(track){
+	function addTlTextTrack(track, from){
 		if(this.trackIndices.hasOwnProperty(track.id)){
 			swaptracks.call(this,track,this.tracks[this.trackIndices[track.id]]);
 		}else{
@@ -598,13 +599,14 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.render();
 			this.emit(new Timeline.Event("addtrack",{track:track}));
 		}
+		this.commandStack.setFileSaved(track.id, from);
 	}
 
-	Proto.addTextTrack = function(textTrack,mime,overwrite) {
+	Proto.addTextTrack = function(textTrack,mime,from,overwrite) {
 		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){
 			throw new Error("Track name already in use.");
 		}
-		addTlTextTrack.call(this, new Timeline.TextTrack(this, textTrack, mime));
+		addTlTextTrack.call(this, new Timeline.TextTrack(this, textTrack, mime), from);
 	};
 
 	Proto.removeTextTrack = function(id) {
@@ -636,7 +638,6 @@ var Timeline = (function(TimedText,EditorWidgets){
 			throw new Error("Track name already in use.");
 		}
 		addTlTextTrack.call(this, resolveTrack(this, tid).cloneTimeCodes(kind, lang, name, mime));
-		this.commandStack.setFileUnsaved(name);
 	};
 
 	Proto.cloneTrack = function(tid, kind, lang, name, mime, overwrite) {
@@ -644,7 +645,6 @@ var Timeline = (function(TimedText,EditorWidgets){
 			throw new Error("Track name already in use.");
 		}
 		addTlTextTrack.call(this, resolveTrack(this, tid).cloneTrack(kind, lang, name, mime));
-		this.commandStack.setFileUnsaved(name);
 	};
 
 	function undoAlterTextTrack(tid, kind, lang, name, overwrite){
@@ -1197,7 +1197,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		});
 	};
 
-	Proto.loadTextTrack = function(src, kind, lang, name, overwrite){
+	Proto.loadTextTrack = function(src, kind, lang, name, from, overwrite){
 		var that = this;
 		return new Promise(function(resolve,reject){
 			TextTrack.get({
@@ -1206,7 +1206,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 				lang: lang,
 				label: name,
 				success: function(track, mime){
-					that.addTextTrack(track,mime,overwrite);
+					that.addTextTrack(track,mime,from,overwrite);
 					resolve(track);
 				},
 				error: reject
@@ -1476,10 +1476,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 		return false;
 	}
 
-	function addDroppedTrack(track, mime){
+	function addDroppedTrack(track, mime, from){
 		track.mode = 'showing';
-		this.addTextTrack(track,mime,true);
-		this.commandStack.setFileUnsaved(track.label);
+		this.addTextTrack(track,mime,from,true);
 		this.emit(new Timeline.Event("droptrack", {track:track}));
 	}
 
@@ -1507,7 +1506,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 					TextTrack.get({
 						src: file, //label: file.name,
 						kind: 'subtitles', lang: 'zxx',
-						success: addDroppedTrack.bind(that)
+						success: function(track, mime){
+							addDroppedTrack.call(that,track,mime,that.dropLocation)
+						}
 					});
 				}
 			});
@@ -1536,7 +1537,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 						TextTrack.get({
 							src: url, //label: name,
 							kind: 'subtitles', lang: 'zxx',
-							success: addDroppedTrack.bind(that)
+							success: function(track, mime){
+								addDroppedTrack.call(that,track,mime,void 0);
+							}
 						});
 					}
 				};

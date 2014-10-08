@@ -42,7 +42,7 @@
 							}
 						).then(function(values){
 							var track = new TextTrack(values[0], values[1], values[2]); //kind, name, lang
-							tl.addTextTrack(track, values[3], values[4]);
+							tl.addTextTrack(track, values[3], void 0, values[4]);
 							tl.commandStack.setFileUnsaved(name);
 						});
 					}
