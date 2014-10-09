@@ -68,8 +68,12 @@ var Timeline = (function(TimedText,EditorWidgets){
 						return datap.then(function(values){
 							//make sure errors for data with defaults are replaced with defaults
 							var defvalues = values.map(function(p,i){
-								var key = data[i];
-								if(typeof p.then !== 'function' || !defs.hasOwnProperty(key)){ return p; }
+								var notPromise = true, key = data[i];
+								try{
+									notPromise = (typeof p.then !== 'function');
+								}finally{
+									if(notPromise || !defs.hasOwnProperty(key)){ return p; }
+								}
 								return p.then(void 0,function(){ return defs[key]; });
 							});
 							return Promise.all(defvalues);
