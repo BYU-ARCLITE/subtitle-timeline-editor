@@ -665,6 +665,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		if(typeof lang !== 'undefined'){ track.textTrack.language = lang; }
 
 		this.render();
+		this.emit(new Timeline.Event('altertrack',{track:track}));
 	};
 
 	Proto.alterTextTrack = function(tid, kind, lang, name, overwrite){
