@@ -221,6 +221,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.tracks = [];
 		this.audio = {};
 		this.trackIndices = {};
+		this.trackCache = new Map();
 
 		this.activeElement = null;
 		this.activeIndex = -1;
@@ -578,11 +579,25 @@ var Timeline = (function(TimedText,EditorWidgets){
 	}
 
 	function swaptracks(n,o){
+		var oinfo = this.trackCache.get(o.textTrack);
 		this.tracks[this.trackIndices[n.id]] = n;
 		n.render();
+		if(!this.commandStack.isFileSaved(o.id, oinfo.location)){
+			oinfo.location = void 0;
+		}
 		this.commandStack.removeEvents(o.id);
 		this.emit(new Timeline.Event("removetrack",{track:o}));
 		this.emit(new Timeline.Event("addtrack",{track:n}));
+	}
+
+	Proto.cacheTextTrack = function(track, mime, location){
+		this.trackCache.set(track, {mime: mime, location: location});
+	}
+
+	Proto.getCachedTextTracks = function(){
+		var arr = [];
+		this.trackCache.forEach(function(_, key){ arr.push(key); });
+		return arr;
 	}
 
 	Proto.hasTextTrack = function(name){
@@ -610,18 +625,35 @@ var Timeline = (function(TimedText,EditorWidgets){
 		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){
 			throw new Error("Track name already in use.");
 		}
+		this.trackCache.set(textTrack, {mime: mime, location: from});
 		addTlTextTrack.call(this, new Timeline.TextTrack(this, textTrack, mime), from);
 	};
 
+	Proto.addCachedTextTrack = function(textTrack,overwrite) {
+		var tinfo;
+		if(!overwrite && this.trackIndices.hasOwnProperty(textTrack.label)){
+			throw new Error("Track name already in use.");
+		}
+		if(!this.trackCache.has(textTrack)){
+			throw new Error("Track missing from cache.");
+		}
+		tinfo = this.trackCache.get(textTrack);
+		this.addTextTrack(track, tinfo.mime, tinfo.location, overwrite);
+	};
+
 	Proto.removeTextTrack = function(id) {
-		var i,t,track,aid,loc;
+		var i,t,track,tinfo,aid,loc;
 		if(this.trackIndices.hasOwnProperty(id)){
 			loc = this.trackIndices[id];
 			aid = this.tracks[loc].audioId;
 			if(this.audio.hasOwnProperty(aid)){ this.audio[aid].references--; }
 			track = this.tracks.splice(loc, 1)[0];
-			delete this.trackIndices[id];
+			tinfo = this.trackCache.get(track.textTrack);
+			if(!this.commandStack.isFileSaved(track.id, tinfo.location)){
+				tinfo.location = void 0;
+			}
 
+			delete this.trackIndices[id];
 			for(i=loc;t=this.tracks[i];i++){
 				this.trackIndices[t.id] = i;
 			}
@@ -699,8 +731,6 @@ var Timeline = (function(TimedText,EditorWidgets){
 		//perform the edit
 		redo();
 	}
-
-
 
 	Proto.setAutoCue = function(onoff, tid) {
 		if(typeof tid === 'undefined'){

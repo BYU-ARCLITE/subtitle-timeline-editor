@@ -43,7 +43,7 @@
 						).then(function(values){
 							var track = new TextTrack(values[0], values[1], values[2]); //kind, name, lang
 							tl.addTextTrack(track, values[3], void 0, values[4]);
-							tl.commandStack.setFileUnsaved(name);
+							tl.commandStack.setFileUnsaved(name, void 0);
 						});
 					}
 				},
@@ -62,6 +62,24 @@
 							}
 						).then(function(values){
 							values[5](tl.loadTextTrack.apply(tl,values));
+						});
+					}
+				},
+				{name: "Show Track",
+					condition: function(){
+						var item, tl = this.timeline,
+							kiter = tl.trackCache.keys();
+						do { item = kiter.next(); }
+						while((!item.done) && tl.hasTextTrack(item.value.label));
+						return !item.done;
+					},
+					calc: function(f){
+						var tl = this.timeline;
+						tl.trackCache.forEach(function(info,track){
+							if(tl.hasTextTrack(track.label)){ return; }
+							f({name: track.label,
+								action: function(){ tl.addTextTrack(track, info.mime, info.location); }
+							});
 						});
 					}
 				}
@@ -208,7 +226,7 @@
 						var track = this.track,
 							tl = this.timeline;
 						tl.confirm(
-							tl.commandStack.isFileSaved(track.id)
+							tl.commandStack.isFileSaved(track.id, tl.saveLocation)
 							?"Are You Sure You Want To Remove "+track.id+"?"
 							:track.id+" has unsaved changes. Are you sure you want to remove it?")
 						.then(function(b){

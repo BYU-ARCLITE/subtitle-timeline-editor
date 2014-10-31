@@ -205,7 +205,7 @@
 				var track = new TextTrack(values[0], values[1], values[2]); //kind, name, lang
 				track.readyState = TextTrack.LOADED;
 				tl.addTextTrack(track, values[3], void 0, values[4]);
-				tl.commandStack.setFileUnsaved(name);
+				tl.commandStack.setFileUnsaved(name, void 0);
 				values[5](Promise.resolve(track));
 			});
 		});
@@ -244,6 +244,7 @@
 				values[0](Promise.resolve(tl.exportTracks(tidlist))).then(function(savedlist){
 					savedlist.forEach(function(tid){
 						tl.commandStack.setFileSaved(tid, loc);
+						tl.trackCache.get(tl.tracks[tl.trackIndices[tid]]).location = loc; 
 					});
 					tl.render();
 				});

@@ -50,6 +50,7 @@
 				if(!seg.deleted){ seg.cue = newCues[i++]; }
 			});
 
+			tl.trackCache.get(that.textTrack).mime = mime;
 			tl.renderTrack(this);
 			tl.emit(new Timeline.Event("convert",{track:this,oldtype:oldmime}));
 			if(this.segments.some(function(seg){ return seg.active; })){
@@ -335,25 +336,29 @@
 		});
 
 		TProto.cloneTimeCodes = function(kind,lang,name,mime){
-			var ntt = new TextTrack(kind||this.kind,name,lang||this.language),
+			var tl = this.tl,
+				ntt = new TextTrack(kind||this.kind,name,lang||this.language),
 				cueType = mime?TimedText.getTypeInfo(mime).cueType:this.cueType;
 			ntt.cues.loadCues(this.textTrack.cues.map(function(cue){
 				return new cueType(cue.startTime,cue.endTime,"");
 			}));
 			ntt.readyState = TextTrack.LOADED;
 			ntt.mode = "showing";
-			return new TlTextTrack(this.tl,ntt,mime||this.mime);
+			tl.trackCache.set(ntt,{mime:mime, location: void 0});
+			return new TlTextTrack(tl,ntt,mime||this.mime);
 		};
 
 		TProto.cloneTrack = function(kind,lang,name,mime){
-			var ntt = new TextTrack(kind||this.kind,name,lang||this.language);
+			var tl = this.tl,
+				ntt = new TextTrack(kind||this.kind,name,lang||this.language);
 			if(!mime){ mime = this.mime; }
 			ntt.cues.loadCues(this.textTrack.cues.map(
 				TimedText.getCueConverter(this.mime, mime)
 			));
 			ntt.readyState = TextTrack.LOADED;
 			ntt.mode = "showing";
-			return new TlTextTrack(this.tl,ntt,mime);
+			tl.trackCache.set(ntt,{mime:mime, location: void 0});
+			return new TlTextTrack(tl,ntt,mime);
 		};
 
 		function cue2seg(cue, select){
