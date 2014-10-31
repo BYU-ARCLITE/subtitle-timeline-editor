@@ -27,6 +27,7 @@
 		this.tl = tl;
 		this.segments = cueTrack.cues.map(function(cue){ return new Segment(that, cue); });
 		this.visibleSegments = [];
+		this.shiftSegments = [];
 		this.audioId = null;
 		this.placeholder = null;
 		this.lastPos = null;
@@ -671,8 +672,11 @@
 				this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
 			}else if(tl.currentTool === Timeline.SHIFT){
 				selected = this.segments.filter(function(seg){ return seg.selected; });
-				if(selected.length < 2){ selected = this.segments; }
-				selected.forEach(function(seg){ seg.mouseDown(pos); });
+				this.shiftSegments = (selected.length < 2)?this.segments:selected;
+				this.shiftSegments.forEach(function(seg){
+					seg.initialStart = seg.startTime;
+					seg.initialEnd = seg.endTime;
+				});
 				tl.activeElement = this;
 			}else{
 				seg = this.segFromPos(pos);
@@ -684,37 +688,49 @@
 		};
 
 		TProto.mouseMove = function(pos){
-			var change;
-			if(typeof pos !== 'object' || this.locked || this.ctrl){ return; }
-			if(this.tl.currentTool === Timeline.SHIFT){
-				change = this.segments.reduce(function(acc,seg){ return acc || seg.mouseMove(pos); }, false);
-				if(change){
-					this.textTrack.activeCues.refreshCues();
-					this.tl.emit(new Timeline.Event('activechange'));
-				}
-				this.tl.renderTrack(this);
+			var delta, tl = this.tl,
+				change = false,
+				segments = this.shiftSegments;
+			if(typeof pos !== 'object' || this.locked || this.ctrl || tl.currentTool !== Timeline.SHIFT){ return; }
+			delta = tl.view.distanceToTime(pos.x - tl.mouseDownPos.x);
+
+			//Don't go out of bounds; depends on assumption of sorting
+			if(segments[0].initialStart + delta < 0){
+				if(segments[0].startTime === 0){ return; }
+				delta = -segments[0].initialStart;
 			}
+
+			this.shiftSegments.forEach(function(seg){
+				var activeStart = seg.active;
+				seg.startTime = seg.initialStart + delta;
+				seg.endTime = seg.initialEnd + delta;
+				tl.emit(new Timeline.Event('move',{segment:this}));
+				change = change || (activeStart !== seg.active);
+			});
+			if(change){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			tl.renderTrack(this);
 		};
 
 		TProto.mouseUp = function(pos){
-			var selected, delta, target, tl = this.tl;
+			var segments, delta, target, tl = this.tl;
 			if(typeof pos !== 'object' || this.locked){ return; }
 			if(this.ctrl){ //copy on drag
 				this.ctrl = false;
 				target = tl.trackFromPos(pos);
 				if(this !== target){ target.paste(tl.toCopy); }
 			}else if(tl.currentTool === Timeline.SHIFT){
-				selected = this.segments.filter(function(seg){ return seg.selected; });
-				if(selected.length < 2){ selected = this.segments; }
-				selected.forEach(function(seg){ seg.moving = false; });
-				delta = selected[0].startTime - selected[0].initialStart;
+				segments = this.shiftSegments;
+				delta = segments[0].startTime - segments[0].initialStart;
 				tl.commandStack.push({
 					file: this.textTrack.label,
 					context: this,
-					redo: reshift.bind(this,selected,delta),
-					undo: reshift.bind(this,selected,-delta)
+					redo: reshift.bind(this,segments,delta),
+					undo: reshift.bind(this,segments,-delta)
 				});
-				tl.emit(new Timeline.Event('shift',{segments:selected,delta:delta}));
+				tl.emit(new Timeline.Event('shift',{segments:segments,delta:delta}));
 				tl.renderTrack(this);
 			}
 		};
@@ -1007,11 +1023,6 @@
 				this.initialStart = this.startTime;
 				this.initialEnd = this.endTime;
 				break;
-			case Timeline.SHIFT:
-				this.moving = true;
-				this.initialStart = this.startTime;
-				this.initialEnd = this.endTime;
-				break;
 			case Timeline.SPLIT:
 				this.split(pos);
 				break;
@@ -1067,52 +1078,40 @@
 				activeStart = this.active,
 				newTime, maxStartTime;
 
-			if(this.deleted || !this.selectable || !this.moving){ return false; }
+			if(this.deleted || !this.selectable || !this.moving || tl.currentTool !== Timeline.MOVE){ return; }
 
 			newTime = tl.view.pixelToTime(this.startingPos + pos.x - tl.mouseDownPos.x);
 
-			if(tl.currentTool === Timeline.SHIFT){
+			switch(this.resizeSide){
+			case 0:
 				maxStartTime = tl.length - this.startingLength;
 				if(newTime < 0){ newTime = 0; }
 				else if(newTime > maxStartTime){ newTime = maxStartTime; }
 				this.startTime = newTime;
 				this.endTime = newTime + this.startingLength;
 				tl.emit(new Timeline.Event('move',{segment:this}));
-				if(activeStart !== this.active){ return true; }
-			}else if(tl.currentTool === Timeline.MOVE){
-				switch(this.resizeSide){
-				case 0:
-					maxStartTime = tl.length - this.startingLength;
-					if(newTime < 0){ newTime = 0; }
-					else if(newTime > maxStartTime){ newTime = maxStartTime; }
-					this.startTime = newTime;
-					this.endTime = newTime + this.startingLength;
-					tl.emit(new Timeline.Event('move',{segment:this}));
-					break;
-				case -1:
-					if(newTime < 0){ newTime = 0; }
-					else if(newTime >= this.endTime){ newTime = this.endTime - 0.001; }
-					this.startTime = newTime;
-					tl.emit(new Timeline.Event('resizel',{segment:this}));
-					break;
-				case 1:
-					newTime += this.startingLength;
-					if(newTime <= this.startTime){ newTime = this.startTime + 0.001; }
-					else if(newTime > tl.length){ newTime = tl.length; }
-					this.endTime = newTime;
-					tl.emit(new Timeline.Event('resizer',{segment:this}));
-					break;
-				default:
-					throw new Error("Invalid State");
-				}
-				tl.renderTrack(this.track);
-				if(activeStart !== this.active){
-					this.track.textTrack.activeCues.refreshCues();
-					tl.emit(new Timeline.Event("activechange"));
-					return true;
-				}
+				break;
+			case -1:
+				if(newTime < 0){ newTime = 0; }
+				else if(newTime >= this.endTime){ newTime = this.endTime - 0.001; }
+				this.startTime = newTime;
+				tl.emit(new Timeline.Event('resizel',{segment:this}));
+				break;
+			case 1:
+				newTime += this.startingLength;
+				if(newTime <= this.startTime){ newTime = this.startTime + 0.001; }
+				else if(newTime > tl.length){ newTime = tl.length; }
+				this.endTime = newTime;
+				tl.emit(new Timeline.Event('resizer',{segment:this}));
+				break;
+			default:
+				throw new Error("Invalid State");
 			}
-			return false;
+			tl.renderTrack(this.track);
+			if(activeStart !== this.active){
+				this.track.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event("activechange"));
+			}
 		};
 
 		// Rendering

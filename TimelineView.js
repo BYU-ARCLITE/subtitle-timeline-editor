@@ -73,6 +73,7 @@
 	View.prototype = {
 		get length() { return this.endTime - this.startTime; }, // seconds
 		get zoom() { return this.length/this.tl.width; }, // seconds per pixel
+		distanceToTime: function(pixels) { return pixels * this.zoom; },
 		pixelToTime: function(pixel) { return pixel * this.zoom + this.startTime; },
 		timeToPixel: function(time) { return Math.round((time-this.startTime) / this.zoom); }
 	};
