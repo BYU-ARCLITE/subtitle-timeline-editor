@@ -863,6 +863,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 		resolveTrack(this, tid).add(cue, select);
 	};
 
+	Proto.shiftTrack = function(tids,delta,all){
+		if(!(tids instanceof Array)){ tids = [tids]; }
+		tids.forEach(function(tid){
+			resolveTrack(this, tid).shift(delta,all);
+		},this);
+	};
+
 	/** Drawing functions **/
 
 	function renderBackground(tl) {

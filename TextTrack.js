@@ -591,6 +591,41 @@
 			tl.renderTrack(this);
 		};
 
+		TProto.shift = function(delta, all){
+			var change = false, tl = this.tl,
+				segments = this.segments;
+			delta = +delta;
+			if(!delta){ return; }
+			if(all !== true){ segments = segments.filter(function(seg){ return seg.selected; }); }
+			if(segments.length === 0){ return; }
+
+			//Don't go out of bounds; depends on assumption of sorting
+			if(segments[0].startTime + delta < 0){
+				if(segments[0].startTime === 0){ return; }
+				delta = -segments[0].startTime;
+			}
+
+			segments.forEach(function(seg){
+				var activeStart = seg.active;
+				seg.startTime = seg.startTime + delta;
+				seg.endTime = seg.endTime + delta;
+				tl.emit(new Timeline.Event('move',{segment:this}));
+				change = change || (activeStart !== seg.active);
+			});
+			if(change){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			tl.commandStack.push({
+				file: this.textTrack.label,
+				context: this,
+				redo: reshift.bind(this,segments,delta),
+				undo: reshift.bind(this,segments,-delta)
+			});
+			tl.emit(new Timeline.Event('shift',{segments:segments,delta:delta}));
+			tl.renderTrack(this);
+		};
+
 		TProto.render = function(){
 			var segs, dir, idstr,
 				id_width, type_pos,
@@ -700,7 +735,7 @@
 				delta = -segments[0].initialStart;
 			}
 
-			this.shiftSegments.forEach(function(seg){
+			segments.forEach(function(seg){
 				var activeStart = seg.active;
 				seg.startTime = seg.initialStart + delta;
 				seg.endTime = seg.initialEnd + delta;
