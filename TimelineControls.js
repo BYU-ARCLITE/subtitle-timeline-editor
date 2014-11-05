@@ -244,7 +244,7 @@
 				values[0](Promise.resolve(tl.exportTracks(tidlist))).then(function(savedlist){
 					savedlist.forEach(function(tid){
 						tl.commandStack.setFileSaved(tid, loc);
-						tl.trackCache.get(tl.tracks[tl.trackIndices[tid]]).location = loc; 
+						tl.trackCache.get(tl.tracks[tl.trackIndices[tid]]).location = loc;
 					});
 					tl.render();
 				});
@@ -273,6 +273,34 @@
 		return btn;
 	}
 
+	function ShowTrackBtn(tl){
+		var btn = parseNode('<button class="tl-btn" title="Show track"><i class="icon-laptop"></i></button>');
+		setupButton(btn,'active',function(){
+			tl.getFor('showtrack',
+				['tracks'],
+				{}
+			).then(function(values){
+				var tracks = tl.getCachedTextTracks(), index;
+
+				[].forEach.call(tracks, function(track){
+					index = values[0].indexOf(track);
+					if (~index){
+						if(tl.hasTextTrack(track.label)){ return; }
+						tl.trackCache.forEach(function(info, t){
+							if (track === t)
+								tl.addTextTrack(t, info.mime, info.location);
+						});
+					} else {
+						if(tl.hasTextTrack(track.label)){
+							tl.removeTextTrack(track.label);
+						}
+					}
+				});
+			});
+		});
+		return btn;
+	}
+
 	function TrackControls(tl){
 		var btn, node = parseNode('<div class="tl-toolbar"><strong>Tracks:&nbsp;</strong></div>'),
 			group = parseNode('<div class="tl-btn-group"></div>');
@@ -281,6 +309,7 @@
 		if(tl.canGetFor('edittrack',[])){ group.appendChild(EditTrackBtn(tl)); }
 		if(tl.canGetFor('savetrack',['saver'])){ group.appendChild(SaveTrackBtn(tl)); }
 		if(tl.canGetFor('loadtrack',['tracksrc'])){ group.appendChild(LoadTrackBtn(tl)); }
+		if(tl.canGetFor('showtrack',['tracks'])){ group.appendChild(ShowTrackBtn(tl)); }
 		return group.childNodes.length?node:null;
 	}
 
@@ -442,6 +471,7 @@
 			edittrackbtn: EditTrackBtn,
 			savetrackbtn: SaveTrackBtn,
 			loadtrackbtn: LoadTrackBtn,
+			showtrackbtn: ShowTrackBtn,
 			abrepeatbtn: ABRepeatBtn,
 			trackseekerbtn: AnchorViewBtn,
 			cuerepeatbtn: AutoCueRepeatBtn,
