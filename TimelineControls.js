@@ -244,7 +244,7 @@
 				values[0](Promise.resolve(tl.exportTracks(tidlist))).then(function(savedlist){
 					savedlist.forEach(function(tid){
 						tl.commandStack.setFileSaved(tid, loc);
-						tl.trackCache.get(tl.tracks[tl.trackIndices[tid]]).location = loc;
+						tl.trackCache.get(tl.tracks[tl.trackIndices[tid]].textTrack).location = loc;
 					});
 					tl.render();
 				});
