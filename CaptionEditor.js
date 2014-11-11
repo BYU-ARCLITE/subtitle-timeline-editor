@@ -5,6 +5,7 @@ var CaptionEditor = (function(){
 			//can't just refresh layout 'cause it won't update text
 			//can't update texts ourselves 'cause we'll leak nodes
 			editor.rebuild(this);
+			editor.timeline.emit(new Timeline.Event('cuetextchange',{cue:this}));
 		};
 	}
 
@@ -48,6 +49,7 @@ var CaptionEditor = (function(){
 		cue.text = newtext;
 		renderedCue.updateContent();
 		this.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
+		this.timeline.emit(new Timeline.Event('cuetextchange',{cue:cue}));
 	}
 
 	function replaceSelectionWith(node){
