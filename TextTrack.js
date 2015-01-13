@@ -35,25 +35,21 @@
 		this.autoFill = false;
 		this.linebuffer = [];
 
-		function set_mime(newmime, newCues){
-			var i = 0, oldmime = mime,
-				segments = that.segments;
+		function set_mime(newmime, newSegs){
+			var oldmime = mime;
 
 			mime = newmime;
 			typeInfo = TimedText.getTypeInfo(mime);
+			this.segments = newSegs;
 
 			cueTrack.cues.length = 0;
-			cueTrack.cues.loadCues(newCues);
+			cueTrack.cues.loadCues(newSegs.map(function(s){ return s.cue; }));
 			cueTrack.activeCues.refreshCues();
-
-			segments.forEach(function(seg){
-				if(!seg.deleted){ seg.cue = newCues[i++]; }
-			});
 
 			tl.trackCache.get(that.textTrack).mime = mime;
 			tl.renderTrack(this);
 			tl.emit(new Timeline.Event("convert",{track:this,oldtype:oldmime}));
-			if(this.segments.some(function(seg){ return seg.active; })){
+			if(newSegs.some(function(seg){ return seg.active; })){
 				tl.emit(new Timeline.Event("activechange"));
 			}
 		}
@@ -91,21 +87,24 @@
 			mime: {
 				get: function(){ return mime; },
 				set: function(newmime){
-					var oldmime = mime,
-						oldCues, newCues;
+					var that = this, oldmime = mime,
+						converter, oldSegs, newSegs;
 					if(newmime === mime){ return mime; }
+					converter = TimedText.getCueConverter(oldmime, newmime),
 
-					oldCues = cueTrack.cues.slice();
-					newCues = oldCues.map(TimedText.getCueConverter(oldmime, newmime));
+					oldSegs = this.segments;
+					newSegs = oldSegs
+							.filter(function(s){ return !s.deleted; })
+							.map(function(s){ return new Segment(that, converter(s.cue)); });
 
 					tl.commandStack.push({
 						file: cueTrack.label,
 						context: this,
-						redo: set_mime.bind(this,newmime,newCues),
-						undo: set_mime.bind(this,oldmime,oldCues)
+						redo: set_mime.bind(this,newmime,newSegs),
+						undo: set_mime.bind(this,oldmime,oldSegs)
 					});
 
-					set_mime.call(this, newmime, newCues);
+					set_mime.call(this, newmime, newSegs);
 
 					return mime;
 				}, enumerable: true
