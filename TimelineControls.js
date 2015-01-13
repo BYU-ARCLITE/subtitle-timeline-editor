@@ -169,10 +169,12 @@
 		});
 		setupButton(btn,'active',function(){
 			tl.getFor('location',['location']).then(function(values){
-				var location = values[0];
-				tl.saveLocation = location;
-				btn.textContent = location === void 0?"Default":(nameMap[location] || location);
+				tl.saveLocation = values[0];
 			});
+		});
+		tl.on('locationchange',function(){
+			var location = tl.saveLocation;
+			btn.textContent = location === void 0?"Default":(nameMap[location] || location);
 		});
 		return btn;
 	}

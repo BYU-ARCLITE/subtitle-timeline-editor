@@ -27,6 +27,22 @@
 					{name:"Copy",action:function(){ this.timeline.currentTool = Timeline.COPY; }},
 					{name:"Set Repeat",action:function(){ this.timeline.currentTool = Timeline.REPEAT; }}
 				]},
+				{name:"Save Location",
+					condition:function(){return this.timeline.canGetFor('locationNames',['names']);},
+					calc:function(f){
+						var tl = this.timeline;
+						tl.getFor('locationNames',['names']).then(function(values){
+							var names = values[0];
+							Object.keys(names).forEach(function(key){
+								f(key === tl.saveLocation
+									?{name:"<i>"+names[key]+"</i>"}
+									:{name:names[key],
+										action:function(){this.timeline.saveLocation = key;}}
+								);
+							});
+						});
+					}
+				},
 				{name:"New Track",
 					condition:function(){return !!this.timeline.canGetFor('newtrack',[]); },
 					action:function(){
@@ -48,7 +64,7 @@
 					}
 				},
 				{name:"Load Track",
-					condition:function(){return !!this.timeline.canGetFor('loadtrack',['tracksrc']); },
+					condition:function(){return this.timeline.canGetFor('loadtrack',['tracksrc']); },
 					action:function(){
 						var tl = this.timeline;
 						tl.getFor('loadtrack',

@@ -108,6 +108,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 				get: function(){ return saveLocation; },
 				set: function(loc){
 					saveLocation = (loc === void 0)?loc:""+loc;
+					this.emit(new Timeline.Event('locationchange'));
 					this.render();
 					return saveLocation;
 				},enumerable: true
