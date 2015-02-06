@@ -1197,12 +1197,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 				track.setPlaceholder(this.autoCueStart-.01, time+.01);
 				track.resolvePlaceholder();
 			},this);
-			if(this.autoCueRepeat){
-				this.autoCueStatus = Timeline.AutoCueRepeating;
-				this.setRepeat(this.autoCueStart+.01,time-.01);
-			}else{
-				this.autoCueStatus = Timeline.AutoCueResolved;
-			}
+			this.autoCueStatus = this.autoCueRepeat?
+								Timeline.AutoCueRepeating:
+								Timeline.AutoCueResolved;
 			break;
 		case Timeline.AutoCueRepeating:
 			this.clearRepeat();

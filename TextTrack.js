@@ -477,7 +477,7 @@
 
 		TProto.resolvePlaceholder = function(){
 			if(this.placeholder === null){ return; }
-			var seg, text,
+			var seg, text, start, end,
 				tl = this.tl,
 				view = tl.view,
 				placeholder = this.placeholder,
@@ -486,14 +486,11 @@
 
 			this.placeholder = null;
 			if(startx === endx){ return; }
+			start = view.pixelToTime(startx);
+			end = view.pixelToTime(endx);
 			if(this.autoFill && this.linebuffer.length){
 				text = this.linebuffer.pop();
-				seg = cue2seg.call(this,
-					new this.cueType(
-						view.pixelToTime(startx),
-						view.pixelToTime(endx),
-						text
-					), tl.autoSelect);
+				seg = cue2seg.call(this, new this.cueType(start,end,text), tl.autoSelect);
 				tl.commandStack.push({
 					file: this.textTrack.label,
 					context: seg,
@@ -507,12 +504,7 @@
 					}
 				});
 			}else{
-				seg = cue2seg.call(this,
-					new this.cueType(
-						view.pixelToTime(startx),
-						view.pixelToTime(endx),
-						""
-					), tl.autoSelect);
+				seg = cue2seg.call(this, new this.cueType(start,end,""), tl.autoSelect);
 				tl.commandStack.push({
 					file: this.textTrack.label,
 					context: seg,
@@ -520,6 +512,8 @@
 					redo: recreateSeg
 				});
 			}
+
+			if(tl.autoCueRepeat){ tl.setRepeat(start+.02,end-.02); }
 			if(tl.automove){ tl.currentTool = Timeline.MOVE; }
 			tl.emit(new Timeline.Event("segcomplete",{track:this,segment:seg}));
 		};
