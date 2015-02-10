@@ -52,6 +52,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			lconf = (typeof params.confirm === 'function')?params.confirm:window.confirm,
 			trackSeeker = params.hasOwnProperty('trackSeeker')?!!params.trackSeeker:true,
 			currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT,
+			trackMode = /showing|hidden|disabled|inherit/.test(params.trackMode)?params.trackMode:"inherit",
 			automove = !!params.automove,
 			abRepeatOn = false,
 			that = this;
@@ -173,6 +174,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 					trackSeeker = val;
 					this.emit(new Timeline.Event(val?'trackseekeron':'trackseekeroff'));
 					return val;
+				}
+			},
+			trackMode: {
+				get: function(){ return trackMode; },
+				set: function(val){
+					trackMode = /showing|hidden|disabled|inherit/.test(val)?val:"inherit";
+					return trackMode;
 				}
 			},
 			currentTool: {
@@ -628,6 +636,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}
 		this.trackCache.set(textTrack, {mime: mime, location: from});
 		addTlTextTrack.call(this, new Timeline.TextTrack(this, textTrack, mime), from);
+		if(this.trackMode !== "inherit"){
+			textTrack.mode = this.trackMode;
+		}
 	};
 
 	Proto.addCachedTextTrack = function(textTrack,overwrite) {
