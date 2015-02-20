@@ -204,7 +204,8 @@
 					handler: function(){}
 				}
 			).then(function(values){
-				var track = new TextTrack(values[0], values[1], values[2]); //kind, name, lang
+				var name = values[1],
+					track = new TextTrack(values[0], name, values[2]); //kind, name, lang
 				track.readyState = TextTrack.LOADED;
 				tl.addTextTrack(track, values[3], void 0, values[4]);
 				tl.commandStack.setFileUnsaved(name, void 0);
