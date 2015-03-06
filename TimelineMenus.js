@@ -175,6 +175,13 @@
 						return !track.locked && copy.length && copy[0].track !== track;
 					},
 					action:function(){ this.track.paste(this.timeline.toCopy); }},
+				{name:"Paste At Current Time",
+					condition:function(){
+						var copy = this.timeline.toCopy,
+							track = this.track;
+						return !track.locked && copy.length;
+					},
+					action:function(){ this.track.paste(this.timeline.toCopy, this.timeline.timeMarkerPos); }},
 				{name:"Copy Selected",
 					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0; },
 					action:function(){ this.track.copySelected(); }},

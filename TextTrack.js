@@ -559,16 +559,26 @@
 			if(copy.length > 0){ tl.toCopy = copy; }
 		};
 
-		TProto.paste = function(toCopy){
-			var ncues, added,
+		TProto.paste = function(toCopy, time){
+			var ncues, added, tshift,
 				toMime = this.mime,
 				that = this, tl = this.tl,
 				textTrack = this.textTrack,
 				segments = this.segments;
 
-			//can't use push because tracks aren't arraylike
+			if(toCopy.length < 1){ return; }
 			ncues = toCopy.map(function(seg){ return TimedText.getCueConverter(seg.track.mime, toMime)(seg.cue); });
-			ncues.forEach(function(cue){ textTrack.addCue(cue); });
+			time = +time;
+			if(!isFinite(time)){
+				ncues.forEach(function(cue){ textTrack.addCue(cue); });
+			}else{
+				tshift = ncues[0].startTime - time;
+				ncues.forEach(function(cue){
+					cue.startTime -= tshift;
+					cue.endTime -= tshift;
+					textTrack.addCue(cue);
+				});
+			}
 
 			added = ncues.map(function(cue){ return new Segment(that, cue); });
 			[].push.apply(segments, added);
