@@ -885,7 +885,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		})).then(function(arr){
 			var text = arr[0], mime = arr[1];
 			try{ return TimedText.parse(mime,text).cueList.map(function(cue){ return cue.text; }); }
-			catch(_){ return text.split('\n'); }
+			catch(_){ return text.split(/[\r\n]+/g).map(function(s){ return s.trim(); }); }
 		});
 	};
 
