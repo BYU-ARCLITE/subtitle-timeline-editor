@@ -75,7 +75,9 @@
 		});
 
 		this.tl = tl;
-		this.segments = cueTrack.cues.map(function(cue){ return new Segment(that, cue); });
+		this.segments = cueTrack.cues.map(function(cue){
+			return new Segment(that, cue);
+		});
 		this.visibleSegments = [];
 		this.shiftSegments = [];
 		this.audioId = null;
@@ -109,7 +111,7 @@
 			typeName: { get: function(){ return typeInfo.name; }, enumerable: true },
 			typeInfo: { get: function(){ return typeInfo; }, enumerable: true },
 			textTrack: {get: function(){ return cueTrack; }, enumerable: true },
-			packed: { get: function(){ return typeInfo.packed; }, enumerable: true },
+			packed: { get: function(){ return !!typeInfo.packed; }, enumerable: true },
 			autoCue: {
 				get: function(){ return autoCue; },
 				set: function(val){
@@ -172,7 +174,7 @@
 		});
 	}
 
-	function Segment(track, cue) {
+	function Segment(track, cue){
 		var deleted = false;
 		this.tl = track.tl;
 		this.track = track;
@@ -208,7 +210,7 @@
 		});
 	}
 
-	function Placeholder(tl, track, x) {
+	function Placeholder(tl, track, x){
 		this.tl = tl;
 		this.track = track;
 		this.startx = x;
@@ -468,14 +470,17 @@
 			}
 		};
 
-		TProto.getCursor = function(pos) {
-			if(typeof pos !== 'object'){ return; }
+		TProto.getCursor = function(pos){
 			var seg;
-
+			if(typeof pos !== 'object'){ return; }
 			if(this.locked){ return 'locked'; }
-			if(this.tl.currentTool === Timeline.CREATE){ return 'add'; }
 
 			seg = this.segFromPos(pos);
+			if(this.tl.currentTool === Timeline.CREATE){
+				if(this.packed && seg){ return 'pointer'; }
+				return 'add';
+			}
+
 			return seg?seg.getCursor(pos):'pointer';
 		};
 
@@ -543,19 +548,8 @@
 			this.tl.renderTrack(this);
 		};
 
-		TProto.resolvePlaceholder = function(){
-			if(this.placeholder === null){ return; }
-			var seg, text, start, end,
-				tl = this.tl,
-				view = tl.view,
-				placeholder = this.placeholder,
-				startx = placeholder.startx,
-				endx = placeholder.endx;
-
-			this.placeholder = null;
-			if(startx === endx){ return; }
-			start = view.pixelToTime(startx);
-			end = view.pixelToTime(endx);
+		function createFromPlaceholder(start, end){
+			var seg, text, tl = this.tl;
 			if(this.autoFill && this.linebuffer.length){
 				text = this.linebuffer.pop();
 				seg = cue2seg.call(this, new this.cueType(start,end,text), tl.autoSelect);
@@ -580,10 +574,35 @@
 					redo: recreateSeg
 				});
 			}
+			tl.emit(new Timeline.Event("segcomplete",{track:this,segment:seg}));
+		}
+
+		TProto.resolvePlaceholder = function(){
+			if(this.placeholder === null){ return; }
+			var cues, start, end, begin, finish,
+				tl = this.tl, view = tl.view,
+				startx = this.placeholder.startx,
+				endx = this.placeholder.endx;
+
+			this.placeholder = null;
+			if(startx === endx){ return; }
+			start = view.pixelToTime(startx);
+			end = view.pixelToTime(endx);
+
+			cues = this.textTrack.cues;
+			if(this.packed && cues.length > 0){
+				//Due to mousedown restrictions, *at least* one end of the range
+				//must be beyond the ends of the current cue block
+				begin = cues[0].startTime;
+				finish = cues[cues.length-1].endTime;
+				if(start < begin){ createFromPlaceholder.call(this,start,begin); }
+				if(end > finish){ createFromPlaceholder.call(this,finish,end); }
+			}else{
+				 createFromPlaceholder.call(this,start,end); 
+			}
 
 			if(tl.autoCueRepeat){ tl.setRepeat(start+.02,end-.02); }
 			if(tl.automove){ tl.currentTool = Timeline.MOVE; }
-			tl.emit(new Timeline.Event("segcomplete",{track:this,segment:seg}));
 		};
 
 		TProto.deleteSelected = function(){
@@ -759,10 +778,10 @@
 				segs = this.visibleSegments,
 				selected = segs.filter(function(seg){ return seg.selected; });
 			//search backwards 'cause later segments are on top
-			for(j=selected.length-1;seg=selected[j];j--) {
+			for(j=selected.length-1;seg=selected[j];j--){
 				if(seg.containsPoint(pos)){ return seg; }
 			}
-			for(j=segs.length-1;seg=segs[j];j--) {
+			for(j=segs.length-1;seg=segs[j];j--){
 				if(!seg.selected && seg.containsPoint(pos)){ return seg; }
 			}
 			return null;
@@ -779,8 +798,12 @@
 				else{ seg.copy(); }
 				return;
 			}
+			seg = this.segFromPos(pos);
 			if(tl.currentTool === Timeline.CREATE){
-				this.placeholder = tl.activeElement = new Placeholder(tl, this, pos.x);
+				if(!this.packed || seg === null){
+					this.placeholder = new Placeholder(tl, this, pos.x);
+					tl.activeElement = this.placeholder;
+				}
 			}else if(tl.currentTool === Timeline.SHIFT){
 				selected = this.segments.filter(function(seg){ return seg.selected; });
 				this.shiftSegments = (selected.length < 2)?this.segments:selected;
@@ -789,12 +812,9 @@
 					seg.initialEnd = seg.endTime;
 				});
 				tl.activeElement = this;
-			}else{
-				seg = this.segFromPos(pos);
-				if(seg !== null){
-					tl.activeElement = seg;
-					seg.mouseDown(pos);
-				}
+			}else if(seg !== null){
+				tl.activeElement = seg;
+				seg.mouseDown(pos);
 			}
 		};
 
@@ -1085,7 +1105,7 @@
 		}
 
 		// Location computation
-		SProto.calcShape = function() {
+		SProto.calcShape = function(){
 			var x, tl = this.tl,
 				xl = tl.view.timeToPixel(this.startTime),
 				xr = tl.view.timeToPixel(this.endTime),
@@ -1101,12 +1121,12 @@
 			});
 		};
 
-		SProto.containsPoint = function(pos) {
+		SProto.containsPoint = function(pos){
 			var s = this.shape;
 			return (pos.x >= s.x && pos.x <= s.x + s.width && pos.y >= s.y && pos.y <= s.y + s.height);
 		};
 
-		SProto.getMouseSide = function(pos) {
+		SProto.getMouseSide = function(pos){
 			var x, tl = this.tl,
 				shape = this.shape,
 				hwidth = handleWidths(this, tl.images);
@@ -1118,7 +1138,7 @@
 		};
 
 		// Event handlers
-		SProto.mouseDown = function(pos) {
+		SProto.mouseDown = function(pos){
 			var tl = this.tl;
 			if(this.deleted || !this.selectable){ return; }
 
@@ -1152,10 +1172,10 @@
 			this.tl.renderTrack(this.track);
 		};
 
-		SProto.mouseUp = function(pos) {
+		SProto.mouseUp = function(pos){
 			var tl = this.tl, track;
 			if(this.deleted || !this.selectable){ return; }
-			switch(tl.currentTool) {
+			switch(tl.currentTool){
 				case Timeline.SELECT:
 					track = tl.trackFromPos(pos);
 					if(track === this.track && track.segFromPos(pos) === this){
@@ -1184,7 +1204,7 @@
 			}
 		};
 
-		SProto.mouseMove = function(pos) {
+		SProto.mouseMove = function(pos){
 			var tl = this.tl,
 				activeStart = this.active,
 				newTime, maxStartTime;
@@ -1227,7 +1247,7 @@
 
 		// Rendering
 
-		function renderImage(ctx, shape, imageLeft, imageRight, imageMid) {
+		function renderImage(ctx, shape, imageLeft, imageRight, imageMid){
 			ctx.drawImage(imageLeft, 0, 0, imageLeft.width, shape.height);
 			ctx.drawImage(imageRight, shape.width - imageRight.width, 0, imageRight.width, shape.height);
 			if(shape.width > imageRight.width + imageLeft.width){
@@ -1305,7 +1325,7 @@
 			ctx.fillText(text, direction === 'ltr' ? tl.segmentTextPadding : shape.width - tl.segmentTextPadding, y);
 		}
 
-		SProto.render = function() {
+		SProto.render = function(){
 			if(this.deleted){ return; }
 
 			var tl = this.tl,
@@ -1359,7 +1379,7 @@
 
 	(function(PProto){
 
-		PProto.render = function() {
+		PProto.render = function(){
 			var tl = this.tl,
 				ctx = tl.ctx,
 				top = tl.getTrackTop(this.track);
@@ -1370,13 +1390,13 @@
 			ctx.restore();
 		};
 
-		PProto.mouseMove = function(pos) {
+		PProto.mouseMove = function(pos){
 			var tl = this.tl;
 			this.endx = pos.x;
 			tl.renderTrack(this.track);
 		};
 
-		PProto.mouseUp = function(pos) {
+		PProto.mouseUp = function(pos){
 			this.startx = Math.min(this.startx, pos.x);
 			this.endx = Math.max(this.startx, pos.x);
 			this.track.resolvePlaceholder();
