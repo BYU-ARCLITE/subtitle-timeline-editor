@@ -57,6 +57,7 @@
 		Object.defineProperties(this,{
 			cueType: { get: function(){ return typeInfo.cueType; }, enumerable: true },
 			typeName: { get: function(){ return typeInfo.name; }, enumerable: true },
+			typeInfo: { get: function(){ return typeInfo; }, enumerable: true },
 			textTrack: {get: function(){ return cueTrack; }, enumerable: true },
 			autoCue: {
 				get: function(){ return autoCue; },
@@ -216,11 +217,19 @@
 
 	function merge(list){
 		var tl = this.tl,
+			append = this.typeInfo.appendText,
 			ssegs = tl.selectedSegments,
 			mseg, oldend, oldtext, newtext;
 
+		if(list.length === 0){ return; }
+		if(typeof append !== 'function'){
+			append = function(a,b){ return a+b; };
+		}
+
 		list.sort(order);
-		newtext = list.map(function(seg){ return seg.text; }).join('');
+		newtext = list
+					.map(function(seg){ return seg.text; })
+					.reduce(append);
 
 		mseg = list.shift();
 		oldend = mseg.endTime;
