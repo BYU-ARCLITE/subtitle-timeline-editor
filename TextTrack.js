@@ -321,38 +321,6 @@
 
 	(function(TProto){
 
-		function repaste(segs){
-			var tl = this.tl, visible = false, active = false;
-			segs.forEach(function(seg){
-				seg.deleted = false;
-				visible = visible || seg.visible;
-				active = active || seg.active;
-			});
-			tl.emit(new Timeline.Event('paste',{segments:segs}));
-			tl.emit(new Timeline.Event('create',{segments:segs}));
-			if(active){
-				this.textTrack.activeCues.refreshCues();
-				tl.emit(new Timeline.Event('activechange'));
-			}
-			if(visible){ tl.renderTrack(this); }
-		}
-
-		function unpaste(segs){
-			var tl = this.tl, visible = false, active = false;
-			segs.forEach(function(seg){
-				visible = visible || seg.visible;
-				active = active || seg.active;
-				seg.deleted = true;
-			});
-			tl.emit(new Timeline.Event('unpaste',{segments:segs}));
-			tl.emit(new Timeline.Event('delete',{segments:segs}));
-			if(active){
-				this.textTrack.activeCues.refreshCues();
-				tl.emit(new Timeline.Event('activechange'));
-			}
-			if(visible){ tl.renderTrack(this); }
-		}
-
 		function reshift(selected,delta){
 			var tl = this.tl, change = false;
 			selected.forEach(function(seg){
@@ -646,42 +614,115 @@
 			if(copy.length > 0){ tl.toCopy = copy; }
 		};
 
+		function repaste(segs){
+			var tl = this.tl, visible = false, active = false;
+			segs.forEach(function(seg){
+				seg.deleted = false;
+				visible = visible || seg.visible;
+				active = active || seg.active;
+			});
+			tl.emit(new Timeline.Event('paste',{segments:segs}));
+			tl.emit(new Timeline.Event('create',{segments:segs}));
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			if(visible){ tl.renderTrack(this); }
+		}
+
+		function unpaste(segs){
+			var tl = this.tl, visible = false, active = false;
+			segs.forEach(function(seg){
+				visible = visible || seg.visible;
+				active = active || seg.active;
+				seg.deleted = true;
+			});
+			tl.emit(new Timeline.Event('unpaste',{segments:segs}));
+			tl.emit(new Timeline.Event('delete',{segments:segs}));
+			if(active){
+				this.textTrack.activeCues.refreshCues();
+				tl.emit(new Timeline.Event('activechange'));
+			}
+			if(visible){ tl.renderTrack(this); }
+		}
+
+		function repastePacked(segs,cues){
+			var tl = this.tl, osegs = this.segments;
+			this.segments = segs;
+			this.textTrack.loadCues(cues);
+			tl.emit(new Timeline.Event('paste',{segments:segs}));
+			tl.emit(new Timeline.Event('create',{segments:segs}));
+			tl.emit(new Timeline.Event('delete',{segments:osegs}));
+			tl.emit(new Timeline.Event('activechange'));
+			tl.renderTrack(this);
+		}
+
+		function unpastePacked(segs,cues){
+			var tl = this.tl, osegs = this.segments;
+			this.segments = segs;
+			this.textTrack.loadCues(cues);
+			tl.emit(new Timeline.Event('unpaste',{segments:segs}));
+			tl.emit(new Timeline.Event('delete',{segments:segs}));
+			tl.emit(new Timeline.Event('create',{segments:osegs}));
+			tl.emit(new Timeline.Event('activechange'));
+			tl.renderTrack(this);
+		}
+
 		TProto.paste = function(toCopy, time){
-			var ncues, added, tshift,
+			var ncues, ocues, added, tshift,
 				toMime = this.mime,
 				that = this, tl = this.tl,
 				textTrack = this.textTrack,
 				segments = this.segments;
 
 			if(toCopy.length < 1){ return; }
-			ncues = toCopy.map(function(seg){ return TimedText.getCueConverter(seg.track.mime, toMime)(seg.cue); });
 			time = +time;
 			if(!isFinite(time)){
-				ncues.forEach(function(cue){ textTrack.addCue(cue); });
+				ncues = toCopy.map(function(seg){
+					return TimedText.getCueConverter(seg.track.mime, toMime)(seg.cue);
+				});
 			}else{
 				tshift = ncues[0].startTime - time;
-				ncues.forEach(function(cue){
+				ncues = toCopy.map(function(seg){
+					var cue = TimedText.getCueConverter(seg.track.mime, toMime)(seg.cue);
 					cue.startTime -= tshift;
 					cue.endTime -= tshift;
-					textTrack.addCue(cue);
 				});
 			}
 
-			added = ncues.map(function(cue){ return new Segment(that, cue); });
-			[].push.apply(segments, added);
-			segments.sort(order);
+			if(this.packed){
+				ncues = packcues(this.typeInfo, textTrack.cues.concat(ncues));
+				added = ncues.map(function(cue){ return new Segment(that, cue); });
+				ocues = textTrack.cues.slice();
+				textTrack.loadCues(ncues);
 
-			tl.commandStack.push({
-				context: this,
-				file: this.textTrack.label,
-				redo: repaste.bind(this,added),
-				undo: unpaste.bind(this,added)
-			});
-			tl.emit(new Timeline.Event('paste',{segments:added}));
-			tl.emit(new Timeline.Event('create',{segments:added}));
-			if(added.some(function(seg){return seg.active;})){
-				this.textTrack.activeCues.refreshCues();
-				tl.emit(new Timeline.Event('activechange'));
+				tl.commandStack.push({
+					context: this,
+					file: this.textTrack.label,
+					redo: repastePacked.bind(this,added,ncues),
+					undo: unpastePacked.bind(this,segments,ocues)
+				});
+				tl.emit(new Timeline.Event('paste',{segments:added}));
+				tl.emit(new Timeline.Event('create',{segments:added}));
+				tl.emit(new Timeline.Event('delete',{segments:segments}));
+			}else{
+				ncues.forEach(function(cue){ textTrack.addCue(cue); });
+				added = ncues.map(function(cue){ return new Segment(that, cue); });
+				[].push.apply(segments, added);
+				segments.sort(order);
+
+				tl.commandStack.push({
+					context: this,
+					file: this.textTrack.label,
+					redo: repaste.bind(this,added),
+					undo: unpaste.bind(this,added)
+				});
+				tl.emit(new Timeline.Event('paste',{segments:added}));
+				tl.emit(new Timeline.Event('create',{segments:added}));
+				if(added.some(function(seg){return seg.active;})){
+					this.textTrack.activeCues.refreshCues();
+					tl.emit(new Timeline.Event('activechange'));
+				}
 			}
 			tl.renderTrack(this);
 		};
