@@ -12,6 +12,56 @@
 		return (a.startTime - b.startTime) || (b.endTime - a.endTime);
 	}
 
+	function appendText(a,b){ return a+b; };
+
+	function packcues(info, cues){
+		var newcues, ca, cb, cons = info.cueType,
+			append = (typeof info.appendText === 'function') ? info.appendText : appendText;
+
+		if(cues.length < 2){ return cues; }
+
+		cues.sort(order);
+		newcues = [];
+
+		while(cues.length > 1){
+			ca = cues[0];
+			cb = cues[1];
+
+			//due to sorting, we know starta <= startb, so there's no need to check that
+			if(ca.endTime < cb.startTime){ //fill gaps with empty cues
+				newcues.push(ca, new cons(ca.endTime, cb.startTime, ""));
+				cues.shift();
+			}else if(ca.endTime === cb.startTime){ //no gap, no overlap
+				newcues.push(cues.shift());
+			}else //Handle different overlap situations
+			if(ca.startTime === cb.startTime){ //start times aligned
+				if(ca.endTime === cb.endTime){ //end times aligned; merge and discard
+					cb.text = append(ca.text, cb.text);
+					cues.shift();
+				}else{ //end times unaligned; merge text & eliminate overlap
+					ca.text = append(ca.text, cb.text);
+					cb.startTime = ca.endTime;
+					//sorting will now be incorrect if another
+					//following cue also had the same start time
+					cues.sort(order);
+				}
+			}else if(ca.endTime === cb.endTime){ //end times aligned, but not start times
+				cb.text = append(ca.text, cb.text);
+				ca.endTime = cb.startTime;
+			}else{ //a contains b
+				//remove the non-overlapping initial section; degenerates to aligned start time case
+				newcues.push(new cons(ca.startTime, cb.startTime, ca.text));
+				ca.startTime = cb.startTime;
+				//preserve sort order
+				cues[0] = cb;
+				cues[1] = ca;
+			}
+		}
+
+		newcues.push(cues[0]);
+		return newcues;
+	}
+
 	function TlTextTrack(tl, cueTrack, mime){
 		var that = this,
 			locked = false,
@@ -59,6 +109,7 @@
 			typeName: { get: function(){ return typeInfo.name; }, enumerable: true },
 			typeInfo: { get: function(){ return typeInfo; }, enumerable: true },
 			textTrack: {get: function(){ return cueTrack; }, enumerable: true },
+			packed: { get: function(){ return typeInfo.packed; }, enumerable: true },
 			autoCue: {
 				get: function(){ return autoCue; },
 				set: function(val){
@@ -89,14 +140,22 @@
 				get: function(){ return mime; },
 				set: function(newmime){
 					var that = this, oldmime = mime,
-						converter, oldSegs, newSegs;
+						converter, oldSegs, newSegs,
+						newinfo, newCues;
 					if(newmime === mime){ return mime; }
-					converter = TimedText.getCueConverter(oldmime, newmime),
+					converter = TimedText.getCueConverter(oldmime, newmime);
 
 					oldSegs = this.segments;
-					newSegs = oldSegs
+					newCues = oldSegs
 							.filter(function(s){ return !s.deleted; })
-							.map(function(s){ return new Segment(that, converter(s.cue)); });
+							.map(function(s){ return converter(s.cue); });
+
+					newinfo = TimedText.getTypeInfo(newmime);
+					if(newinfo.packed){
+						newCues = packcues(newinfo, newCues);
+					}
+
+					newSegs = newCues.map(function(c){ return new Segment(that, c); });
 
 					tl.commandStack.push({
 						file: cueTrack.label,
@@ -223,7 +282,7 @@
 
 		if(list.length === 0){ return; }
 		if(typeof append !== 'function'){
-			append = function(a,b){ return a+b; };
+			append = appendText;
 		}
 
 		list.sort(order);
