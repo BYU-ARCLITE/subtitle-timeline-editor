@@ -321,10 +321,29 @@
 
 	(function(TProto){
 
-		function reshift(selected,delta){
-			var tl = this.tl, change = false;
+		function reshift(selected,delta,packed){
+			var pre, post, active,
+				tl = this.tl,
+				change = false;
+			if(packed){
+				pre = selected[0];
+				post = selected[selected.length-1];
+				selected = selected.slice(1,selected.length-1);
+				if(pre){
+					active = pre.active;
+					pre.endTime += delta;
+					tl.emit(new Timeline.Event('resizer',{segment:pre}));
+					change = change || active === pre.active;
+				}
+				if(post){
+					active = post.active;
+					post.startTime += delta;
+					tl.emit(new Timeline.Event('resizel',{segment:post}));
+					change = change || active === post.active;
+				}
+			}
 			selected.forEach(function(seg){
-				var active = seg.active;
+				active = seg.active;
 				seg.startTime += delta;
 				seg.endTime += delta;
 				tl.emit(new Timeline.Event('move',{segment:seg}));
@@ -566,7 +585,7 @@
 				if(start < begin){ createFromPlaceholder.call(this,start,begin); }
 				if(end > finish){ createFromPlaceholder.call(this,finish,end); }
 			}else{
-				 createFromPlaceholder.call(this,start,end); 
+				 createFromPlaceholder.call(this,start,end);
 			}
 
 			if(tl.autoCueRepeat){ tl.setRepeat(start+.02,end-.02); }
@@ -728,25 +747,84 @@
 		};
 
 		TProto.shift = function(delta, all){
-			var change = false, tl = this.tl,
+			var first, last, start, end, min, max,
+				active, pre = null, post = null,
+				change = false, tl = this.tl,
 				segments = this.segments;
+
 			delta = +delta;
 			if(!delta){ return; }
-			if(all !== true){ segments = segments.filter(function(seg){ return seg.selected; }); }
 			if(segments.length === 0){ return; }
 
-			//Don't go out of bounds; depends on assumption of sorting
-			if(segments[0].startTime + delta < 0){
-				if(segments[0].startTime === 0){ return; }
-				delta = -segments[0].startTime;
+			if(all !== true){
+				if(this.packed){
+					//For compact tracks, shifting disjoint selections doesn't
+					//make sense. So, we find the first and last selections and
+					//take everything between. The first and last elements are
+					//the segments we need to resize to allow shifting the rest.
+					start = segments.reduce(function(p,n,i){
+						return (s.selected && i < p) ? i : p;
+					},1/0);
+					if(!isFinite(start)){ return; }
+
+					end = segments.reduce(function(p,n,i){
+						return (s.selected && i > p) ? i : p;
+					},-1/0)+1;
+
+					pre = segments[start-1]||null;
+					post = segments[end+1]||null;
+					segments = segments.slice(start,end);
+				}else{
+					segments = segments.filter(function(s){ return s.selected; });
+					if(segments.length === 0){ return; }
+				}
+			}
+
+			//Don't go out of bounds.
+			//For compact tracks, we have to check upper as well as lower bounds,
+			//given by the "bookend" segments
+			if(this.packed){
+				min = pre?pre.startTime+.01:0;
+				max = post?post.endTime-.01:1/0;
+
+				first = segments[0];
+				last = segments[segments.length-1];
+				if(first.startTime + delta < min){
+					if(first.startTime === min){ return; }
+					delta = min - first.startTime;
+				}
+				if(last.endTime + delta > max){
+					if(last.endTime === max){ return; }
+					delta = max - last.endTime;
+				}
+
+				if(pre){
+					active = pre.active;
+					pre.endTime += delta;
+					change = change || (active !== pre.active);
+					tl.emit(new Timeline.Event('resizer',{segment:pre}));
+				}
+				if(post){
+					active = post.active;
+					post.startTime += delta;
+					change = change || (active !== post.active);
+					tl.emit(new Timeline.Event('resizel',{segment:post}));
+				}
+			}else{
+				//Normal tracks just have a fixed lower bound
+				first = segments[0];
+				if(first.startTime + delta < 0){
+					if(first.startTime === 0){ return; }
+					delta = -first.startTime;
+				}
 			}
 
 			segments.forEach(function(seg){
-				var activeStart = seg.active;
-				seg.startTime = seg.startTime + delta;
-				seg.endTime = seg.endTime + delta;
-				tl.emit(new Timeline.Event('move',{segment:this}));
-				change = change || (activeStart !== seg.active);
+				active = seg.active;
+				seg.startTime += delta;
+				seg.endTime += delta;
+				tl.emit(new Timeline.Event('move',{segment:seg}));
+				change = change || (active !== seg.active);
 			});
 			if(change){
 				this.textTrack.activeCues.refreshCues();
@@ -755,8 +833,8 @@
 			tl.commandStack.push({
 				file: this.textTrack.label,
 				context: this,
-				redo: reshift.bind(this,segments,delta),
-				undo: reshift.bind(this,segments,-delta)
+				redo: reshift.bind(this,segments,delta,this.packed),
+				undo: reshift.bind(this,segments,-delta,this.packed)
 			});
 			tl.emit(new Timeline.Event('shift',{segments:segments,delta:delta}));
 			tl.renderTrack(this);
@@ -830,7 +908,7 @@
 
 		TProto.mouseDown = function(pos){
 			if(typeof pos !== 'object' || this.locked){ return; }
-			var tl = this.tl, seg, selected;
+			var start, end, tl = this.tl, seg, selected;
 			if(pos.ctrl){ //copy on click / drag
 				this.ctrl = true;
 				seg = this.segFromPos(pos);
@@ -846,9 +924,34 @@
 					tl.activeElement = this.placeholder;
 				}
 			}else if(tl.currentTool === Timeline.SHIFT){
-				selected = this.segments.filter(function(seg){ return seg.selected; });
-				this.shiftSegments = (selected.length < 2)?this.segments:selected;
+				if(this.packed){
+					//For compact tracks, shifting disjoint selections doesn't
+					//make sense. So, we find the first and last selections and
+					//take everything between. The first and last elements are
+					//the segments we need to resize to allow shifting the rest.
+					start = this.segments.reduce(function(p,s,i){
+						return (s.selected && i < p) ? i : p;
+					},1/0);
+					if(isFinite(start)){
+						end = this.segments.reduce(function(p,s,i){
+							return (s.selected && i > p) ? i : p;
+						},-1/0)+1;
+						this.shiftSegments = [this.segments[start-1]||null]
+											.concat(this.segments.slice(start,end),
+													this.segments[end+1]||null);
+					}else if(seg){
+						start = this.segments.indexOf(seg);
+						this.shiftSegments = [this.segments[start-1]||null,seg,this.segments[start+1]||null];
+					}else{
+						this.shiftSegments = [null].concat(this.segments,null);
+					}
+				}else{
+					//For normal tracks, move the selection if it's more than one thing
+					selected = this.segments.filter(function(s){ return s.selected; });
+					this.shiftSegments = (selected.length < 2)?this.segments:selected;
+				}
 				this.shiftSegments.forEach(function(seg){
+					if(seg === null){ return; }
 					seg.initialStart = seg.startTime;
 					seg.initialEnd = seg.endTime;
 				});
@@ -860,20 +963,57 @@
 		};
 
 		TProto.mouseMove = function(pos){
-			var delta, tl = this.tl,
-				change = false,
+			var delta, min, max, activeStart,
+				pre, post, first, last,
+				tl = this.tl, change = false,
 				segments = this.shiftSegments;
 			if(typeof pos !== 'object' || this.locked || this.ctrl || tl.currentTool !== Timeline.SHIFT){ return; }
 			delta = tl.view.distanceToTime(pos.x - tl.mouseDownPos.x);
 
-			//Don't go out of bounds; depends on assumption of sorting
-			if(segments[0].initialStart + delta < 0){
-				if(segments[0].startTime === 0){ return; }
-				delta = -segments[0].initialStart;
+			//Don't go out of bounds.
+			//For compact tracks, we have to check upper as well as lower bounds,
+			//given by the "bookend" segments
+			if(this.packed){
+				pre = segments[0];
+				post = segments[segments.length-1];
+				min = pre?pre.startTime+.01:0;
+				max = post?post.endTime-.01:1/0;
+
+				segments = segments.slice(1,segments.length-1);
+				first = segments[0];
+				last = segments[segments.length-1];
+				if(first.initialStart + delta < min){
+					if(first.startTime === min){ return; }
+					delta = min - first.initialStart;
+				}
+				if(last.initialEnd + delta > max){
+					if(last.endTime === max){ return; }
+					delta = max - last.initialEnd;
+				}
+
+				if(pre){
+					activeStart = pre.active;
+					pre.endTime = pre.initialEnd + delta;
+					change = change || (activeStart !== pre.active);
+					tl.emit(new Timeline.Event('resizer',{segment:pre}));
+				}
+				if(post){
+					activeStart = post.active;
+					post.startTime = post.initialStart + delta;
+					change = change || (activeStart !== post.active);
+					tl.emit(new Timeline.Event('resizel',{segment:post}));
+				}
+			}else{
+				//Normal tracks just have a fixed lower bound
+				first = segments[0];
+				if(first.initialStart + delta < 0){
+					if(first.startTime === 0){ return; }
+					delta = -first.initialStart;
+				}
 			}
 
 			segments.forEach(function(seg){
-				var activeStart = seg.active;
+				activeStart = seg.active;
 				seg.startTime = seg.initialStart + delta;
 				seg.endTime = seg.initialEnd + delta;
 				tl.emit(new Timeline.Event('move',{segment:this}));
@@ -895,14 +1035,24 @@
 				if(this !== target){ target.paste(tl.toCopy); }
 			}else if(tl.currentTool === Timeline.SHIFT){
 				segments = this.shiftSegments;
-				delta = segments[0].startTime - segments[0].initialStart;
+				if(this.packed){
+					delta = segments[1].startTime - segments[1].initialStart;
+					tl.emit(new Timeline.Event('shift',{
+						delta: delta,
+						segments: segments.slice(1,segments.length-1)
+					}));
+				}else{
+					delta = segments[0].startTime - segments[0].initialStart;
+					tl.emit(new Timeline.Event('shift',{
+						delta: delta, segments: segments
+					}));
+				}
 				tl.commandStack.push({
 					file: this.textTrack.label,
 					context: this,
-					redo: reshift.bind(this,segments,delta),
-					undo: reshift.bind(this,segments,-delta)
+					redo: reshift.bind(this,segments,delta,this.packed),
+					undo: reshift.bind(this,segments,-delta,this.packed)
 				});
-				tl.emit(new Timeline.Event('shift',{segments:segments,delta:delta}));
 				tl.renderTrack(this);
 			}
 		};
