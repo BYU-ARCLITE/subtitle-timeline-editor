@@ -601,13 +601,17 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	Proto.cacheTextTrack = function(track, mime, location){
 		this.trackCache.set(track, {mime: mime, location: location});
-	}
+	};
+
+	Proto.hasCachedTextTrack = function(track){
+		return this.trackCache.has(track);
+	};
 
 	Proto.getCachedTextTracks = function(){
 		var arr = [];
 		this.trackCache.forEach(function(_, key){ arr.push(key); });
 		return arr;
-	}
+	};
 
 	Proto.hasTextTrack = function(name){
 		return this.trackIndices.hasOwnProperty(name);
