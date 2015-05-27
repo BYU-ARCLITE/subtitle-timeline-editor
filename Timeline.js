@@ -1355,7 +1355,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	function mouseMove(ev) {
 		var i, active, swap,
-			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey, shift: ev.shiftKey};
+			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey};
 
 		this.mousePos = pos;
 
@@ -1435,7 +1435,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	function mouseDown(ev) {
 		if(ev.button > 0){ return; }
-		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey, shift: ev.shiftKey},
+		var pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey},
 			track,i;
 
 		ev.preventDefault();
@@ -1501,7 +1501,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	function mouseWheel(ev) {
 		var i, that = this,
-			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey, shift: ev.shiftKey},
+			pos = {x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY, ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey},
 			delta =  ev.detail?(ev.detail>0?-1:1):(ev.wheelDelta>0?1:-1);
 
 		if(this.activeMenu){
