@@ -66,6 +66,7 @@
 		var that = this,
 			locked = false,
 			autoCue = false,
+			autoFill = false,
 			typeInfo = TimedText.getTypeInfo(mime);
 
 		cueTrack.cues.forEach(function(cue){
@@ -84,7 +85,6 @@
 		this.placeholder = null;
 		this.lastPos = null;
 		this.ctrl = false;
-		this.autoFill = false;
 		this.linebuffer = [];
 
 		function set_mime(newmime, newSegs){
@@ -120,9 +120,19 @@
 					autoCue = val;
 					if(!autoCue && this.tl.autoCueStatus === Timeline.AutoCueCueing){
 						this.placeholder = null;
-						this.tl.renderTrack(this);
 					}
+					this.tl.renderTrack(this);
 					return autoCue;
+				}, enumerable: true
+			},
+			autoFill: {
+				get: function(){ return autoFill; },
+				set: function(val){
+					val = !!val;
+					if(val === autoFill){ return val; }
+					autoFill = val;
+					this.tl.renderTrack(this);
+					return autoFill;
 				}, enumerable: true
 			},
 			locked: {
@@ -868,6 +878,22 @@
 
 			ctx.fillStyle = tl.colors[tl.commandStack.isFileSaved(this.id,tl.saveLocation)?'tintSaved':'tintUnsaved'];
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
+
+			if(this.autoCue){
+				ctx.strokeStyle = tl.colors.autoCueBorder;
+				ctx.strokeWidth = 2;
+				ctx.beginPath();
+				ctx.rect(2, 1, tl.width-2, tl.trackHeight-2);
+				ctx.stroke();
+			}
+
+			if(this.autoFill){
+				ctx.strokeStyle = tl.colors.autoFillBorder;
+				ctx.strokeWidth = 2;
+				ctx.beginPath();
+				ctx.rect(2, 1, tl.width-2, tl.trackHeight-2);
+				ctx.stroke();
+			}
 
 			ctx.restore();
 			ctx.save();

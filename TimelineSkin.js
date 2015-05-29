@@ -89,8 +89,10 @@
 		this.abRepeatLight = obj.abRepeatLight || "rgba(255, 0, 0, 0.25)";
 		this.selectBox = obj.selectBox || "rgba(0, 119, 236, 0.25)";
 		this.selectBorder = obj.selectBorder || "rgba(0, 128, 255, 0.25)";
-		this.tintSaved = obj.tintSaved || "rgba(0,100,155,.1)";
-		this.tintUnsaved = obj.tintUnsaved || "rgba(222,33,116,.15)";
+		this.autoCueBorder = obj.autoCueBorder || "rgba(0, 128, 255, 0.75)";
+		this.autoFillBorder = obj.autoFillBorder || "rgba(64, 255, 64, 0.75)";
+		this.tintSaved = obj.tintSaved || "rgba(0, 100, 155, 0.1)";
+		this.tintUnsaved = obj.tintUnsaved || "rgba(222, 33, 116, 0.15)";
 		Object.freeze(this);
 	}
 	
