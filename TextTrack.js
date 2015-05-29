@@ -141,7 +141,6 @@
 					val = !!val;
 					if(val !== locked){
 						locked = val;
-						this.segments.forEach(function(seg){ seg.selected = false; });
 						tl.renderTrack(this);
 						if(this.audioId){ tl.audio[this.audioId].draw(); }
 					}
@@ -862,7 +861,7 @@
 
 			ctx.translate(0,tl.getTrackTop(this));
 
-			ctx.fillStyle = ctx.createPattern(tl.images[this.kind]||tl.images.subtitles, "repeat-x");
+			ctx.fillStyle = ctx.createPattern((tl.images[this.locked?"dark":this.kind] || tl.images.segment).background, "repeat-x");
 			ctx.fillRect(0, 0, tl.width, tl.trackHeight);
 
 			ctx.textBaseline = 'middle';
@@ -1308,16 +1307,16 @@
 			merge.call(this.track, selected);
 		};
 
-		function handleWidths(seg, images){
-			return seg.selected?{
-				left:images.segmentLeftSel.width,
-				right:images.segmentRightSel.width
-			}:seg.selectable?{
-				left:images.segmentLeft.width,
-				right:images.segmentRight.width
-			}:{
-				left:images.segmentLeftDark.width,
-				right:images.segmentRightDark.width
+		function handleWidths(seg){
+			var images = seg.tl.images[
+				seg.selected?"selected":
+				seg.selectable?seg.track.kind:
+				"dark"
+			] || seg.tl.images.segment;
+
+			return {
+				left: images.left.width,
+				right: images.right.width
 			};
 		}
 
@@ -1327,7 +1326,7 @@
 				xl = tl.view.timeToPixel(this.startTime),
 				xr = tl.view.timeToPixel(this.endTime),
 				mid = (xl+xr)/2,
-				hwidth = handleWidths(this, tl.images);
+				hwidth = handleWidths(this);
 
 			x = Math.min(xl,mid-hwidth.left-1);
 			return (this.shape = {
@@ -1344,9 +1343,8 @@
 		};
 
 		SProto.getMouseSide = function(pos){
-			var x, tl = this.tl,
-				shape = this.shape,
-				hwidth = handleWidths(this, tl.images);
+			var x, shape = this.shape,
+				hwidth = handleWidths(this);
 
 			x = pos.x - shape.x;
 			return	(x < hwidth.left)?-1:
@@ -1545,10 +1543,10 @@
 		SProto.render = function(){
 			if(this.deleted){ return; }
 
-			var tl = this.tl,
-				images = tl.images,
+			var images, tl = this.tl,
 				fonts = tl.fonts,
 				ctx = tl.ctx,
+				kind = this.track.kind,
 				shape = this.calcShape(),
 				x = shape.x,
 				y = shape.y,
@@ -1557,13 +1555,12 @@
 			ctx.save();
 			ctx.translate(x, y);
 
-			if(this.selected){
-				renderImage(ctx, shape, images.segmentLeftSel, images.segmentRightSel, images.segmentMidSel);
-			}else if(this.selectable){
-				renderImage(ctx, shape, images.segmentLeft, images.segmentRight, images.segmentMid);
-			}else{
-				renderImage(ctx, shape, images.segmentLeftDark, images.segmentRightDark, images.segmentMidDark);
-			}
+			images = tl.images[
+				this.selected?"selected":
+				this.selectable?kind:"dark"
+			] || tl.images.segment;
+
+			renderImage(ctx, shape, images.left, images.right, images.mid);
 
 			if(shape.width > 2*padding){
 				// Set the clipping bounds
@@ -1571,7 +1568,7 @@
 				ctx.rect(padding, 0, shape.width - 2*padding, shape.height);
 				ctx.clip();
 
-				switch(this.track.kind){
+				switch(kind){
 				case 'captions':
 					renderSubPreview.call(this, ctx, shape, fonts.captions, tl);
 					break;

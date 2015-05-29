@@ -10,7 +10,7 @@
 		var view = tl.view;
 		this.tl = tl;
 		this.active = false;
-		this.resizeSide = 0;		
+		this.resizeSide = 0;
 		this.initStart = 0;
 		this.initEnd = 0;
 	}
@@ -132,7 +132,7 @@
 
 	Proto.render = function() {
 		var tl = this.tl,
-			images = tl.images,
+			images = tl.images.slider,
 			ctx = tl.context,
 			start = this.startx,
 			end = this.endx - tl.sliderHandleWidth;
@@ -140,9 +140,9 @@
 		
 		ctx.save();
 		ctx.translate(0, tl.height - tl.sliderHeight);
-		ctx.drawImage(images.sliderLeft, start, 0);
-		ctx.drawImage(images.sliderRight, end, 0);
-		ctx.fillStyle = ctx.createPattern(images.sliderMid, "repeat-x");
+		ctx.drawImage(images.left, start, 0);
+		ctx.drawImage(images.right, end, 0);
+		ctx.fillStyle = ctx.createPattern(images.mid, "repeat-x");
 		ctx.fillRect(start + tl.sliderHandleWidth, 0, end - start - tl.sliderHandleWidth, tl.sliderHeight);
 		ctx.restore();
 	};
