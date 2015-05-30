@@ -1309,9 +1309,7 @@
 
 		function handleWidths(seg){
 			var images = seg.tl.images[
-				seg.selected?"selected":
-				seg.selectable?seg.track.kind:
-				"dark"
+				seg.selectable?(seg.selected?"selected":seg.track.kind):"dark"
 			] || seg.tl.images.segment;
 
 			return {
@@ -1556,8 +1554,7 @@
 			ctx.translate(x, y);
 
 			images = tl.images[
-				this.selected?"selected":
-				this.selectable?kind:"dark"
+				this.selectable?(this.selected?"selected":kind):"dark"
 			] || tl.images.segment;
 
 			renderImage(ctx, shape, images.left, images.right, images.mid);

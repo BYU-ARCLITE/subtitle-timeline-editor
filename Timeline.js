@@ -54,7 +54,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT,
 			trackMode = /showing|hidden|disabled|inherit/.test(params.trackMode)?params.trackMode:"inherit",
 			automove = !!params.automove,
-			abRepeatOn = false,
+			abRepeatEnabled = false,
 			that = this;
 
 		Object.defineProperties(this,{
@@ -154,25 +154,39 @@ var Timeline = (function(TimedText,EditorWidgets){
 			abRepeatSet: {
 				get: function(){ return !(this.repeatA === null || this.repeatB === null); }
 			},
-			abRepeatOn: {
-				get: function(){ return abRepeatOn; },
+			abRepeatEnabled: {
+				get: function(){ return abRepeatEnabled; },
 				set: function(on){
-					on = this.abRepeatSet && (!!on);
-					if(abRepeatOn !== on){
-						abRepeatOn = on;
-						this.render();
-						this.emit(new Timeline.Event(on?'abrepeatenabled':'abrepeatdisabled'));
-					}
+					on = !!on;
+					if(abRepeatEnabled === on){ return on; }
+					abRepeatEnabled = on;
+					this.render();
+					this.emit(new Timeline.Event(on?'abrepeatenabled':'abrepeatdisabled'));
 					return on;
 				}
+			},
+			abRepeatOn: {
+				get: function(){ return abRepeatEnabled && this.abRepeatSet; }
 			},
 			trackSeeker: {
 				get: function(){ return trackSeeker; },
 				set: function(val){
+					var time;
 					val = !!val;
 					if(val === trackSeeker){ return val; }
 					trackSeeker = val;
-					this.emit(new Timeline.Event(val?'trackseekeron':'trackseekeroff'));
+					if(trackSeeker){ //move the view
+						time = this.timeMarkerPos;
+						if(time < this.view.startTime){
+							this.view.center(time - this.view.length/2);
+						}else if(time > this.view.endTime) {
+							this.view.center(time + this.view.length/2);
+						}
+						this.render();
+						this.emit(new Timeline.Event('trackseekeron'));
+					}else{
+						this.emit(new Timeline.Event('trackseekeroff'));
+					}
 					return val;
 				}
 			},
@@ -322,6 +336,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			this.on('jump',function(e){ media.currentTime = e.time; });
 		}
 
+		Timeline.bindKeys(this);
 		this.render();
 
 		function setlen(){ that.length = media.duration; }
@@ -357,6 +372,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 	Object.defineProperties(Proto,{
 		trackNames: {get: function(){ return Object.keys(this.trackIndices); }, enumerable: true }
 	});
+
+	// Keybinding stub
+	Timeline.bindKeys = function(){};
 
 	// Sizing
 	Proto.trackHeight = 50;
@@ -995,7 +1013,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			right = tl.view.timeToPixel(tl.repeatB),
 			ctx = tl.ctx;
 		ctx.save();
-		ctx.fillStyle = tl.colors[tl.abRepeatOn?'abRepeat':'abRepeatLight'];
+		ctx.fillStyle = tl.colors[tl.abRepeatEnabled?'abRepeat':'abRepeatLight'];
 		ctx.fillRect(left, 0, right-left, tl.height);
 		ctx.restore();
 	}
@@ -1023,7 +1041,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 			if(right >= 0 || left <= this.width){
 				ctx = this.ctx;
 				ctx.save();
-				ctx.fillStyle = this.colors[this.abRepeatOn?'abRepeat':'abRepeatLight'];
+				ctx.fillStyle = this.colors[this.abRepeatEnabled?'abRepeat':'abRepeatLight'];
 				ctx.fillRect(left, top, right-left, height);
 				ctx.restore();
 			}
@@ -1111,6 +1129,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		currentTime: {
 			set: function(time){
 				var x, startTime, endTime, stable = false;
+				time = Math.min(Math.max(time, 0), this.length);
 				if(time === this.timeMarkerPos){ return time; }
 				if(this.abRepeatOn && time > this.repeatB) {
 					if(this.emit(new Timeline.Event('jump',{time:this.repeatA}))){
@@ -1182,9 +1201,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.repeatA = null;
 		this.repeatB = null;
 		this.abRepeatSetting = false;
-		//the setter takes care of re-rendering
-		if(this.abRepeatOn){ this.abRepeatOn = false; }
-		else{ this.render(); }
+		this.render();
 		this.emit(new Timeline.Event('abrepeatunset'));
 	};
 
@@ -1193,8 +1210,9 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.repeatB = Math.max(start,end);
 		this.abRepeatSetting = false;
 		//the setter takes care of re-rendering
-		if(!this.abRepeatOn){ this.abRepeatOn = true; }
-		else{ this.render(); }
+		if(!this.abRepeatEnabled && this.abRepeatSet){
+			this.abRepeatEnabled = true;
+		}else{ this.render(); }
 		this.emit(new Timeline.Event("abrepeatset"));
 	};
 
@@ -1400,7 +1418,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 		if(ev.button > 0 || !this.mouseDown){ return; }
 		if(this.currentTool === Timeline.REPEAT){
 			this.abRepeatSetting = false;
-			this.abRepeatOn = (this.repeatA !== this.repeatB);
+			this.abRepeatEnabled = this.abRepeatEnabled || this.abRepeatSet;
 		}
 		mouseInactive.call(this,{x: ev.offsetX || ev.layerX, y: ev.offsetY || ev.layerY});
 		ev.preventDefault();

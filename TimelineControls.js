@@ -320,15 +320,15 @@
 		var set, btn;
 		btn = parseNode('<button class="tl-btn" title="Enable Repeat"><i class="icon-circle-blank"></i></button>');
 		set = setupToggle(btn,'active',function(){
-			tl.abRepeatOn = true;
+			tl.abRepeatEnabled = true;
 			this.title = "Disable Repeat";
 			this.firstChild.className = "icon-circle";
 		},function(){
-			tl.abRepeatOn = false;
+			tl.abRepeatEnabled = false;
 			this.title = "Enable Repeat";
 			this.firstChild.className = "icon-circle-blank";
 		});
-		set(tl.abRepeatOn);
+		set(tl.abRepeatEnabled);
 		tl.on('abrepeatenabled',function(){ set(true); });
 		tl.on('abrepeatdisabled',function(){ set(false); });
 		return btn;
