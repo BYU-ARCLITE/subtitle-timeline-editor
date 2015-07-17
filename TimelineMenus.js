@@ -191,6 +191,12 @@
 				{name:"Delete Selected",
 					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0; },
 					action:function(){ this.track.deleteSelected(); }},
+				{name:"Start Selected at Current Time",
+					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0; },
+					action:function(){ this.track.startSelected(this.timeline.currentTime); }},
+				{name:"End Selected at Current Time",
+					condition:function(pos,vars){ return !this.track.locked && vars.numSelected > 0; },
+					action:function(){ this.track.endSelected(this.timeline.currentTime); }},
 				{name:"Clone",
 					condition:function(){return !!this.timeline.canGetFor('newtrack',['name']); },
 					submenu:[
@@ -275,6 +281,39 @@
 					action:function(){ this.segment.mergeWithSelected(); }},
 				{name:"Copy", action:function(){ this.segment.copy(); }},
 				{name:"Delete", action:function(){ this.segment.del(); }},
+				{name:"Extend to Current Time",
+					condition:function(pos){
+						var ctime = this.timeline.currentTime,
+							seg = this.segment;
+						return  ctime < seg.startTime ||
+								ctime > seg.endTime;
+					},
+					action:function(pos){
+						var ctime = this.timeline.currentTime,
+							seg = this.segment;
+						if(seg.startTime > ctime){ seg.move(ctime,seg.endTime); }
+						else{ seg.move(seg.startTime,ctime); }
+					}},
+				{name:"Move Start to Current Time",
+					condition:function(pos){
+						var ctime = this.timeline.currentTime,
+							seg = this.segment;
+						return  ctime > seg.startTime &&
+								ctime < seg.endTime;
+					},
+					action:function(pos){
+						this.segment.move(this.timeline.currentTime, this.segment.endTime);
+					}},
+				{name:"Move End to Current Time",
+					condition:function(pos){
+						var ctime = this.timeline.currentTime,
+							seg = this.segment;
+						return  ctime > seg.startTime &&
+								ctime < seg.endTime;
+					},
+					action:function(pos){
+						this.segment.move(this.segment.startTime, this.timeline.currentTime);
+					}},
 				{name:"Match Repeat",
 					condition:function(pos){ return this.timeline.abRepeatSet; },
 					action:function(pos){
@@ -331,7 +370,21 @@
 			{name:"Set Repeat Point",action:function(pos){
 				(this.timeline.abRepeatSet?updateABPoints:resetABPoints).call(this.timeline,pos);
 			}}
-		]}
+		]},
+		{name:"Merge Selected",
+			condition:function(pos){ return this.timeline.selectedSegments.length > 0; },
+			action:function(){
+				this.timeline.tracks.forEach(function(track){
+					if(!track.locked){ track.mergeSelected(); }
+				});
+			}},
+		{name:"Delete Selected",
+			condition:function(pos){ return this.timeline.selectedSegments.length > 0; },
+			action:function(){
+				this.timeline.tracks.forEach(function(track){
+					if(!track.locked){ track.deleteSelected(); }
+				});
+			}}
 	];
 	
 }(Timeline,window));

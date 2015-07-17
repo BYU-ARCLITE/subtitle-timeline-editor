@@ -635,6 +635,59 @@
 			merge.call(this,selected);
 		};
 
+		//TODO: Handle packed tracks correctly
+		function moveBoundaries(selected,time,bound,event){
+			var tl = this.tl,
+				oldTimes = selected.map(function(seg){ return seg[bound]; }),
+				newTimes = selected.map(function(_){ return time; });
+
+			function setBoundaries(times){
+				var activechange = false;
+				selected.forEach(function(seg,i){
+					var active = seg.active;
+					seg[bound] = times[i];
+					activechange = activechange || (active !== seg.active);
+					tl.emit(new Timeline.Event(event, {segment: seg}));
+				});
+				if(activechange){
+					this.textTrack.activeCues.refreshCues();
+					tl.emit(new Timeline.Event('activechange'));
+				}
+				tl.renderTrack(this);
+			}
+
+			tl.commandStack.push({
+				file: this.textTrack.label,
+				context: this,
+				redo: setBoundaries.bind(this, newTimes),
+				undo: setBoundaries.bind(this, oldTimes)
+			});
+
+			setBoundaries.call(this, newTimes);
+		}
+
+		TProto.startSelected = function(time){
+			var selected, that = this;
+			selected = this.tl.selectedSegments.filter(function(seg){
+				return seg.track === that &&
+						seg.startTime !== time &&
+						seg.endTime > time;
+			});
+			if(selected.length === 0){ return; }
+			moveBoundaries.call(this,selected,time,"startTime","resizel");
+		};
+
+		TProto.endSelected = function(time){
+			var selected, that = this;
+			selected = this.tl.selectedSegments.filter(function(seg){
+				return seg.track === that &&
+						seg.startTime < time &&
+						seg.endTime !== time;
+			});
+			if(selected.length === 0){ return; }
+			moveBoundaries.call(this,selected,time,"endTime","resizer");
+		};
+
 		TProto.copySelected = function(){
 			var that = this,
 				tl = this.tl,
@@ -1100,12 +1153,22 @@
 		}
 
 		function moveGenerator(start,end){
+			//TODO: Handle packed tracks correctly
 			return function(){
-				var active = this.active;
+				var active = this.active,
+					event;
+				if(this.startTime === start){
+					if(this.endTime === end){ return; }
+					else{ event = "resizer"; }
+				}else if(this.endTime === end){
+					event = "resizel";
+				}else{
+					event = "move";
+				}
 				this.startTime = start;
 				this.endTime = end;
 				this.track.segments.sort(order);
-				this.tl.emit(new Timeline.Event('move',{segment:this}));
+				this.tl.emit(new Timeline.Event(event,{segment:this}));
 				if(this.active !== active){
 					this.track.textTrack.activeCues.refreshCues();
 					this.tl.emit(new Timeline.Event('activechange'));
