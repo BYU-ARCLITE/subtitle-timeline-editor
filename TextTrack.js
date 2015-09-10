@@ -439,10 +439,8 @@
 
 			tl.emit(new Timeline.Event('addcue',{cue:cue,segment:seg}));
 			tl.emit(new Timeline.Event('create',{segments:[seg]}));
-			if(seg.active){
-				this.textTrack.activeCues.refreshCues();
-				tl.emit(new Timeline.Event('activechange'));
-			}
+			if(seg.active){ tl.emit(new Timeline.Event('activechange')); }
+
 			tl.renderTrack(this);
 			return seg;
 		}
