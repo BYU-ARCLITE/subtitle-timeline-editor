@@ -12,7 +12,8 @@ var CaptionEditor = (function(){
 	function CaptionEditor(params){
 		if(!(this instanceof CaptionEditor)){ return new CaptionEditor(params); }
 		var timeline = params.timeline instanceof Timeline ? params.timeline : null;
-		this.renderer = params.renderer instanceof TimedText.CaptionRenderer ? params.renderer : null;
+		this.refreshLayout = typeof params.refresh === "function" ? params.refresh : function(){};
+		this.rebuildCaptions = typeof params.rebuild === "function" ? params.rebuild : function(){};
 		this.timeline = timeline;
 		this.commandStack = timeline ? timeline.commandStack :
 							params.stack instanceof EditorWidgets.CommandStack ? params.stack :
@@ -20,12 +21,12 @@ var CaptionEditor = (function(){
 	}
 
 	CaptionEditor.prototype.refresh = function(cue){
-		if(this.renderer && cue.active){ this.renderer.refreshLayout(); }
+		if(cue.active){ this.refreshLayout(); }
 		if(this.timeline && this.timeline.spanInView(cue.startTime, cue.endTime)){ this.timeline.render(); }
 	};
 
 	CaptionEditor.prototype.rebuild = function(cue){
-		if(this.renderer && cue.active){ this.renderer.rebuildCaptions(); }
+		if(cue.active){ this.rebuildCaptions(); }
 		if(this.timeline && this.timeline.spanInView(cue.startTime, cue.endTime)){ this.timeline.render(); }
 	};
 
