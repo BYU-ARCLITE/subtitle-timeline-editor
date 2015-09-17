@@ -247,7 +247,7 @@ var CaptionEditor = (function(){
 		renderedCue.addFinalizer(fn);
 	}
 
-	CaptionEditor.prototype.make = function(renderedCue,area,defRender){
+	CaptionEditor.prototype.make = function(renderedCue, defRender){
 		if(renderedCue.editable){
 			if(renderedCue.done){
 				if(!renderedCue.dirty){ return; }
