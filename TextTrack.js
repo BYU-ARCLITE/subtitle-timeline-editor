@@ -1669,8 +1669,10 @@
 		};
 
 		PProto.mouseUp = function(pos){
-			this.startx = Math.min(this.startx, pos.x);
-			this.endx = Math.max(this.startx, pos.x);
+			var startx = Math.min(this.startx, this.endx, pos.x),
+				endx = Math.max(this.startx, this.endx, pos.x);
+			this.startx = startx;
+			this.endx = endx;
 			this.track.resolvePlaceholder();
 		};
 	}(Placeholder.prototype));
