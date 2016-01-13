@@ -48,7 +48,6 @@ var CaptionEditor = (function(){
 		}
 
 		cue.text = newtext;
-		renderedCue.updateContent();
 		this.refresh(cue); //refresh, don't rebuild, 'cause we'd lose the cursor context
 		this.timeline.emit(new Timeline.Event('cuechange',{cue:this,fields:['text']}));
 	}
