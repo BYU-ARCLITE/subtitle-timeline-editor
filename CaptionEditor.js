@@ -89,12 +89,6 @@ var CaptionEditor = (function(){
 	function editorKeyDown(editor,e){
 		switch(e.keyCode){
 
-		case 13: //enter key, which must be dealt with safely for contenteditable does terrible default things
-			e.preventDefault();
-			replaceSelectionWith(document.createElement('br'));
-			editorInput.call(editor,this);
-			break;
-
 		/*	Some browsers do the right thing with these keys
 			by default. Others don't. Preventing default and
 			doing it manually smooths out the differences.	*/
