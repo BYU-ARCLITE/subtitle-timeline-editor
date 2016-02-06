@@ -422,7 +422,7 @@
 							ntt.addCue(ncue);
 							tltt.segments.push(seg);
 							tltt.segments.sort(order);
-							tl.renderTrack(tltt);
+							if(seg.visible){ tl.renderTrack(tltt); }
 						});
 				})).then(function(){
 					ntt.readyState = TextTrack.LOADED;
