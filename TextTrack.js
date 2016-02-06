@@ -416,16 +416,17 @@
 					return Promise
 						.resolve(filter(cue, ott, ntt, mime))
 						.then(function(txt){
-							return new cueType(cue.startTime,cue.endTime,txt);
+							var ncue = new cueType(cue.startTime,cue.endTime,txt),
+								seg = new Segment(tltt, ncue);
+
+							ntt.addCue(ncue);
+							tltt.segments.push(seg);
+							tltt.segments.sort(order);
+							tl.renderTrack(tltt);
 						});
-				})).then(function(cues){
-					ntt.cues.loadCues(cues);
+				})).then(function(){
 					ntt.readyState = TextTrack.LOADED;
 					ntt.mode = "showing";
-					tltt.segments = cues.map(function(cue){
-						return new Segment(tltt, cue);
-					});
-					tl.render();
 				});
 			}else{
 				ntt.cues.loadCues(ott.cues.map(
