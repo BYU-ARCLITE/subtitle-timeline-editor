@@ -497,7 +497,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 	Proto.addMenuItem = function(path,config){ //label, action, condition, calc, index
 		var optname, idx, opt,
-			sequence = path.split('.'),
+			sequence =	(path instanceof Array)?path.slice():
+						(typeof path === 'string')?path.split('.'):[],
 			submenu = this.menuOptions;
 
 		if(typeof config !== 'object'){ config = {}; }
@@ -703,18 +704,12 @@ var Timeline = (function(TimedText,EditorWidgets){
 		}
 	};
 
-	Proto.cloneTimeCodes = function(tid, kind, lang, name, mime, overwrite) {
+	Proto.cloneTrack = function(tid, args, filter, overwrite) {
 		if(!overwrite && this.trackIndices.hasOwnProperty(name)){
 			throw new Error("Track name already in use.");
 		}
-		addTlTextTrack.call(this, resolveTrack(this, tid).cloneTimeCodes(kind, lang, name, mime));
-	};
-
-	Proto.cloneTrack = function(tid, kind, lang, name, mime, overwrite) {
-		if(!overwrite && this.trackIndices.hasOwnProperty(name)){
-			throw new Error("Track name already in use.");
-		}
-		addTlTextTrack.call(this, resolveTrack(this, tid).cloneTrack(kind, lang, name, mime));
+		addTlTextTrack.call(this, resolveTrack(this, tid)
+			.cloneTrack(args, filter));
 	};
 
 	function undoAlterTextTrack(tid, kind, lang, name, overwrite){

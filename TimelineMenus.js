@@ -213,7 +213,17 @@
 										overwrite: false
 									}
 								).then(function(values){
-									tl.cloneTrack(tid, values[0], values[1], values[2], values[3], values[4]);
+									tl.cloneTrack(
+										tid,
+										{
+											kind: values[0],
+											lang: values[1],
+											name: values[2],
+											mime: values[3]
+										},
+										null,	
+										values[4]
+									);
 								});
 							}},
 						{name:"Clone Timecodes",
@@ -229,7 +239,17 @@
 										overwrite: false
 									}
 								).then(function(values){
-									tl.cloneTimeCodes(tid, values[0], values[1], values[2], values[3], values[4]);
+									tl.cloneTrack(
+										tid,
+										{
+											kind: values[0],
+											lang: values[1],
+											name: values[2],
+											mime: values[3]
+										},
+										function(){ return ""; },	
+										values[4]
+									);
 								});
 							}}
 					]},

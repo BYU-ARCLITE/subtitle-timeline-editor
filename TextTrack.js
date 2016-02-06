@@ -400,30 +400,44 @@
 			}
 		});
 
-		TProto.cloneTimeCodes = function(kind,lang,name,mime){
-			var tl = this.tl,
-				ntt = new TextTrack(kind||this.kind,name,lang||this.language),
-				cueType = mime?TimedText.getTypeInfo(mime).cueType:this.cueType;
-			ntt.cues.loadCues(this.textTrack.cues.map(function(cue){
-				return new cueType(cue.startTime,cue.endTime,"");
-			}));
-			ntt.readyState = TextTrack.LOADED;
-			ntt.mode = "showing";
-			tl.trackCache.set(ntt,{mime:mime, location: void 0});
-			return new TlTextTrack(tl,ntt,mime||this.mime);
-		};
+		TProto.cloneTrack = function(args, filter){
+			var tl = this.tl, cueType, tltt,
+				mime = args.mime||this.mime,
+				ott = this.textTrack,
+				ntt = new TextTrack(
+					args.kind||this.kind,
+					args.name||"Untitled",
+					args.lang||this.language
+				);
 
-		TProto.cloneTrack = function(kind,lang,name,mime){
-			var tl = this.tl,
-				ntt = new TextTrack(kind||this.kind,name,lang||this.language);
-			if(!mime){ mime = this.mime; }
-			ntt.cues.loadCues(this.textTrack.cues.map(
-				TimedText.getCueConverter(this.mime, mime)
-			));
-			ntt.readyState = TextTrack.LOADED;
-			ntt.mode = "showing";
+			if(typeof filter === 'function'){
+				cueType = TimedText.getTypeInfo(mime).cueType;
+				Promise.all(ott.cues.map(function(cue){
+					return Promise
+						.resolve(filter(cue, ott, ntt, mime))
+						.then(function(txt){
+							return new cueType(cue.startTime,cue.endTime,txt);
+						});
+				})).then(function(cues){
+					ntt.cues.loadCues(cues);
+					ntt.readyState = TextTrack.LOADED;
+					ntt.mode = "showing";
+					tltt.segments = cues.map(function(cue){
+						return new Segment(tltt, cue);
+					});
+					tl.render();
+				});
+			}else{
+				ntt.cues.loadCues(ott.cues.map(
+					TimedText.getCueConverter(this.mime, mime)
+				));
+				ntt.readyState = TextTrack.LOADED;
+				ntt.mode = "showing";
+			}
+
 			tl.trackCache.set(ntt,{mime:mime, location: void 0});
-			return new TlTextTrack(tl,ntt,mime);
+			tltt = new TlTextTrack(tl,ntt,mime);
+			return tltt;
 		};
 
 		function cue2seg(cue, select){
