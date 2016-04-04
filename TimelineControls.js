@@ -270,7 +270,7 @@
 					overwrite: false
 				}
 			).then(function(values){
-				values[5](tl.loadTextTrack.apply(tl,values));
+				values[6](tl.loadTextTrack.apply(tl,values));
 			});
 		});
 		return btn;
