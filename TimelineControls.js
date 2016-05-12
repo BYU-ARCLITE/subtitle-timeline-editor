@@ -430,14 +430,14 @@
 
 	function ToolBtns(tl){
 		var rgroup = makeRadioGroup([
-				{title:"Select Tool",icon:"icon-ok",value:Timeline.SELECT},
-				{title:"Add Cue Tool",icon:"icon-plus",value:Timeline.CREATE},
-				{title:"Move Tool",icon:"icon-move",value:Timeline.MOVE},
-				{title:"Time Shift Tool",icon:"icon-resize-horizontal",value:Timeline.SHIFT},
-				{title:"Split Tool",icon:"icon-cut",value:Timeline.SPLIT},
-				{title:"Delete Tool",icon:"icon-trash",value:Timeline.DELETE},
-				{title:"Set Repeat Tool",icon:"icon-refresh",value:Timeline.REPEAT},
-				{title:"Reorder Tool",icon:"icon-random",value:Timeline.ORDER},
+				{title:"Select Tool (S)",icon:"icon-ok",value:Timeline.SELECT},
+				{title:"Add Cue Tool (A)",icon:"icon-plus",value:Timeline.CREATE},
+				{title:"Move Tool (M)",icon:"icon-move",value:Timeline.MOVE},
+				{title:"Time Shift Tool (F)",icon:"icon-resize-horizontal",value:Timeline.SHIFT},
+				{title:"Split Tool (Q)",icon:"icon-cut",value:Timeline.SPLIT},
+				{title:"Delete Tool (E)",icon:"icon-trash",value:Timeline.DELETE},
+				{title:"Set Repeat Tool (R)",icon:"icon-refresh",value:Timeline.REPEAT},
+				{title:"Reorder Tool (O)",icon:"icon-random",value:Timeline.ORDER},
 			],'active',function(tool){
 			return parseNode('<button class="tl-btn" title="'+tool.title+'"><i class="'+tool.icon+'"></i></button>');
 		},function(value){ tl.currentTool = value; });
