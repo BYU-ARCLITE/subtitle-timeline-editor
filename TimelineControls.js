@@ -435,7 +435,7 @@
 				{title:"Move Tool (M)",icon:"icon-move",value:Timeline.MOVE},
 				{title:"Time Shift Tool (F)",icon:"icon-resize-horizontal",value:Timeline.SHIFT},
 				{title:"Split Tool (Q)",icon:"icon-cut",value:Timeline.SPLIT},
-				{title:"Delete Tool (E)",icon:"icon-trash",value:Timeline.DELETE},
+				{title:"Delete Tool (D)",icon:"icon-trash",value:Timeline.DELETE},
 				{title:"Set Repeat Tool (R)",icon:"icon-refresh",value:Timeline.REPEAT},
 				{title:"Reorder Tool (O)",icon:"icon-random",value:Timeline.ORDER},
 			],'active',function(tool){
