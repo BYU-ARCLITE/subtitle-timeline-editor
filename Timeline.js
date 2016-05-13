@@ -295,7 +295,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 				that.activeMenu = null;
 			}
 		},false);
-
+		window.addEventListener("keyup", function(e){ 
+			if(e.keyCode == 27){
+				that.activeMenu.parentNode.removeChild(that.activeMenu);
+				that.activeMenu = null;
+			} 
+		}, false);
+		
 		this.overlay = overlay;
 		this.octx = overlay.getContext('2d');
 		overlay.width = width;
