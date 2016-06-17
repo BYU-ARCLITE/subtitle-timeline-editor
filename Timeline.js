@@ -54,6 +54,8 @@ var Timeline = (function(TimedText,EditorWidgets){
 			currentTool = (typeof params.tool === 'number')?params.tool:Timeline.SELECT,
 			trackMode = /showing|hidden|disabled|inherit/.test(params.trackMode)?params.trackMode:"inherit",
 			automove = !!params.automove,
+			autocueonbuffer = (typeof params.autoCueOnBuffer === "undefined")||!!params.autoCueOnBuffer,
+			autofillonbuffer = (typeof params.autoFillOnBuffer === "undefined")||!!params.autoFillOnBuffer,
 			abRepeatEnabled = false,
 			that = this;
 
@@ -216,6 +218,22 @@ var Timeline = (function(TimedText,EditorWidgets){
 					automove = val;
 					this.emit(new Timeline.Event(val?'automoveon':'automoveoff'));
 					return val;
+				}
+			},
+			autoCueOnBuffer: {
+				get: function(){ return autocueonbuffer; },
+				set: function(val){
+					autocueonbuffer = !!val;
+					this.emit(new Timeline.Event('autocueonbufferchange'));
+					return autocueonbuffer;
+				}
+			},
+			autoFillOnBuffer: {
+				get: function(){ return autocueonbuffer; },
+				set: function(val){
+					autofillonbuffer = !!val;
+					this.emit(new Timeline.Event('autofillonbufferchange'));
+					return autofillonbuffer;
 				}
 			},
 			autoCueRepeat: {
@@ -913,10 +931,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 	};
 
 	Proto.loadLineBuffer = function(tid,src){
-		var track = resolveTrack(this, tid);
+		var that = this,
+			track = resolveTrack(this, tid);
 		getLineBuffer(src).then(function(lines){
 			lines.reverse();
-			track.linebuffer = lines;
+			[].push.apply(track.linebuffer,lines);
+			if(that.autoCueOnBuffer){ track.autoCue = true; }
+			if(that.autoFillOnBuffer){ track.autoFill = true; }
 		});
 	};
 
