@@ -1730,7 +1730,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 						}
 						seg.selected = true;
 						tl.selectedSegments.push(seg);
-						tl.emit(new Timeline.Event('select', {segment: seg}));
+						tl.emit(new Timeline.Event('select', {segments: [seg]}));
 					});
 				});
 				tl.render();
