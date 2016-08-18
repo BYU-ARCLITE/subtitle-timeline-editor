@@ -1698,6 +1698,12 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 		this.menuClick = false;
 
+		// TODO: Add segment click events
+		tl.on('select', seg => {
+			console.log(seg)
+		})
+
+
 		tl.restore();
 		if(!this.dragged){
 			(function(){

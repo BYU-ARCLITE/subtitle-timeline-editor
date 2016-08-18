@@ -201,3 +201,26 @@
     min-width: 80px;
 }
 
+/* Event Track Editor */
+#eventTrackEditor{
+	z-index: 100;
+    position: fixed;
+    min-width: 300px;
+    right: 0;
+    top: 0;
+    background: white;
+    padding: 25px;
+    border-radius: 3px;
+    box-shadow: 0 0 15px black;
+}
+#eventTrackEditor ul li {list-style-type: none;}
+
+.leftCol{float: left; margin-right: 70px;}
+
+.editorRange{width: 125px;}
+
+input[type='checkbox']{margin: 0 2px 0 0 !important;}
+
+.editorLabel{display:inline;}
+
+#bottomSection{float: right;}
