@@ -1699,8 +1699,13 @@ var Timeline = (function(TimedText,EditorWidgets){
 		this.menuClick = false;
 
 		// TODO: Add segment click events
-		tl.on('select', seg => {
-			console.log(seg)
+		tl.on('select', function(selected){
+			document.getElementById('eventTrackEditor').style.display = 'inline-block';
+			var eventTrackEditor = new EventTrackEditor(selected.segments[0].cue);
+		})
+
+		tl.on('unselect', function(){
+			document.getElementById('eventTrackEditor').style.display = 'none';
 		})
 
 
@@ -1743,6 +1748,90 @@ var Timeline = (function(TimedText,EditorWidgets){
 			}());
 		}
 	};
+
+
+    // Event Track Editor
+    //  - Adding eventListeners to make changes to cues
+    
+    var EventTrackEditor = function(cue){
+    	// console.log(cue);
+
+        var pauseCheckbox = document.getElementById('pauseCheckbox'),
+            skipCheckbox = document.getElementById('skipCheckbox'),
+            muteCheckbox = document.getElementById('muteCheckbox'),
+            blankCheckbox = document.getElementById('blankCheckbox');
+
+
+            function setFromCue(){
+            	// TODO: Set editor element values to that of the cue or to null if value is not set
+            }
+
+        pauseCheckbox.addEventListener('click', function(){ (this.checked) ? addElementToCue(cue, "pause") : removeElementFromCue(cue, "pause"); })        
+        skipCheckbox.addEventListener('click', function(){ (this.checked) ? addElementToCue(cue, "skip") : removeElementFromCue(cue, "skip"); })        
+        muteCheckbox.addEventListener('click', function(){ (this.checked) ? addElementToCue(cue, "mute") : removeElementFromCue(cue, "mute"); })        
+        blankCheckbox.addEventListener('click', function(){ (this.checked) ? addElementToCue(cue, "blank") : removeElementFromCue(cue, "blank"); })        
+
+    	/*************************************************************************\
+			Adds the action to the given cue with the given key and value
+				-> Modifies the 'cue' parameter that it accepts
+    	\*************************************************************************/
+    	function addElementToCue(cue, key, value){
+    		cue.text = (cue.text.length < 1) ? 
+    					'{"enter":{"events":[{"name":"watched"}],"actions":[]}}' : 
+    					cue.text.slice('[AyamelEvent]'.length, cue.text.length);
+
+    		try{
+    			var newCue = JSON.parse(cue.text);
+    			var found = false;
+
+    			for(var i = 0; i < newCue.enter.actions.length; i++){
+    				if(newCue.enter.actions[i].type === key){
+    					found = true;
+    					break;
+    				}
+    			}
+
+    			if(!found){
+    				if(value === undefined){
+    					newCue.enter.actions.push({"type":key}) 
+    				}
+    				else{
+    					newCue.enter.actions.push({"type":key, "value": value.toString()}) 
+    				}
+    			}
+
+    			// Set the value of cue.text to the modified value
+    			cue.text = '[AyamelEvent]' + JSON.stringify(newCue);
+    		} 
+    		catch(e){ console.log(e); }
+    	}
+
+    	/*
+			Modifies the 'cue' parameter that it accepts
+				- Removes the action from the given cue
+    	*/
+    	/*************************************************************************\
+			Removes the action from the given cue
+				-> Modifies the 'cue' parameter that it accepts
+    	\*************************************************************************/
+    	function removeElementFromCue(cue, key){
+    		if(cue.text === ""){ return; }
+    		cue.text = cue.text.slice('[AyamelEvent]'.length, cue.text.length);
+    		try{
+    			// Create a new Cue object from the given 'cue' parameter (which is JSON)
+    			var newCue = JSON.parse(cue.text);
+
+    			// Filter out the given action
+    			newCue.enter.actions = newCue.enter.actions.filter(function(action){ return action.type !== key; })
+    			
+    			// Set the value of cue.text to the modified value
+    			cue.text = '[AyamelEvent]' + JSON.stringify(newCue);
+    		}
+    		catch(e) { console.log(e); }
+    	}
+    
+
+    }  // end EventTrackEditor
 
 	return Timeline;
 }(window.TimedText,window.EditorWidgets));

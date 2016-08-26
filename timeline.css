@@ -212,6 +212,7 @@
     padding: 25px;
     border-radius: 3px;
     box-shadow: 0 0 15px black;
+    display: none;
 }
 #eventTrackEditor ul li {list-style-type: none;}
 
