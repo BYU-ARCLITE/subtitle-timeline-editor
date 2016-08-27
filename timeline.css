@@ -214,7 +214,7 @@
     box-shadow: 0 0 15px black;
     display: none;
 }
-#eventTrackEditor ul li {list-style-type: none;}
+#eventTrackEditor ul li {list-style-type: none; }
 
 .leftCol{float: left; margin-right: 70px;}
 
@@ -224,4 +224,6 @@ input[type='checkbox']{margin: 0 2px 0 0 !important;}
 
 .editorLabel{display:inline;}
 
-#bottomSection{float: right;}
+#blurTextbox{ width: 30px;}
+
+#bottomSection ul li{margin-top: 3px;}
