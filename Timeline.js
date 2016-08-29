@@ -1750,7 +1750,7 @@ var Timeline = (function(TimedText,EditorWidgets){
 
 
     // Event Track Editor
-    //  - Adding eventListeners to make changes to cues
+    //  - Adding event listeners to make changes to cues
     
     var EventTrackEditor = function(cue){
     	// Create references for all editor tools

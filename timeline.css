@@ -205,7 +205,7 @@
 #eventTrackEditor{
 	z-index: 100;
     position: fixed;
-    min-width: 300px;
+    width: 300px;
     right: 0;
     top: 0;
     background: white;
