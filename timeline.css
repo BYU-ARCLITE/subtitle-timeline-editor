@@ -206,7 +206,7 @@
 	z-index: 100;
     position: fixed;
     width: 300px;
-    right: 0;
+    left: 0;
     top: 0;
     background: white;
     padding: 25px;
@@ -215,7 +215,7 @@
 }
 .eventTrackEditor ul li {list-style-type: none; }
 
-.leftCol{float: left; margin-right: 70px;}
+.topLeftCol, .bottomLeftCol{float: left; margin-right: 70px;}
 
 .editorRange{width: 125px;}
 
@@ -225,4 +225,12 @@ input[type='checkbox']{margin: 0 2px 0 0 !important;}
 
 #blurTextbox{ width: 30px;}
 
-#bottomSection ul li{margin-top: 3px;}
+.topSection{ border-bottom: 1px solid gainsboro; padding: 8px 0 0 0;}
+
+.bottomSection{ padding-top: 15px;}
+
+.bottomSection ul li{margin-top: 3px;}
+
+.bottomRightCol{ display: inline-block; margin-left: -5px;}
+
+.toolContainer{ border: 1px solid gainsboro; border-radius: 5px; }
