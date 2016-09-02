@@ -1283,6 +1283,15 @@
 			}
 		});
 
+		SProto.makeEventTrackEditor = function(cue, player){ 
+			this.editor = new EventTrackEditor(cue, player); 
+		};
+
+		SProto.destroyEventTrackEditor = function(){
+			this.editor.deleteDOMElements();
+			delete this.editor;
+		};
+
 		SProto.getCursor = function(pos){
 			if(typeof pos !== 'object'){ return; }
 			switch(this.tl.currentTool){

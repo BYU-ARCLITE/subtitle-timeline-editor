@@ -202,7 +202,7 @@
 }
 
 /* Event Track Editor */
-#eventTrackEditor{
+.eventTrackEditor{
 	z-index: 100;
     position: fixed;
     width: 300px;
@@ -212,9 +212,8 @@
     padding: 25px;
     border-radius: 3px;
     box-shadow: 0 0 15px black;
-    display: none;
 }
-#eventTrackEditor ul li {list-style-type: none; }
+.eventTrackEditor ul li {list-style-type: none; }
 
 .leftCol{float: left; margin-right: 70px;}
 
